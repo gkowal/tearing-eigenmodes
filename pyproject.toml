@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tearing-eigenmodes"
+version = "0.1.0"
+description = "Utilities for analyzing tearing instability eigenmodes"
+dependencies = [
+    "numpy",
+    "scipy",
+    "psecas"
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]

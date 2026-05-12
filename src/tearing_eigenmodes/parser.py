@@ -1,0 +1,612 @@
+from .exceptions import ParameterError
+from .solver import eos_indices
+
+import argparse
+import numpy as np
+
+from typing import Any
+
+
+def parser_setup(description: str = "Computes the tearing-instability growth rates for a given set of parameters.") -> argparse.ArgumentParser:
+    """
+    Build an ArgumentParser that contains every option used in both
+    eigenmodes-compute.py and eigenmodes-maximum.py.
+
+    The parser can be reused; after parsing you will get attributes for
+    all arguments, even those that are irrelevant to the particular
+    script.  The caller is responsible for ignoring the unused ones.
+    """
+    parser = argparse.ArgumentParser(description=description)
+
+    # ------------------------------------------------------------------
+    #   COMMON OPTIONS (used by *both* scripts)
+    # ------------------------------------------------------------------
+    parser.add_argument(
+        "--CGL", "-CGL",
+        action='store_true',
+        default=False,
+        help="Gyrotropic MHD"
+    )
+
+    parser.add_argument(
+        "--Lundquist-number", "-S",
+        type=float,
+        default=1e4,
+        help="the Lundquist number"
+    )
+
+    parser.add_argument(
+        "--Prandtl-number", "-Pr",
+        type=float,
+        default=0,
+        help="the Prandtl number"
+    )
+
+    parser.add_argument(
+        "--plasma-beta", "-β",
+        type=float,
+        default=0,
+        help="the perpendicular plasma-β"
+    )
+
+    parser.add_argument(
+        '--eos',
+        choices=['adiabatic', 'polytropic', 'isothermal', 'custom'],
+        default='adiabatic',
+        help=("Equation of state type. If 'custom' is selected, "
+              "'--gamma-parallel' and '--gamma-perpendicular' are required.")
+    )
+
+    parser.add_argument(
+        "--gamma-parallel", "-ɣpar",
+        type=float,
+        default=3,
+        help="the parallel adiabatic index"
+    )
+
+    parser.add_argument(
+        "--gamma-perpendicular", "-ɣper",
+        type=float,
+        default=2,
+        help="the perpendicular adiabatic index"
+    )
+
+    parser.add_argument(
+        "--plasma-beta-difference", "-Δβ",
+        type=float,
+        default=0,
+        help="the parallel to perpendicular plasma-β difference"
+    )
+
+    parser.add_argument(
+        "--magnetic-transverse-field", "-ξ",
+        type=float,
+        default=0,
+        help="the transverse magnetic strength"
+    )
+
+    # Hall option – different flag names in the two scripts
+    parser.add_argument(
+        "--Hall-parameter", "-ϵ",
+        type=float,
+        default=0,
+        help="the Hall current term strength"
+    )
+
+    parser.add_argument(
+        "--thickness", "-a",
+        type=float,
+        default=1,
+        help="the thickness of the current sheet"
+    )
+
+    parser.add_argument(
+        "--width", "-w",
+        type=float,
+        default=0,
+        help="the width of the current sheet"
+    )
+
+    parser.add_argument(
+        "--resolution-range", "-N",
+        type=int, nargs=3,
+        default=[64, 2048, 32],
+        help="range of grid resolutions followed by increment"
+    )
+
+    parser.add_argument(
+        "--inner-layer-thickness", "-δinner",
+        type=float,
+        default=None,
+        help=("The initial inner-layer thickness.")
+    )
+
+    parser.add_argument(
+        "--sigma",
+        type=float,
+        default=None,
+        help=("The initial guess for growth rate.")
+    )
+
+    parser.add_argument(
+        "--n-inner", "-nin",
+        type=int,
+        default=5,
+        help=("Minimum number of collocation points required to resolve "
+              "the smallest inner‑layer width.")
+    )
+
+    parser.add_argument(
+        "--l-inner", "-lin",
+        type=float,
+        default=0.1,
+        help=("The width required to be resolved with the minimum number "
+              "of collocation points.")
+    )
+
+    parser.add_argument(
+        "--amp-fraction-outer", "--f-outer",
+        type=float,
+        default=0.01,
+        help=("Fraction of the eigenmode amplitude that must be resolved "
+              "at the outermost collocation point z_max.  For example, "
+              "0.01 means the eigenmode amplitude should drop to 1%% of its "
+              "maximum at z_max (equivalent to q = -ln(0.01) ≈ 4.605).")
+    )
+
+    parser.add_argument(
+        "--scaling-factor", "-C",
+        type=float,
+        default=None,
+        help="the scaling factor for the grid"
+    )
+
+    parser.add_argument(
+        "--absolute-tolerance", "-atol",
+        type=float,
+        default=1e-10,
+        help="the absolute tolerance for the growth rate"
+    )
+
+    parser.add_argument(
+        "--relative-tolerance", "-rtol",
+        type=float,
+        default=1e-5,
+        help="the relative tolerance for the growth rate"
+    )
+
+    parser.add_argument(
+        "--guess-tolerance", "-gtol",
+        type=float,
+        default=1e-2,
+        help="the guess tolerance for switching to an iterative solver"
+    )
+
+    parser.add_argument(
+        "--thickness-tolerance", "-δtol",
+        type=float,
+        default=1e-3,
+        help="inner‑layer thickness estimation tolerance"
+    )
+
+    parser.add_argument(
+        "--growth-rate-range", "-E",
+        type=float, nargs=2,
+        default=[1e-6, 1],
+        help="range of growth rates to consider"
+    )
+
+    parser.add_argument(
+        "--imaginary-part-range", "-I",
+        type=float, nargs=2,
+        default=[-10.0, 10.0],
+        help="maximum magnitude of the eigenvalue's imaginary part"
+    )
+
+    parser.add_argument(
+        "--orderby", "-O",
+        choices=['amplitude', 'real', 'imaginary', 'tolerance', 'errors'],
+        default="real",
+        help=("ordering of wavenumber: magnitude/amplitude, real and "
+              "imaginary parts, or tolerance/errors")
+    )
+
+    parser.add_argument(
+        "--suffix", "-s",
+        default="",
+        help="the suffix added to the output file"
+    )
+
+    parser.add_argument(
+        "--force", "-f",
+        action='store_true',
+        default=False,
+        help="force recalculations even though eigenmodes are already stored in cache directory"
+    )
+
+    parser.add_argument(
+        "--allmodes", "-all",
+        action='store_true',
+        default=False,
+        help="return all possible modes up to maxmodes"
+    )
+
+    parser.add_argument(
+        "--no-shear",
+        action='store_true',
+        default=False,
+        help="no U shear"
+    )
+
+    parser.add_argument(
+        "--verbose", "-v",
+        action='store_true',
+        default=False,
+        help="be verbose"
+    )
+
+    # ------------------------------------------------------------------
+    return parser
+
+
+def build_parser(parser_type='dispersion'):
+    """
+    Construct and parse the command‑line interface for the tearing‑instability solver.
+
+    Returns
+    -------
+    argparse.Namespace
+        The validated arguments object.
+    """
+    if parser_type == 'dispersion':
+        description = "Computes the tearing‑instability dispersion relation for a given set of parameters."
+    elif parser_type == 'maximum':
+        description = "Computes the tearing-instability maximum eigenmodes for a given set of parameters."
+
+    # ------------------------------------------------------------------
+    # 1️⃣  Create a basic ArgumentParser instance (your helper handles
+    #     formatting, defaults, etc.).
+    parser = parser_setup(description=description)
+
+    # ------------------------------------------------------------------
+    # 2️⃣  Add all command‑line options that are relevant to this script.
+
+    if parser_type == 'dispersion':
+        parser.add_argument(
+            "--wavenumber-range", "-K",
+            type=float, nargs=3,
+            default=[0.0, 1.0, 0.01],
+            help="bounds and step size for the wavenumber"
+        )
+        parser.add_argument(
+            "--logarithmic", "-log",
+            action='store_true',
+            default=False,
+            help="wavenumber scale is logarithmic"
+        )
+        parser.add_argument(
+            "--mode", "-m",
+            type=int,
+            default=0,
+            help="the eigenmode number"
+        )
+    elif parser_type == 'maximum':
+        parser.add_argument(
+            "--dependence", "-d",
+            choices=['S', 'Pr', 'β', 'Δβ', 'ξ', 'ϵ', 'w', 'a'],
+            default='S',
+            help=("the dependence of the quantity to calculate: S, Pr, β, ξ, "
+                "ϵ, w, or a")
+        )
+        parser.add_argument(
+            "--range", "-R",
+            type=float, nargs=3,
+            default=[0, 1, 0.1],
+            help="the range of the dependent parameter to evaluate followed by the increment"
+        )
+        parser.add_argument(
+            "--logarithmic", "-log",
+            action='store_true',
+            default=False,
+            help="dependence scale is logarithmic"
+        )
+        parser.add_argument(
+            "--wavenumber-bracket", "-K",
+            type=float, nargs=2,
+            default=None,
+            help="the bracket for the wavenumber"
+        )
+        parser.add_argument(
+            "--wavenumber-tolerance", "-ktol",
+            type=float,
+            default=1e-3,
+            help="relative tolerance for the maximum wavenumber"
+        )
+        parser.add_argument(
+            "--modes", "-m",
+            type=int,
+            default=0,
+            help="the eigenmode number"
+        )
+
+    # ------------------------------------------------------------------
+    # 3️⃣  Parse the command line.
+    args = parser.parse_args()
+
+    # ------------------------------------------------------------------
+    # 4️⃣  Validate the resulting namespace.  Any problem will cause
+    #     ``parser.error`` to be invoked, which prints a message and exits.
+    try:
+        validate_parameters(args)
+    except ParameterError as exc:   # defined elsewhere in your codebase
+        parser.error(str(exc))
+
+    return args
+
+
+def build_params(parser_type='dispersion') -> dict:
+    """
+    Unified parameter builder for simulation arguments.
+    """
+    args = build_parser(parser_type=parser_type)
+
+    # 1. Handle EOS calculation
+    # We pass the user-provided gammas to the index calculator
+    # to handle the 'custom' EOS case correctly.
+    params_eos = {
+        'eos': args.eos,
+        'gamma_parallel': args.gamma_parallel,
+        'gamma_perpendicular': args.gamma_perpendicular
+    }
+    if args.eos in [ 'isothermal', 'adiabatic', 'polytropic' ]:
+        parallel_index, perpendicular_index = eos_indices(args.eos)
+    else:
+        parallel_index = args.gamma_parallel
+        perpendicular_index = args.gamma_perpendicular
+
+    # 2. Map internal keys to args attributes
+    params = {
+        'data_path'             : None,
+        'Nmin'                  : args.resolution_range[0],
+        'Nmax'                  : args.resolution_range[1],
+        'Ninc'                  : args.resolution_range[2],
+        'n_inner'               : args.n_inner,
+        'l_inner'               : args.l_inner,
+        'f_outer'               : args.amp_fraction_outer,
+        'decay_efolds'          : -np.log(args.amp_fraction_outer),
+        'CGL'                   : args.CGL,
+        'C'                     : args.scaling_factor,
+        'delta'                 : args.inner_layer_thickness,
+        'alpha'                 : None,
+        'sigma'                 : args.sigma,
+        'sigma_lower'           : args.growth_rate_range[0],
+        'sigma_upper'           : args.growth_rate_range[1],
+        'sigma_imag_lower'      : args.imaginary_part_range[0],
+        'sigma_imag_upper'      : args.imaginary_part_range[1],
+        'orderby'               : args.orderby,
+        'atol'                  : args.absolute_tolerance,
+        'rtol'                  : args.relative_tolerance,
+        'gtol'                  : args.guess_tolerance,
+        'dtol'                  : args.thickness_tolerance,
+        'ntasks'                : 1,
+        'allmodes'              : args.allmodes,
+        'suffix'                : args.suffix,
+        'parallel_index'        : parallel_index,
+        'perpendicular_index'   : perpendicular_index,
+        'logarithmic'           : args.logarithmic,
+        'noshear'               : args.no_shear,
+        'force'                 : args.force,
+        'verbose'               : args.verbose,
+        **params_eos  # Include the raw EOS and gamma values in the dict
+    }
+
+    # 3. Handle 'mode' vs 'modes' naming discrepancy
+    params['mode'] = getattr(args, 'mode', getattr(args, 'modes', None))
+
+    # 4. Handle Conditional Dependence Logic
+    dep = getattr(args, 'dependence', None)
+    params['dependence'] = dep
+
+    # Mapping for the "None if dependence == X" logic
+    # Added 'Δβ' and ensured internal key naming consistency
+    dep_map = {
+        'a':  ('thickness', 'a'),
+        'w':  ('width', 'w'),
+        'S':  ('Lundquist_number', 'S'),
+        'Pr': ('Prandtl_number', 'Pr'),
+        'ξ':  ('magnetic_transverse_field', 'xi'),
+        'ϵ':  ('Hall_parameter', 'Hall'),
+        'β':  ('plasma_beta', 'plasma_beta'),
+        'Δβ': ('plasma_beta_difference', 'plasma_beta_difference')
+    }
+
+    for symbol, (arg_attr, param_key) in dep_map.items():
+        val = getattr(args, arg_attr, None)
+        # If the current parameter is the independent variable (dependence),
+        # we set its value to None in the params dict as it is being swept.
+        params[param_key] = None if dep == symbol else val
+
+    # 5. Handle Divergent Range Logic (Wavenumber vs Generic Sweep Range)
+    if hasattr(args, 'wavenumber_range'):
+        # Ensure kmin is at least one step size if not logarithmic to avoid k=0 issues
+        params['kmin'] = args.wavenumber_range[0] if args.logarithmic else max(args.wavenumber_range[0], args.wavenumber_range[2])
+        params['kmax'] = args.wavenumber_range[1]
+        params['kinc'] = args.wavenumber_range[2]
+
+    if hasattr(args, 'range'):
+        params['vmin'] = args.range[0]
+        params['vmax'] = args.range[1]
+        params['vinc'] = args.range[2]
+
+    # 6. Add specific optional solver tolerances
+    if hasattr(args, 'wavenumber_tolerance'):
+        params['ktol'] = args.wavenumber_tolerance
+
+    if hasattr(args, 'wavenumber_bracket'):
+        params['kbracket'] = args.wavenumber_bracket
+
+    return params
+
+
+def _check_positive_tol(name: str, value: float) -> None:
+    """
+    Helper that raises :class:`ParameterError` if *value* is not strictly positive.
+
+    Parameters
+    ----------
+    name :
+        Human‑readable name of the tolerance (e.g. ``"absolute tolerance"``
+        or ``"relative tolerance"``).
+    value :
+        The numeric value supplied by the user.
+    """
+    if value <= 0.0:
+        raise ParameterError(
+            f"{name} ({value:.3g}) must be > 0"
+        )
+
+
+def validate_parameters(args: argparse.Namespace) -> None:
+    """
+    Validate all command‑line arguments produced by :func:`parser_setup`.
+
+    The function mutates *args* only if it finds a problem – otherwise
+    it simply returns.  Any violation raises :class:`ParameterError`
+    with an explanatory message that is suitable for printing to stderr.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Namespace returned by ``parser.parse_args()``.
+    """
+    # ------------------------------------------------------------------
+    # 1) Basic physical bounds
+    # ------------------------------------------------------------------
+    if args.Lundquist_number <= 0:
+        raise ParameterError(
+            "Lundquist number (--Lundquist-number / -S) must be > 0"
+        )
+
+    if args.Prandtl_number < 0:
+        raise ParameterError(
+            "Prandtl number (--Prandtl-number / -Pr) cannot be negative"
+        )
+
+    if args.plasma_beta < 0:
+        raise ParameterError(
+            "Plasma‑β (--plasma-beta / -β) cannot be negative"
+        )
+
+    # ------------------------------------------------------------------
+    # 2) Plasma‑β consistency
+    #
+    # The two command‑line options describe a perpendicular β (β⊥)
+    # and the difference Δβ = β∥ – β⊥.  Therefore
+    #
+    #     β∥ = β⊥ + Δβ
+    #
+    # Physically the parallel plasma‑β must be non‑negative; a negative
+    # value would correspond to an unphysical pressure anisotropy.
+    # ------------------------------------------------------------------
+    if args.plasma_beta + args.plasma_beta_difference < 0:
+        raise ParameterError(
+            f"Parallel plasma‑β (β∥ = β⊥ + Δβ) must be ≥ 0 "
+            f"(got β⊥ = {args.plasma_beta:.3g}, Δβ = {args.plasma_beta_difference:.3g})"
+        )
+
+    # ------------------------------------------------------------------
+    # 3) Equation‑of‑state consistency
+    # ------------------------------------------------------------------
+    if args.eos == "custom":
+        # When custom EOS is requested, both gamma values must be supplied.
+        if not hasattr(args, "gamma_parallel") or not hasattr(args, "gamma_perpendicular"):
+            raise ParameterError(
+                "Both --gamma-parallel (-ɣpar) and "
+                "--gamma-perpendicular (-ɣper) must be provided when using the 'custom' EOS"
+            )
+    # For built‑in EOS choices we ignore any user‑supplied gamma.
+
+    # ------------------------------------------------------------------
+    # 4) Resolution range sanity
+    #
+    #   * The lower bound must not exceed the upper bound.
+    #   * The increment must be strictly positive.
+    #   * Additionally, the step size cannot exceed the lowest resolution
+    #     because that would mean we never actually hit the start value
+    #     (e.g. Nmin=32, Ninc=64 → no values are generated).
+    # ------------------------------------------------------------------
+    Nmin, Nmax, Ninc = args.resolution_range
+
+    if not (Nmin <= Nmax):
+        raise ParameterError(
+            f"Resolution range start ({Nmin}) must be ≤ end ({Nmax})."
+        )
+
+    if Ninc <= 0:
+        raise ParameterError("Resolution increment (--resolution-range / -N) must be positive")
+
+    if Ninc > Nmin:
+        raise ParameterError(
+            f"Resolution increment ({Ninc}) cannot exceed the minimum resolution "
+            f"({Nmin}). Use a smaller step or increase Nmin."
+        )
+
+    # ------------------------------------------------------------------
+    # 5) Tolerance sanity
+    # ------------------------------------------------------------------
+    _check_positive_tol("absolute tolerance", args.absolute_tolerance)
+    _check_positive_tol("relative tolerance", args.relative_tolerance)
+    _check_positive_tol("guess tolerance",     args.guess_tolerance)
+    _check_positive_tol("thickness tolerance", args.thickness_tolerance)
+
+    # ------------------------------------------------------------------
+    # 6) Growth‑rate bounds
+    # ------------------------------------------------------------------
+    gmin, gmax = args.growth_rate_range
+    if not (gmin <= gmax):
+        raise ParameterError(
+            f"Growth‑rate lower bound ({gmin}) must be ≤ upper bound ({gmax})."
+        )
+    if gmin < 0:
+        raise ParameterError("Growth‑rate lower bound cannot be negative")
+
+    # ------------------------------------------------------------------
+    # 7) Inner collocation points with corresponding width
+    # ------------------------------------------------------------------
+    if args.n_inner < 3:
+        raise ParameterError(
+            "Minimum number of inner collocation points (--n-inner / -nin) must be >= 3"
+        )
+    if args.l_inner < 1.0e-6:
+        raise ParameterError(
+            "The minimum width for the inner collocation points (--l-inner / -lin) must be >= 1.0e-6"
+        )
+
+    # ------------------------------------------------------------------
+    # 8) Hall parameter
+    # ------------------------------------------------------------------
+    if args.Hall_parameter < 0:
+        raise ParameterError("Hall parameter (--Hall-parameter / -ϵ) cannot be negative")
+
+    # ------------------------------------------------------------------
+    # 9) Thickness/width consistency
+    # ------------------------------------------------------------------
+    if args.thickness <= 0:
+        raise ParameterError(
+            "Thickness of the current sheet (--thickness / -a) must be > 0"
+        )
+    if args.width < 0:
+        raise ParameterError("Width of the current sheet (--width / -w) cannot be negative")
+
+    if args.inner_layer_thickness is not None and args.inner_layer_thickness <= 0:
+        raise ParameterError("Inner-layer thickness (--inner-layer-thickness / -δinner) cannot be negative")
+
+    # ------------------------------------------------------------------
+    # 10) Optional limits
+    # ------------------------------------------------------------------
+    if args.scaling_factor is not None and args.inner_layer_thickness is not None:
+        raise ParameterError(
+            "Both '--scaling_factor / -C' and '--inner_layer_thickness / -δinner' were provided. "
+            "Only one of these options may be set at a time."
+        )
+# If we reach this point everything passed.
