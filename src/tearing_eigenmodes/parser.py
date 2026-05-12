@@ -192,14 +192,14 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     )
 
     parser.add_argument(
-        "--growth-rate-range", "-E",
+        "--real-part-range", "-E",
         type=float, nargs=2,
         default=[1e-6, 1],
         help="range of growth rates to consider"
     )
 
     parser.add_argument(
-        "--imaginary-part-range", "-I",
+        "--imag-part-range", "-I",
         type=float, nargs=2,
         default=[-10.0, 10.0],
         help="maximum magnitude of the eigenvalue's imaginary part"
@@ -421,10 +421,10 @@ def build_params(parser_type='dispersion') -> dict:
         'delta'                 : args.inner_layer_thickness,
         'alpha'                 : None,
         'sigma'                 : args.sigma,
-        'sigma_lower'           : args.growth_rate_range[0],
-        'sigma_upper'           : args.growth_rate_range[1],
-        'sigma_imag_lower'      : args.imaginary_part_range[0],
-        'sigma_imag_upper'      : args.imaginary_part_range[1],
+        'sigma_lower'           : args.real_part_range[0],
+        'sigma_upper'           : args.real_part_range[1],
+        'sigma_imag_lower'      : args.imag_part_range[0],
+        'sigma_imag_upper'      : args.imag_part_range[1],
         'orderby'               : args.orderby,
         'atol'                  : args.absolute_tolerance,
         'rtol'                  : args.relative_tolerance,
@@ -604,7 +604,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
     # ------------------------------------------------------------------
     # 6) Growth‑rate bounds
     # ------------------------------------------------------------------
-    gmin, gmax = args.growth_rate_range
+    gmin, gmax = args.real_part_range
     if not (gmin <= gmax):
         raise ParameterError(
             f"Growth‑rate lower bound ({gmin}) must be ≤ upper bound ({gmax})."
