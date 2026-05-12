@@ -59,7 +59,8 @@ def print_info(params: dict) -> None:
     print_val("Scaling factor (C)", 'C')
 
     # --- Growth-rate / tolerance ---------------------------------------------
-    print(f"  {'Growth rate range':<34} =  [{params['sigma_real_lower']}, {params['sigma_real_upper']}]")
+    print(f"  {'Real part range':<34} =  [{params['sigma_real_lower']}, {params['sigma_real_upper']}]")
+    print(f"  {'Imaginary part range':<34} =  [{params['sigma_imag_lower']}, {params['sigma_imag_upper']}]")
     print_val("Imaginary amplitude limit", 'sigma_imag')
     print_val("Growth rate absolute tolerance", 'atol')
     print_val("Growth rate relative tolerance", 'rtol')

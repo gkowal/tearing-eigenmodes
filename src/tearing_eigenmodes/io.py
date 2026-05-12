@@ -539,7 +539,8 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
 
         io.write("# Geometry/convergence parameters:\n")
         io.write(f"#   {'Resolution range (N)':<36} =  [{params['Nmin']}, {params['Nmax']}] increment {params['Ninc']}\n")
-        io.write(f"#   {'Growth rate range':<36} =  [{params['sigma_real_lower']}, {params['sigma_real_upper']}]\n")
+        io.write(f"#   {'Real part range':<36} =  [{params['sigma_real_lower']}, {params['sigma_real_upper']}]\n")
+        io.write(f"#   {'Imaginary part range':<36} =  [{params['sigma_imag_lower']}, {params['sigma_imag_upper']}]\n")
 
         if params.get('sigma_imag') is not None:
             io.write(f"#   {'Imaginary amplitude limit':<36} =  {params['sigma_imag']:10.3e}\n")
