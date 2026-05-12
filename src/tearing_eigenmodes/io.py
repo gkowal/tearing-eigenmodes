@@ -49,6 +49,41 @@ def build_dpath(params: dict) -> str:
     return dpath + params['suffix']
 
 
+def load_config(file_path: str) -> dict:
+    """
+    Read a simple key-value configuration file.
+    Supports 'key = value' or 'key : value' formats.
+    Lines starting with '#' are ignored.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the configuration file.
+
+    Returns
+    -------
+    dict
+        Dictionary of key-value pairs as strings.
+    """
+    config = {}
+    if not os.path.exists(file_path):
+        return config
+
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.split('#', 1)[0].strip()
+            if not line:
+                continue
+            if '=' in line:
+                key, val = line.split('=', 1)
+            elif ':' in line:
+                key, val = line.split(':', 1)
+            else:
+                continue
+            config[key.strip()] = val.strip()
+    return config
+
+
 def load_eigenmodes(path: str, pattern: str = "*.npz", recalculate_thickness=False):
     """
     Load eigenmode data from .npz files using glob and os instead of pathlib.

@@ -1,7 +1,9 @@
 from .exceptions import ParameterError
 from .solver import eos_indices
+from .io import load_config
 
 import argparse
+import os
 import numpy as np
 
 from typing import Any
@@ -330,7 +332,47 @@ def build_parser(parser_type='dispersion'):
         )
 
     # ------------------------------------------------------------------
-    # 3️⃣  Parse the command line.
+    # 3️⃣  Check for local configuration file (params.cfg)
+    config_file = "params.cfg"
+    if os.path.exists(config_file):
+        config_data = load_config(config_file)
+        
+        # Build mapping from option names to action destinations
+        opt_to_dest = {action.dest: action.dest for action in parser._actions}
+        for action in parser._actions:
+            for opt in action.option_strings:
+                opt_to_dest[opt.lstrip('-')] = action.dest
+        
+        typed_config = {}
+        for key, val in config_data.items():
+            if key in opt_to_dest:
+                dest = opt_to_dest[key]
+                # Find the action associated with this destination
+                action = next(a for a in parser._actions if a.dest == dest)
+                
+                try:
+                    if action.nargs and action.nargs != 1:
+                        # Handle list-like arguments (e.g., 64 2048 32)
+                        parts = val.strip('[]()').replace(',', ' ').split()
+                        if action.type:
+                            typed_config[dest] = [action.type(p) for p in parts]
+                        else:
+                            typed_config[dest] = parts
+                    elif isinstance(action, argparse._StoreTrueAction):
+                        typed_config[dest] = val.lower() in ('true', 'yes', '1', 'on')
+                    elif isinstance(action, argparse._StoreFalseAction):
+                        typed_config[dest] = val.lower() in ('false', 'no', '0', 'off')
+                    elif action.type:
+                        typed_config[dest] = action.type(val)
+                    else:
+                        typed_config[dest] = val
+                except (ValueError, TypeError):
+                    continue
+        
+        parser.set_defaults(**typed_config)
+
+    # ------------------------------------------------------------------
+    # 4️⃣  Parse the command line.
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
