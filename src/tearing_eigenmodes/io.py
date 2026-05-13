@@ -218,6 +218,6 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
             if dep_key:
                 io.write(f"  {v[i]:15.8e}  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {l[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {n[i]:>6d}  {N[i]:>6d}\n")
             else:
-                io.write(f"  {α[i]:15.8e}  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {l[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {n[i]:>6d}  {N[i]:>6d}\n")
+                io.write(f"  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {l[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {n[i]:>6d}  {N[i]:>6d}\n")
 
         io.flush()
