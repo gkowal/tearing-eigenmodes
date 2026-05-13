@@ -1,5 +1,5 @@
 from .exceptions import ParameterError
-from .solver import eos_indices
+from .physics import eos_indices
 from .io import load_config
 
 import argparse

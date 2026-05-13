@@ -1,9 +1,12 @@
 from .exceptions import DeltaError, ConvergenceError, ParameterError
-from .grid import select_NC, inner_layer_thickness, find_peak_location
-from .io import build_dpath, load_config, load_eigenmodes, refine_growth_rate, refine_inner_scale, refine_thickness, refine_wavenumber_bracket, write_results
+from .grid import select_NC
+from .analysis import inner_layer_thickness, find_peak_location
+from .physics import eos_indices, estimate_max
+from .refinement import refine_growth_rate, refine_inner_scale, refine_thickness, refine_wavenumber_bracket
+from .io import build_dpath, load_config, load_eigenmodes, write_results
 from .parser import parser_setup, build_parser, build_params, validate_parameters
 from .printing import print_info
-from .solver import eos_indices, estimate_max, eigenmodes
+from .solver import eigenmodes
 
 __all__ = [
     "DeltaError", 
@@ -12,18 +15,19 @@ __all__ = [
     "select_NC", 
     "inner_layer_thickness", 
     "find_peak_location",
-    "build_dpath",
-    "load_config",
-    "load_eigenmodes",
+    "eos_indices",
+    "estimate_max",
+    "refine_growth_rate",
     "refine_inner_scale",
     "refine_thickness",
     "refine_wavenumber_bracket",
+    "build_dpath",
+    "load_config",
+    "load_eigenmodes",
     "parser_setup",
     "build_parser",
     "build_params",
     "validate_parameters",
-    "eos_indices",
-    "estimate_max",
     "eigenmodes",
     "write_results",
     "print_info",
