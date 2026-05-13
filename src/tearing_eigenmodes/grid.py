@@ -322,87 +322,6 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
     return δ, n
 
 
-def inner_layer_thickness_gpt(system, δtol=1e-3, maxiter=20):
-    """
-    Calculate the inner layer thickness δ for the tearing instability eigenmode.
-
-    Optimizations / robustness improvements:
-    - Precompute and reuse a fast barycentric interpolator (no per-iteration trig/weights).
-    - Use a safer termination criterion that does not misbehave if the bracket crosses 0.
-    - Keep the same overall logic (bracket on the local slice; interpolate Td at midpoints).
-    """
-    grid = system.grid
-    sol  = system.result
-
-    a = system.a
-    w = system.w
-    S = system.S
-    α = system.kx * a
-    B = system.Bx
-
-    u = sol['duz']
-    b = sol['dbz']
-
-    Ti = np.abs(1j * α * u * B)
-    Tn = np.abs(grid.derivative(b, 2) - α**2 * b) / S
-    Td = Tn - Ti
-
-    # Restrict search region
-    I   = np.where(np.abs(grid.zg) <= (w + 2 * a))
-    zin = grid.zg[I]
-    Tin = Td[I]
-
-    # Build interpolator once
-    fast_interp = make_fast_interpolator(grid)
-
-    # Check if Td changes sign in the interval
-    if Tin.min() <= 0.0 and Tin.max() >= 0.0:
-        # start from z at which Tin is maximum and search at which distance Td becomes negative
-        idx = Tin.argmax()
-        while Tin[idx] > 0.0 and idx < (Tin.size - 1):
-            idx += 1
-        idx -= 1
-
-        if idx < (Tin.size - 1):
-            # Endpoints of the bracket on the sliced arrays (these are grid points)
-            zl, zh = float(zin[idx]), float(zin[idx + 1])
-            tl, th = float(Tin[idx]), float(Tin[idx + 1])
-
-            # If bracket does not change sign, fall back to choosing the best of endpoints/midpoint
-            if tl * th > 0.0:
-                zm = 0.5 * (zl + zh)
-                tm = fast_interp(zm, Td)
-                best = min(((abs(tl), zl), (abs(tm), zm), (abs(th), zh)), key=lambda x: x[0])[1]
-                δ = float(best)
-            else:
-                it = 0
-                # Safer stopping criterion (avoids issues when zl and zh straddle 0)
-                while 2.0 * (zh - zl) > δtol * max(1.0, abs(zl) + abs(zh)) and it < maxiter:
-                    zm = 0.5 * (zl + zh)
-                    tm = fast_interp(zm, Td)
-
-                    if tm == 0.0:
-                        zl = zh = zm
-                        break
-
-                    if tl * tm > 0.0:
-                        zl, tl = zm, tm
-                    else:
-                        zh, th = zm, tm
-                    it += 1
-
-                δ = float(0.5 * (zl + zh))
-        else:
-            δ = 0.0
-    else:
-        # No region where Td >= 0: set δ to zero (no inner layer detected)
-        δ = 0.0
-
-    I = np.where(np.abs(grid.zg) <= δ)
-    n = I[0].size
-
-    return δ, n
-
 def find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1.0e-3, maxiter=50):
     """
     Find the closest positive peak location among u, b, and their first two derivatives.
@@ -456,8 +375,6 @@ def find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1.0e-3, maxiter=50):
 
             z_peak = max(candidates, key=lambda zz: -objective(zz))
 
-    # I = np.where(np.abs(grid.zg) <= z_peak)
-    # n = I[0].size
     I = np.where(np.abs(grid.zg) <= (w + a))
     n = I[0].size
     if w > 0:

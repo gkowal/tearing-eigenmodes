@@ -6,8 +6,6 @@ import argparse
 import os
 import numpy as np
 
-from typing import Any
-
 
 def parser_setup(description: str = "Computes the tearing-instability growth rates for a given set of parameters.") -> argparse.ArgumentParser:
     """

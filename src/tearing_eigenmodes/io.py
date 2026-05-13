@@ -116,10 +116,7 @@ def load_eigenmodes(path: str, pattern: str = "*.npz", recalculate_thickness=Fal
                 u = state['duz']
                 b = state['dbz']
                 lin, nin = find_peak_location(u, b, grid)
-            if recalculate_thickness:
-                dlt = state['inner_scale']
-            else:
-                dlt = state['inner_scale']
+            dlt = state['inner_scale']
 
             rows.append([
                 state['value'],
@@ -213,18 +210,6 @@ def refine_inner_scale(vs, params):
         return linner
 
     degree = min(3, v.size - 1)
-    # if params['logarithmic']:
-    #     spline = make_interp_spline(np.log10(v), l, k=degree)
-    #     linner = spline(np.log10(vs))
-    #     if linner.min() <= 0.0:
-    #         spline = make_interp_spline(np.log(v), l, k=0)
-    #         linner = spline(np.log10(vs))
-    # else:
-    #     spline = make_interp_spline(v, l, k=degree)
-    #     linner = spline(vs)
-    #     if linner.min() <= 0.0:
-    #         spline = make_interp_spline(v, l, k=0)
-    #         linner = spline(vs)
 
     spline = make_interp_spline(v, l, k=degree)
     linner = spline(vs)
@@ -256,18 +241,6 @@ def refine_growth_rate(vs, params):
         return sigma
 
     degree = min(3, v.size - 1)
-    # if params['logarithmic']:
-    #     spline = make_interp_spline(np.log10(v), σ.real, k=degree)
-    #     sigma = spline(np.log10(vs))
-    #     if sigma.min() <= 0.0:
-    #         spline = make_interp_spline(np.log(v), σ.real, k=0)
-    #         sigma = spline(np.log10(vs))
-    # else:
-    #     spline = make_interp_spline(v, σ.real, k=degree)
-    #     sigma = spline(vs)
-    #     if sigma.min() <= 0.0:
-    #         spline = make_interp_spline(v, σ.real, k=0)
-    #         sigma = spline(vs)
 
     spline = make_interp_spline(v, σ, k=degree)
     sigma = spline(vs)
@@ -299,18 +272,7 @@ def refine_thickness(vs, params):
         return δinner
 
     degree = min(3, v.size - 1)
-    # if params['logarithmic']:
-    #     spline = make_interp_spline(np.log10(v), δ, k=degree)
-    #     δinner = spline(np.log10(vs))
-    #     if δinner.min() <= 0.0:
-    #         spline = make_interp_spline(np.log(v), δ, k=0)
-    #         δinner = spline(np.log10(vs))
-    # else:
-    #     spline = make_interp_spline(v, δ, k=degree)
-    #     δinner = spline(vs)
-    #     if δinner.min() <= 0.0:
-    #         spline = make_interp_spline(v, δ, k=0)
-    #         δinner = spline(vs)
+
     spline = make_interp_spline(v, δ, k=degree)
     δinner = spline(vs)
     if δinner.min() <= 0.0:
@@ -401,90 +363,6 @@ def refine_wavenumber_bracket(vs, params):
             )
 
     return kbracket
-
-
-def refine_wavenumber_brackets_thickness(dpath, Rs, αbracket, δinner, args, log=False):
-    """Update wavenumber brackets using cached eigenmodes if available."""
-    import numpy as np
-    from scipy.interpolate import interp1d
-
-    try:
-        v, α, _, _, δ, _, *_ = load_eigenmodes(dpath)
-    except FileNotFoundError:
-        return αbracket, δinner
-
-    if v.size < 2:
-        return αbracket, δinner
-
-    print("\nImproved wavenumber bounds:")
-
-    def _alpha_at_last_leq(x):
-        idx = np.searchsorted(v, x, side="right") - 1
-        return α[idx] if idx >= 0 else None
-
-    def _alpha_at_first_geq(x):
-        idx = np.searchsorted(v, x, side="left")
-        return α[idx] if idx < v.size else None
-
-    # Determine interpolation kind based on points
-    if v.size >= 4:
-        kind = 'cubic'
-    elif v.size == 3:
-        kind = 'quadratic'
-    else:
-        kind = 'linear'
-
-    # Configure x-axis based on log setting
-    I = np.where(v > 0.0)
-    x_input = np.log10(v[I])  if log else v
-    x_eval  = np.log10(Rs) if log else Rs
-
-    # Initialize interpolator
-    # fill_value=(δ[0], δ[-1]) ensures the last available values are used outside the range
-    f = interp1d(x_input, δ, kind=kind, bounds_error=False, fill_value=(δ[0], δ[-1]))
-    δinner = f(x_eval)
-
-    # Fallback to nearest-neighbor (k=0) if negative values are encountered
-    if δinner.min() <= 1.0e-4:
-        f_fallback = interp1d(x_input, δ, kind='nearest', bounds_error=False, fill_value=(δ[0], δ[-1]))
-        δinner = f_fallback(x_eval)
-
-    vmn, vmx = v.min(), v.max()
-
-    for n, x in enumerate(Rs):
-        kl, ku = args.wavenumber_bracket or (None, None)
-
-        if vmn <= x <= vmx: # we can interpolate or determine bracket between already known points
-            αl = _alpha_at_last_leq(x)
-            αu = _alpha_at_first_geq(x)
-
-            if αl is not None and αu is not None:
-                if kl is None:
-                   kl = min(αl, αu)
-                else:
-                   kl = max(kl, min(αl, αu))
-                if ku is None:
-                   ku = max(αl, αu)
-                else:
-                   ku = min(ku, max(αl, αu))
-
-        if kl is None or ku is None:
-            αbracket[n] = None
-            continue
-
-        todo = not np.isclose(kl, ku)
-        if not todo:
-            kl *= max(0.5, 1.0 - 5.0 * args.wavenumber_tolerance)
-            ku *= min(1.5, 1.0 + 5.0 * args.wavenumber_tolerance)
-
-        αbracket[n] = [float(kl), float(ku)]
-        if todo or args.force:
-            print(
-                f"\t{args.dependence} = {x:+.3e}: "
-                f"α = {αbracket[n][0]:.4e} ... {αbracket[n][1]:.4e}"
-            )
-
-    return αbracket, δinner
 
 
 def write_results(params: Dict[str, Any], delta_time: float) -> None:
