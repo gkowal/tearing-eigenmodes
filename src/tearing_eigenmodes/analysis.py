@@ -107,9 +107,12 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
         δ = 0.0
 
     I = np.where(np.abs(grid.zg) <= δ)
-    n = I[0].size
+    nin = max(1, I[0].size)
 
-    return δ, n
+    I = np.where(np.abs(grid.zg) <= (w + a))
+    nwa = I[0].size
+
+    return δ, nin, nwa
 
 
 def find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1.0e-3, maxiter=50):

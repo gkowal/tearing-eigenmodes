@@ -95,11 +95,10 @@ def eigenmodes(params):
                      useOPinv=True, verbose=verbose)
         N = solver.grid.N
 
-        δin, nin = inner_layer_thickness(system, δtol=δtol)
-        l, nin = find_peak_location(system.result['duz'], system.result['dbz'], system.grid, a=a, w=w)
+        δin, nin, nwa = inner_layer_thickness(system, δtol=δtol)
 
         if allmodes:
-            return σ, v, e, δin, l, nin, C, N, system.grid.zg, True
+            return σ, v, e, δin, nwa, nin, C, N, system.grid.zg, True
 
         if np.isclose(σ, system.result['sigma']):
             σ = system.result['sigma']
@@ -115,10 +114,10 @@ def eigenmodes(params):
             s[key] = system.result[key]
 
         if verbose:
-            print(f'Calculation done for α = {α:.4e} with C = {C:.3e} ({nin} points over the interval |z| < δin):')
+            print(f'Calculation done for α = {α:.4e} with C = {C:.3e} ({nin} points over the interval |z| < δin, {nwa} points over |z| < w+a):')
             print(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
 
-        return σ, s, e, δin, l, nin, C, N, z, True
+        return σ, s, e, δin, nwa, nin, C, N, z, True
 
     except DeltaError as ex:
         if verbose:
