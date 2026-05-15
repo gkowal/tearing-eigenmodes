@@ -107,7 +107,7 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     c = np.array([x[7] for x in rows])
     N = np.array([x[8] for x in rows])
 
-    return v, α, σ, e, δ, nin, nwa, c, N
+    return v, α, σ, e, δ, c, nin, nwa, N
 
 
 def load_eig_scales(path: str, pattern: str = "*.npz"):
@@ -151,7 +151,7 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
         raise FileNotFoundError(f"Data path {dpath!r} does not exist")
 
     fname = f"{dpath}.dat"
-    v, α, σ, e, δ, nin, nwa, c, N = load_eigenmodes(dpath)
+    v, α, σ, e, δ, c, nin, nwa, N = load_eigenmodes(dpath)
 
     dep_key = params.get('dependence')
 
