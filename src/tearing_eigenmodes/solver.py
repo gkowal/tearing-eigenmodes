@@ -98,7 +98,7 @@ def eigenmodes(params):
         δin, nin, nwa = inner_layer_thickness(system, δtol=δtol)
 
         if allmodes:
-            return σ, v, e, δin, nwa, nin, C, N, system.grid.zg, True
+            return σ, v, e, δin, nin, nwa, C, N, system.grid.zg, True
 
         if np.isclose(σ, system.result['sigma']):
             σ = system.result['sigma']
@@ -117,7 +117,7 @@ def eigenmodes(params):
             print(f'Calculation done for α = {α:.4e} with C = {C:.3e} ({nin} points over the interval |z| < δin, {nwa} points over |z| < w+a):')
             print(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
 
-        return σ, s, e, δin, nwa, nin, C, N, z, True
+        return σ, s, e, δin, nin, nwa, C, N, z, True
 
     except DeltaError as ex:
         if verbose:
