@@ -44,16 +44,16 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
     sol  = system.result
 
     C = grid.C
-    s = system.shear
+    s = getattr(system, 'shear', False)
     a = system.a
-    w = system.w
+    w = getattr(system, 'w', 0.0)
     S = system.S
-    ξ = system.ξ
+    ξ = getattr(system, 'ξ', 0.0)
     α = system.kx * a
     u = sol['duz']
     b = sol['dbz']
     F = system.Bx
-    G = system.Ux
+    G = getattr(system, 'Ux', 0.0)
 
     if s:
         Ti = np.abs(1j * α * (u * F - G * b) + ξ * grid.derivative(u, 1))
