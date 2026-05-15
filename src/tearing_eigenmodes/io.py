@@ -54,8 +54,6 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     """
     Load eigenmode data from .npz files using glob and os.
     """
-    from .analysis import find_peak_location
-
     search_path = os.path.join(path, pattern)
     files = sorted(glob.glob(search_path))
 
@@ -68,18 +66,22 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
             growth = state['growth_rate'] if 'growth_rate' in state else state['eigenvalues'][0]
             val = state['value'] if 'value' in state else state['wavenumber']
             
-            if 'l_inner' in state:
-                lin = state['l_inner']
-                nin = state['n_inner']
-            else:
-                N = state['resolution']
-                C = state['scaling_factor']
-                grid = ChebyshevRationalGrid(N, C=C)
-                u = state['duz']
-                b = state['dbz']
-                lin, nin = find_peak_location(u, b, grid)
-            
             dlt = state['inner_scale']
+            nin = state['n_inner'] if 'n_inner' in state else 0
+            nwa = state['n_wa'] if 'n_wa' in state else 0
+
+            # If point counts are not in state, attempt to compute them
+            if nin == 0 or nwa == 0:
+                if 'resolution' in state and 'scaling_factor' in state:
+                    N = state['resolution']
+                    C = state['scaling_factor']
+                    grid = ChebyshevRationalGrid(N, C=C)
+                    if nin == 0:
+                        nin = max(1, np.where(np.abs(grid.zg) <= dlt)[0].size)
+                    if nwa == 0:
+                        a = state['a'] if 'a' in state else 1.0
+                        w = state['w'] if 'w' in state else 0.0
+                        nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
 
             rows.append([
                 val,
@@ -87,9 +89,9 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
                 growth,
                 state['tolerance'],
                 dlt,
-                lin,
+                int(nin),
+                int(nwa),
                 state['scaling_factor'],
-                nin,
                 state['resolution']
             ])
 
@@ -100,20 +102,18 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     σ = np.array([x[2] for x in rows])
     e = np.array([x[3] for x in rows])
     δ = np.array([x[4] for x in rows])
-    l = np.array([x[5] for x in rows])
-    c = np.array([x[6] for x in rows])
-    n = np.array([x[7] for x in rows])
+    nin = np.array([x[5] for x in rows])
+    nwa = np.array([x[6] for x in rows])
+    c = np.array([x[7] for x in rows])
     N = np.array([x[8] for x in rows])
 
-    return v, α, σ, e, δ, l, c, n, N
+    return v, α, σ, e, δ, nin, nwa, c, N
 
 
 def load_eig_scales(path: str, pattern: str = "*.npz"):
     """
     Load eigenmode data from .npz files focusing on scales.
     """
-    from .analysis import find_peak_location
-
     search_path = os.path.join(path, pattern)
     files = sorted(glob.glob(search_path))
 
@@ -124,23 +124,22 @@ def load_eig_scales(path: str, pattern: str = "*.npz"):
     for f in files:
         with np.load(f) as state:
             val = state['value'] if 'value' in state else state['wavenumber']
-            if 'l_inner' in state:
-                lin = state['l_inner']
-            else:
+            nwa = state['n_wa'] if 'n_wa' in state else 0
+            if nwa == 0 and 'resolution' in state and 'scaling_factor' in state:
                 N = state['resolution']
                 C = state['scaling_factor']
-                u = state['duz']
-                b = state['dbz']
                 grid = ChebyshevRationalGrid(N, C=C)
-                lin, _ = find_peak_location(u, b, grid)
+                a = state['a'] if 'a' in state else 1.0
+                w = state['w'] if 'w' in state else 0.0
+                nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
 
-            rows.append([val, lin])
+            rows.append([val, int(nwa)])
 
     rows.sort()
     v = np.array([x[0] for x in rows])
-    l = np.array([x[1] for x in rows])
+    nwa = np.array([x[1] for x in rows])
 
-    return v, l
+    return v, nwa
 
 
 def write_results(params: Dict[str, Any], delta_time: float) -> None:
@@ -152,7 +151,7 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
         raise FileNotFoundError(f"Data path {dpath!r} does not exist")
 
     fname = f"{dpath}.dat"
-    v, α, σ, e, δ, l, c, n, N = load_eigenmodes(dpath)
+    v, α, σ, e, δ, nin, nwa, c, N = load_eigenmodes(dpath)
 
     dep_key = params.get('dependence')
 
@@ -208,16 +207,16 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
         io.write(f"#\n# Calculation done in {delta_time:.2f} seconds.\n#\n")
 
         if dep_key:
-            io.write(f"#    {dep_key:<2s}               α_max            Re(σ_max)        Im(σ_max)        δ_in             λ_eig            tolerance        C              n_in    N\n")
-            io.write("#" + " --------------- "*8 + " ------  ------" + "\n")
+            io.write(f"#    {dep_key:<2s}               α_max            Re(σ_max)        Im(σ_max)        δ_in             tolerance        C              n_in    n_wa    N\n")
+            io.write("#" + " --------------- "*7 + " ------  ------  ------" + "\n")
         else:
-            io.write("#    α                Re(σ)            Im(σ)            δ_in             λ_eig            tolerance        C              n_in     N\n")
-            io.write("#" + " --------------- "*7 + " ------  ------" + "\n")
+            io.write("#    α                Re(σ)            Im(σ)            δ_in             tolerance        C              n_in    n_wa    N\n")
+            io.write("#" + " --------------- "*6 + " ------  ------  ------" + "\n")
 
         for i in range(len(α)):
             if dep_key:
-                io.write(f"  {v[i]:15.8e}  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {l[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {n[i]:>6d}  {N[i]:>6d}\n")
+                io.write(f"  {v[i]:15.8e}  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {nin[i]:>6d}  {nwa[i]:>6d}  {N[i]:>6d}\n")
             else:
-                io.write(f"  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {l[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {n[i]:>6d}  {N[i]:>6d}\n")
+                io.write(f"  {α[i]:15.8e}  {σ[i].real:15.8e}  {σ[i].imag:15.8e}  {δ[i]:15.8e}  {e[i]:15.8e}  {c[i]:15.8e}  {nin[i]:>6d}  {nwa[i]:>6d}  {N[i]:>6d}\n")
 
         io.flush()
