@@ -14,6 +14,15 @@ The project is structured into several specialized modules:
 - **`refinement.py`**: Provides heuristic functions to improve initial guesses for parameter sweeps based on previously computed results.
 - **`physics.py`**: Physical constants and Equation of State (EOS) index calculations.
 
+## Execution
+
+The project includes CLI scripts for running calculations:
+
+- **`scripts/eigenmodes-compute.py`**: Calculates the dispersion relation (growth rate vs. wavenumber) for a given set of parameters.
+- **`scripts/eigenmodes-maxima.py`**: Finds the maximum growth rate and its corresponding wavenumber across a range of a specified parameter (e.g., S, Pr, β).
+
+These scripts should be run from the project root. It is recommended to install the package in editable mode (`pip install -e .`) to ensure the scripts can correctly import the `tearing_eigenmodes` library.
+
 ## Key Conventions
 
 ### Attribute Safety
