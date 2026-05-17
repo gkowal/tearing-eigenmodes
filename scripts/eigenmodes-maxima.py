@@ -254,7 +254,11 @@ def main():
     dpath = build_dpath(params)
 
     vl, vu, dv = params['vmin'], params['vmax'], params['vinc']
-    vs = np.linspace(vl, vu, int(np.ceil((vu - vl + 0.5 * dv) / dv)))
+    n_points = int(np.ceil((vu - vl + 0.5 * dv) / dv))
+    if n_points <= 0:
+        logging.error(f"Error: Parameter range is empty or invalid (min={vl:.3e}, max={vu:.3e}, inc={dv:.3e}).")
+        sys.exit(1)
+    vs = np.linspace(vl, vu, n_points)
     if params['logarithmic']:
         vs = 10**vs
 

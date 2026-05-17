@@ -151,7 +151,11 @@ def main():
 
     # Wavenumber array
     kl, ku, dk = params['kmin'], params['kmax'], params['kinc']
-    ks = np.linspace(kl, ku, int(np.ceil((ku - kl + 0.5 * dk) / dk)))
+    n_points = int(np.ceil((ku - kl + 0.5 * dk) / dk))
+    if n_points <= 0:
+        logging.error(f"Error: Wavenumber range is empty or invalid (min={kl:.3e}, max={ku:.3e}, inc={dk:.3e}).")
+        sys.exit(1)
+    ks = np.linspace(kl, ku, n_points)
     if params['logarithmic']:
         ks = 10**ks
     ks /= params['a']

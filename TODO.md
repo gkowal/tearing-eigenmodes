@@ -20,7 +20,7 @@ This list tracks planned improvements for the `tearing-eigenmodes` project, cate
 - [ ] **Advanced Logging**:
     *   Add a `--log-file` argument to capture detailed `DEBUG` output to disk.
     *   Include timestamps in log messages for long-running sweeps.
-- [ ] **Range Validation**: Add checks to ensure generated sweep ranges (wavenumbers or dependent parameters) are not empty before starting calculations.
+- [x] **Range Validation**: Add checks to ensure generated sweep ranges (wavenumbers or dependent parameters) are not empty before starting calculations. (Implemented in `scripts/eigenmodes-compute.py` and `scripts/eigenmodes-maxima.py`)
 
 ## 4. Testing
 - [ ] **Verification Suite**: Add a `tests/` directory with `pytest` cases for:
