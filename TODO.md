@@ -1,0 +1,28 @@
+# Project TODO List
+
+This list tracks planned improvements for the `tearing-eigenmodes` project, categorized by impact area.
+
+## 1. Robustness & Numerical Stability
+- [x] **Atomic State Saving**: Prevent `.npz` corruption by using temporary files and `os.replace()` for updates. (Implemented in `io.save_eigenmode`)
+- [ ] **I/O Performance**: Optimize `load_eigenmodes` in `io.py` by caching the `ChebyshevRationalGrid` object or its nodes to avoid repeated re-instantiation.
+- [ ] **CGL Factor Consolidation**: Consolidate duplicated $C$ and $\mu$ formulas from `grid.py` and `physics.py` into a single central function in `physics.py`.
+- [ ] **Explicit Numerical Guards**: Add checks for potential division-by-zero or `log(negative)` in physical scaling laws to provide clearer error messages.
+
+## 2. Code Quality & Maintenance
+- [ ] **Typed Parameters**: Transition the `params` dictionary to a `dataclass` or `NamedTuple` for better type safety and IDE support.
+- [ ] **Eliminate Script Duplication**: Extract shared state-management logic from the `task()` functions in CLI scripts into `io.py`.
+- [ ] **Library-based Logging**: Move `SmartStreamHandler` into the library (e.g., `tearing_eigenmodes.logging`) to avoid code duplication across scripts.
+- [ ] **Type Hinting**: Expand type hints across all modules, particularly in `solver.py` and `refinement.py`.
+
+## 3. Execution & User Experience
+- [ ] **Graceful Interrupts**: Improve `multiprocessing` handling to ensure clean termination on `Ctrl+C`.
+- [ ] **Advanced Logging**:
+    *   Add a `--log-file` argument to capture detailed `DEBUG` output to disk.
+    *   Include timestamps in log messages for long-running sweeps.
+- [ ] **Range Validation**: Add checks to ensure generated sweep ranges (wavenumbers or dependent parameters) are not empty before starting calculations.
+
+## 4. Testing
+- [ ] **Verification Suite**: Add a `tests/` directory with `pytest` cases for:
+    *   Grid determination logic (`select_NC`).
+    *   Layer thickness diagnostics.
+    *   Parameter parsing and validation.
