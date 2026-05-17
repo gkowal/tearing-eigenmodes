@@ -5,11 +5,10 @@ import multiprocessing as mp
 import numpy as np
 
 from functools import lru_cache
-from psecas import ChebyshevRationalGrid
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
-                             refine_thickness, refine_inner_scale, refine_growth_rate, \
-                             eigenmodes, find_peak_location, write_results, DeltaError, estimate_max
+                             refine_thickness, refine_growth_rate, \
+                             eigenmodes, write_results, DeltaError, estimate_max
 
 counter = None
 

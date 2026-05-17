@@ -4,9 +4,8 @@ import os, sys, time
 import multiprocessing as mp
 import numpy as np
 
-from psecas import ChebyshevRationalGrid
 from tearing_eigenmodes import build_params, build_dpath, print_info, \
-                             refine_growth_rate, refine_inner_scale, refine_thickness, \
+                             refine_growth_rate, refine_thickness, \
                              eigenmodes, write_results
 
 counter = None
