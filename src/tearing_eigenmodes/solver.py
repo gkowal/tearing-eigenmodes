@@ -17,8 +17,8 @@ def eigenmodes(params):
     verbose = params.get('verbose' , False)
 
     try:
-        Nmin         = params.get('Nmin'                  ,  128          )
-        Nmax         = params.get('Nmax'                  , 1024          )
+        Nmin         = params.get('Nmin'                  ,   64          )
+        Nmax         = params.get('Nmax'                  , 2048          )
         Ninc         = params.get('Ninc'                  ,   32          )
         C            = params.get('C'                     , None          )
         a            = params.get('a'                     ,   1.0         )
@@ -29,7 +29,7 @@ def eigenmodes(params):
         ζ            = params.get('zeta'                  ,   1.0         )
         ξ            = params.get('xi'                    ,   0.0         )
         ϵ            = params.get('Hall'                  ,   0.0         )
-        β            = params.get('plasma_beta'           ,   1.0         )
+        β            = params.get('plasma_beta'           ,   0.0         )
         Δβ           = params.get('plasma_beta_difference',   0.0         )
         ɣpar         = params.get('parallel_index'        ,   3.0         )
         ɣper         = params.get('perpendicular_index'   ,   2.0         )
@@ -42,7 +42,7 @@ def eigenmodes(params):
         rtol         = params.get('rtol'                  ,   1.0e-5      )
         gtol         = params.get('gtol'                  ,   1.0e-2      )
         δtol         = params.get('dtol'                  ,   1.0e-3      )
-        orderby      = params.get('orderby'               , 'errors'      )
+        orderby      = params.get('orderby'               , 'real'        )
         allmodes     = params.get('allmodes'              , False         )
         noshear      = params.get('noshear'               , False         )
 

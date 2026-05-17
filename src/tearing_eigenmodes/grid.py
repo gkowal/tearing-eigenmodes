@@ -20,17 +20,17 @@ def select_NC(params):
     tuple
         A tuple (N, C) representing the determined resolution and scaling factor.
     """
-    Nmin         = params.get('Nmin'                  ,  128       )
-    Nmax         = params.get('Nmax'                  , 1024       )
+    Nmin         = params.get('Nmin'                  ,   64       )
+    Nmax         = params.get('Nmax'                  , 2048       )
     Ninc         = params.get('Ninc'                  ,   32       )
     n_inner      = params.get('n_inner'               ,    5       )
-    decay_efolds = params.get('decay_efolds'          ,    3.51    )
+    decay_efolds = params.get('decay_efolds'          ,    4.605   )
     CGL          = params.get('CGL'                   , False      )
     β            = params.get('plasma_beta'           ,    0.0     )
     Δβ           = params.get('plasma_beta_difference',    0.0     )
     ɣpar         = params.get('parallel_index'        ,    3       )
     ɣper         = params.get('perpendicular_index'   ,    2       )
-    a            = params.get('a'                     ,    1       )
+    a            = params.get('a'                     ,    1.0     )
     w            = params.get('w'                     ,    0.0     )
     α            = params.get('alpha'                 ,    0.1     )
     σ            = params.get('sigma'                 , None       )
