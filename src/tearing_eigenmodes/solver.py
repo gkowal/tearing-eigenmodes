@@ -66,7 +66,7 @@ def eigenmodes(params):
             raise ValueError("ϵ cannot be negative.")
 
         if C is None:
-            Nlow, C, δin = select_NC(params)
+            Nlow, C = select_NC(params)
         else:
             Nlow = Nmin
 
