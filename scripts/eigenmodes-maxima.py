@@ -8,7 +8,7 @@ from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
                              refine_thickness, refine_growth_rate, \
-                             eigenmodes, write_results, DeltaError, estimate_max
+                             eigenmodes, write_results, DeltaError, estimate_max, save_eigenmode
 
 counter = None
 
@@ -168,7 +168,7 @@ def task(value, αbracket, sigma, δinner, params):
                     Δσ  = rtol * σm.real * e
                     nit = res.nfev
 
-                    np.savez_compressed(sname, value=value, wavenumber=αm, wavenumber_error=Δα, \
+                    save_eigenmode(sname, value=value, wavenumber=αm, wavenumber_error=Δα, \
                                     growth_rate=σm, growth_rate_error=Δσ, tolerance=e, \
                                     inner_scale=δin, scaling_factor=C, n_inner=nin, n_wa=nwa, \
                                     niter=nit, resolution=N, grid=z, **s)

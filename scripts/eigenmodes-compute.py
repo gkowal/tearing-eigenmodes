@@ -6,7 +6,7 @@ import numpy as np
 
 from tearing_eigenmodes import build_params, build_dpath, print_info, \
                              refine_growth_rate, refine_thickness, \
-                             eigenmodes, write_results
+                             eigenmodes, write_results, save_eigenmode
 
 counter = None
 
@@ -74,7 +74,7 @@ def task(k, sigma, δinner, params):
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
 
             if status:
-                np.savez_compressed(sname, value=α, wavenumber=α, growth_rate=σ, tolerance=e, \
+                save_eigenmode(sname, value=α, wavenumber=α, growth_rate=σ, tolerance=e, \
                                     inner_scale=δin, scaling_factor=C, n_inner=nin, n_wa=nwa, \
                                     resolution=N, grid=z, **s)
 

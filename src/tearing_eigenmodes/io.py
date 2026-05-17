@@ -7,6 +7,7 @@ from psecas import ChebyshevRationalGrid
 
 logger = logging.getLogger(__name__)
 
+
 def build_dpath(params: dict) -> str:
     """
     Construct the directory name that will hold the results for a given run.
@@ -51,6 +52,27 @@ def load_config(file_path: str) -> dict:
                 continue
             config[key.strip()] = val.strip()
     return config
+
+
+def save_eigenmode(file_path: str, **kwargs):
+    """
+    Save eigenmode data to a .npz file atomically.
+    """
+    import tempfile
+    dir_name = os.path.dirname(file_path)
+    # Ensure directory exists
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+    
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".npz")
+    os.close(fd)
+    try:
+        np.savez_compressed(tmp_path, **kwargs)
+        os.replace(tmp_path, file_path)
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise e
 
 
 def load_eigenmodes(path: str, pattern: str = "*.npz"):

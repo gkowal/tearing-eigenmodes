@@ -25,6 +25,7 @@ These scripts should be run from the project root. It is recommended to install 
 
 ### Persistence and Resuming
 By default, the scripts save state in the `RESULTS/` directory. If a calculation is interrupted or rerun with the same parameters, the scripts will resume from the existing `.npz` files.
+- **Atomic Updates**: State saving is atomic. The scripts write to a temporary file first and use `os.replace()` to update the final `.npz` file, preventing file corruption during interruptions.
 - To start from scratch, remove the `RESULTS/` directory: `rm -rf RESULTS/`.
 - To overwrite existing results without deleting the directory, use the `--force` (or `-f`) flag.
 
