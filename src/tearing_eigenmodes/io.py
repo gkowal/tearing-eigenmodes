@@ -102,9 +102,9 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     σ = np.array([x[2] for x in rows])
     e = np.array([x[3] for x in rows])
     δ = np.array([x[4] for x in rows])
+    c = np.array([x[7] for x in rows])
     nin = np.array([x[5] for x in rows])
     nwa = np.array([x[6] for x in rows])
-    c = np.array([x[7] for x in rows])
     N = np.array([x[8] for x in rows])
 
     return v, α, σ, e, δ, c, nin, nwa, N
