@@ -12,6 +12,20 @@ from tearing_eigenmodes import build_params, build_dpath, \
 
 counter = None
 
+class SmartStreamHandler(logging.StreamHandler):
+    """A logging handler that doesn't add a newline if the message starts with \r."""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            if msg.startswith('\r'):
+                self.terminator = ''
+            else:
+                self.terminator = '\n'
+            self.stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 def init_worker(shared_counter):
     """Assign the shared object to the global variable in this worker."""
     global counter
@@ -136,7 +150,7 @@ def task(value, αbracket, sigma, δinner, params):
                 if verbose:
                     logging.info(f"{bracket_line}")
                 else:
-                    print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
+                    logging.info(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}")
                 bracket_line = ''
 
                 Δα = wtol * αa
@@ -188,7 +202,7 @@ def task(value, αbracket, sigma, δinner, params):
         if verbose:
             logging.info(f"{result_line}")
         else:
-            print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
+            logging.info(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}")
 
     else:
         bracket_line = info + "could not find any bracket!" + ' '*80
@@ -196,7 +210,7 @@ def task(value, αbracket, sigma, δinner, params):
         if verbose:
             logging.info(f"{result_line}")
         else:
-            print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
+            logging.info(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}")
 
 def main():
     '''
@@ -204,9 +218,11 @@ def main():
     '''
     params = build_params(parser_type='maximum')
 
-    # Configure logging
+    # Configure logging with custom SmartStreamHandler
     log_level = logging.DEBUG if params.get('verbose') else logging.INFO
-    logging.basicConfig(level=log_level, format='%(message)s')
+    handler = SmartStreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    logging.basicConfig(level=log_level, handlers=[handler])
 
     dpath = build_dpath(params)
 

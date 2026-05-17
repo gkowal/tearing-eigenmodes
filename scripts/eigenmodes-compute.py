@@ -10,6 +10,20 @@ from tearing_eigenmodes import build_params, build_dpath, print_info, \
 
 counter = None
 
+class SmartStreamHandler(logging.StreamHandler):
+    """A logging handler that doesn't add a newline if the message starts with \r."""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            if msg.startswith('\r'):
+                self.terminator = ''
+            else:
+                self.terminator = '\n'
+            self.stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 def init_worker(shared_counter):
     """Assign the shared object to the global variable in this worker."""
     global counter
@@ -84,13 +98,13 @@ def task(k, sigma, δinner, params):
         if verbose:
             logging.info(msg)
         else:
-            print('\r{:<150s}'.format(msg), end='', flush=True)
+            logging.info('\r{:<150s}'.format(msg))
     else:
         msg = output + '   NO eigenmodes!'
         if verbose:
             logging.info(msg)
         else:
-            print('\r{:<150s}'.format(msg), end='', flush=True)
+            logging.info('\r{:<150s}'.format(msg))
 
 def main():
     '''
@@ -99,9 +113,11 @@ def main():
     # Parse command‑line arguments
     params = build_params(parser_type='dispersion')
 
-    # Configure logging
+    # Configure logging with custom SmartStreamHandler
     log_level = logging.DEBUG if params.get('verbose') else logging.INFO
-    logging.basicConfig(level=log_level, format='%(message)s')
+    handler = SmartStreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    logging.basicConfig(level=log_level, handlers=[handler])
 
     # Build data path
     dpath = build_dpath(params)

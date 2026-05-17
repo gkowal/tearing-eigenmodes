@@ -116,24 +116,24 @@ def eigenmodes(params):
         for key in system.variables:
             s[key] = system.result[key]
 
-        logger.info(
+        logger.debug(
             f'Calculation done for α = {α:.4e} with C = {C:.3e} '
             f'({nin} points over the interval |z| < δin, {nwa} points over |z| < w+a):'
         )
-        logger.info(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
+        logger.debug(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
 
         return σ, s, e, δin, nin, nwa, C, N, z, True
 
     except DeltaError as ex:
-        logger.info(f"Stable eigenmode: {ex}")
+        logger.debug(f"Stable eigenmode: {ex}")
         return None, None, None, None, None, None, None, None, None, False
 
     except ConvergenceError as ex:
-        logger.info(f"Insufficient resolution: {ex}")
+        logger.debug(f"Insufficient resolution: {ex}")
         return None, None, None, None, None, None, None, None, None, False
 
     except ValueError as ex:
-        logger.info(f"Wrong parameter: {ex}")
+        logger.debug(f"Wrong parameter: {ex}")
         return None, None, None, None, None, None, None, None, None, False
 
     except Exception as ex:
