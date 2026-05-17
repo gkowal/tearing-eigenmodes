@@ -1,5 +1,8 @@
 from .exceptions import DeltaError, ConvergenceError
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def select_NC(params):
@@ -26,7 +29,6 @@ def select_NC(params):
     δ            = params.get('delta'                 , None       )
     σ            = params.get('sigma'                 , None       )
     ξ            = params.get('xi'                    ,    0.0     )
-    verbose      = params.get('verbose'               , False      )
     Cmean        = params.get('Cmean'                 , 'geometric')
 
     # Enforce odd n_inner (so m is integer and z=0 is a collocation point)
@@ -62,12 +64,10 @@ def select_NC(params):
 
         # --- Smooth the inner-layer thickness from both regimes
         δα = δCop * δFKR / (δCop**θ + δFKR**θ)**(1.0/θ)
-        if verbose:
-            print(f"[estimated inner scales for α={α:.4e}] a={a:.4e}, δCop={δCop:.4e}, δFKR={δFKR:.4e}, δα={δα:.4e}")
+        logger.debug(f"[estimated inner scales for α={α:.4e}] a={a:.4e}, δCop={δCop:.4e}, δFKR={δFKR:.4e}, δα={δα:.4e}")
     else:
         δα = δ
-        if verbose:
-            print(f"[provided inner scales for α={α:.4e}] a={a:.4e}, δα={δα:.4e}")
+        logger.debug(f"[provided inner scales for α={α:.4e}] a={a:.4e}, δα={δα:.4e}")
 
     πh   = np.pi / 2
     πm   = np.pi * m
@@ -76,8 +76,7 @@ def select_NC(params):
     # --- Outer requirement: amplitude reduced by e^{-decay_efolds} at |z|max
     zmin = a + w
     zmax = decay_efolds / λ
-    if verbose:
-        print(f"[estimated for α={α:.4e}] zmin={zmin:.4e}, zmax={zmax:.4e}")
+    logger.debug(f"[estimated for α={α:.4e}] zmin={zmin:.4e}, zmax={zmax:.4e}")
     lk = ξ / α
     if σ is not None and ξ > 0.0:
         lσ = ξ / σ.real
@@ -90,8 +89,7 @@ def select_NC(params):
     else:
         lσ   = 0.0
 
-    if verbose:
-        print(f"[all scales for α={α:.4e}] (w+a) = {w+a:.4e}, lσ = {lσ:.4e}, lk = {lk:.4e}, zmin = {zmin:.4e}, zmax = {zmax:.4e}, Nmin = {Nmin:4d}")
+    logger.debug(f"[all scales for α={α:.4e}] (w+a) = {w+a:.4e}, lσ = {lσ:.4e}, lk = {lk:.4e}, zmin = {zmin:.4e}, zmax = {zmax:.4e}, Nmin = {Nmin:4d}")
 
     # Iterate N upward until C_out(N) <= C_in(N); then set C = C_out(N).
     N  = Nmin
@@ -104,8 +102,7 @@ def select_NC(params):
         Np   = N + 1
         Cinn  = zmin / np.tan(πm / Np)
         Cout  = zmax * np.tan(πh / Np)
-        if verbose:
-            print(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e}")
+        logger.debug(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e}")
         if Cout <= Cinn:
             break
 
@@ -124,7 +121,6 @@ def select_NC(params):
     else:
         C = Cinn
 
-    if verbose:
-        print(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e} => C = {C:.6e} using {Cmean} mean")
+    logger.debug(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e} => C = {C:.6e} using {Cmean} mean")
 
     return N, C, δα

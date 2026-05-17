@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-import os, sys, time
+import os, sys, time, logging
 import multiprocessing as mp
 import numpy as np
 
@@ -27,7 +27,6 @@ def task(k, sigma, δinner, params):
     w        = params_base.get('w'       , 0.0)
     a        = params_base.get('a'       , 1.0)
 
-    end      = '\n' if verbose else ''
     status   = False
 
     α = k * a
@@ -67,8 +66,7 @@ def task(k, sigma, δinner, params):
 
         except Exception as ex:
             status = False
-            if verbose:
-                print(f"\n[WARNING] Could not find eigenmode for α = {α:.3e}: {ex}")
+            logging.warning(f"Could not find eigenmode for α = {α:.3e}: {ex}")
 
     with counter.get_lock():
         counter.value += 1
@@ -78,13 +76,21 @@ def task(k, sigma, δinner, params):
     output = f"{fmt.format(n)}  α = {α:.3e}: "
 
     if status:
-        print('\r{:<150s}'.format(output \
+        msg = (output \
              + f"{σ.size:3d} eigenmode{'s' if σ.size > 1 else ' '}," \
-             + f" σ₀ = {σ.real:.3e}{σ.imag:+.3e}j" \
+             + f" σ₀ = {σ.real:.3e}{σ.imag:+.4e}j" \
              + f" (δin = {δin:.3e}, nin = {nin}, nwa = {nwa}, tol = {e:.3e}, C = {C:.3e}, N = {N})" \
-            + f" {'Did not converge!' if e > 1 else ''}"), end=end, flush=True)
+            + f" {'Did not converge!' if e > 1 else ''}")
+        if verbose:
+            logging.info(msg)
+        else:
+            print('\r{:<150s}'.format(msg), end='', flush=True)
     else:
-        print('\r{:<150s}'.format(output + '   NO eigenmodes!'), end=end, flush=True)
+        msg = output + '   NO eigenmodes!'
+        if verbose:
+            logging.info(msg)
+        else:
+            print('\r{:<150s}'.format(msg), end='', flush=True)
 
 def main():
     '''
@@ -92,6 +98,10 @@ def main():
     '''
     # Parse command‑line arguments
     params = build_params(parser_type='dispersion')
+
+    # Configure logging
+    log_level = logging.DEBUG if params.get('verbose') else logging.INFO
+    logging.basicConfig(level=log_level, format='%(message)s')
 
     # Build data path
     dpath = build_dpath(params)
@@ -114,18 +124,18 @@ def main():
     if not os.path.exists(dpath):
         os.makedirs(dpath)
 
-    print('\nCalculation of the \033[1meigenmodes\033[0m for an equlibrium with the velocity and magnetic field shear.')
-    print("Use option '-h' to show all possible arguments.\n")
+    logging.info('\nCalculation of the \033[1meigenmodes\033[0m for an equlibrium with the velocity and magnetic field shear.')
+    logging.info("Use option '-h' to show all possible arguments.\n")
 
     print_info(params)
 
     if ntasks > 1 and os.getenv("OMP_NUM_THREADS") != "1":
-        print("\n\033[1mPlease set OMP_NUM_THREADS=1 to ensure optimal performance!\033[0m")
+        logging.warning("\n\033[1mPlease set OMP_NUM_THREADS=1 to ensure optimal performance!\033[0m")
         nprocs = 1
 
     plural = 'es' if nprocs > 1 else ''
-    print(f'\nCalculation initiated with {nprocs} process{plural}'
-          f' for {ntasks} values.\n')
+    logging.info(f'\nCalculation initiated with {nprocs} process{plural}'
+                 f' for {ntasks} values.\n')
 
     # Do calculations in parallel
     delta_time = -time.time()
@@ -148,7 +158,7 @@ def main():
 
     if not params['verbose']:
         sys.stdout.write("\n")
-    sys.stdout.write(f"\nCalculation done in {delta_time:.2f} seconds.\n")
+    logging.info(f"\nCalculation done in {delta_time:.2f} seconds.\n")
 
 
 if __name__ == "__main__":

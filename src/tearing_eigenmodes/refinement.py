@@ -1,6 +1,9 @@
 import numpy as np
+import logging
 from scipy.interpolate import make_interp_spline
 from .io import load_eigenmodes, load_eig_scales
+
+logger = logging.getLogger(__name__)
 
 def refine_inner_scale(vs, params):
     linner = [params['l_inner']] * vs.size
@@ -91,8 +94,6 @@ def refine_thickness(vs, params):
 
 def refine_wavenumber_bracket(vs, params):
     """Update wavenumber brackets using cached eigenmodes if available."""
-    import numpy as np
-
     # Initialize with default bracket from params
     kbracket = [params.get('kbracket')] * vs.size
 
@@ -105,7 +106,7 @@ def refine_wavenumber_bracket(vs, params):
     if v.size < 2:
         return kbracket
 
-    print("\nImproved wavenumber bounds:")
+    logger.info("Improved wavenumber bounds:")
 
     vmn, vmx = v.min(), v.max()
     atol = 1e-12 * max(abs(vmn), abs(vmx))
@@ -145,10 +146,9 @@ def refine_wavenumber_bracket(vs, params):
 
         kbracket[n] = [float(kl), float(ku)]
 
-        if todo or params.get('verbose') or params.get('force'):
-             print(
-                f"\t{params.get('dependence', 'v')} = {x:+.3e}: "
-                f"α-bracket = [{kbracket[n][0]:.4e}, {kbracket[n][1]:.4e}]"
-            )
+        logger.debug(
+            f"\t{params.get('dependence', 'v')} = {x:+.3e}: "
+            f"α-bracket = [{kbracket[n][0]:.4e}, {kbracket[n][1]:.4e}]"
+        )
 
     return kbracket

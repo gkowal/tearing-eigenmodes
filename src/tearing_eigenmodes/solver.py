@@ -1,9 +1,12 @@
 from .exceptions import DeltaError, ConvergenceError
 from .grid import select_NC
-from .analysis import inner_layer_thickness, find_peak_location
+from .analysis import inner_layer_thickness
 from psecas import Solver, ChebyshevRationalGrid
 from psecas.systems.tearing_instability import TearingClassicalMHD, TearingGyrotropicMHD
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def eigenmodes(params):
@@ -72,7 +75,7 @@ def eigenmodes(params):
 
         kx = α/a
 
-        order = max(4 if Pr > 0 else 2, 3 if abs(ξ) > 0 else 2)
+        # order = max(4 if Pr > 0 else 2, 3 if abs(ξ) > 0 else 2)
         Ns    = np.arange(Nlow, Nmax+Ninc, Ninc)
 
         re_range=[reσlo, reσup]
@@ -105,7 +108,7 @@ def eigenmodes(params):
             e = system.result['error']
             z = system.result['grid']
         else:
-            print("[WARNING] Solver returned inconsistent eigenvalue!")
+            logger.warning("Solver returned inconsistent eigenvalue!")
             σ = σ[0]
             e = e[0]
             z = system.grid.zg
@@ -113,28 +116,26 @@ def eigenmodes(params):
         for key in system.variables:
             s[key] = system.result[key]
 
-        if verbose:
-            print(f'Calculation done for α = {α:.4e} with C = {C:.3e} ({nin} points over the interval |z| < δin, {nwa} points over |z| < w+a):')
-            print(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
+        logger.info(
+            f'Calculation done for α = {α:.4e} with C = {C:.3e} '
+            f'({nin} points over the interval |z| < δin, {nwa} points over |z| < w+a):'
+        )
+        logger.info(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
 
         return σ, s, e, δin, nin, nwa, C, N, z, True
 
     except DeltaError as ex:
-        if verbose:
-            print(f"Stable eigenmode: {ex}")
+        logger.info(f"Stable eigenmode: {ex}")
         return None, None, None, None, None, None, None, None, None, False
 
     except ConvergenceError as ex:
-        if verbose:
-            print(f"Insufficient resolution: {ex}")
+        logger.info(f"Insufficient resolution: {ex}")
         return None, None, None, None, None, None, None, None, None, False
 
     except ValueError as ex:
-        if verbose:
-            print(f"Wrong parameter: {ex}")
+        logger.info(f"Wrong parameter: {ex}")
         return None, None, None, None, None, None, None, None, None, False
 
     except Exception as ex:
-        if verbose:
-            print(f"[WARNING] Solver failed for α = {α:.3e}: {ex}")
+        logger.warning(f"Solver failed for α = {α:.3e}: {ex}")
         return None, None, None, None, None, None, None, None, None, False

@@ -41,5 +41,14 @@ To maintain consistency across the solver and I/O modules, adhere to the followi
   - Dispersion runs: `α, Re(σ), Im(σ), δ_in, tolerance, C, n_in, n_wa, N`
   - Dependence runs: `[param], α_max, Re(σ_max), Im(σ_max), δ_in, tolerance, C, n_in, n_wa, N`
 
+## Logging
+
+The project uses the standard Python `logging` module instead of `print()` for status and diagnostic messages:
+
+- **Library Code**: Modules in `src/tearing_eigenmodes/` use module-level loggers (`logging.getLogger(__name__)`).
+- **Scripts**: Entry points in `scripts/` configure the root logger using `logging.basicConfig()`.
+- **Verbosity**: Use the `--verbose` (or `-v`) flag to set the log level to `DEBUG`. Otherwise, the level defaults to `INFO`.
+- **Progress Reporting**: Terminal-interactive progress updates (e.g., using `\r`) still use `print()` for immediate UI feedback.
+
 ## Automated Grid Scaling
 The project relies on `grid.select_NC` to automatically determine the optimal scaling factor $C$ and resolution $N$. It balances the need to resolve the inner layer ($z \approx 0$) with the requirement to capture the outer decay of the eigenmode. The parameter `n_inner` (minimum points in the layer) and `decay_efolds` (resolution at $z_{max}$) are the primary controls for this logic.

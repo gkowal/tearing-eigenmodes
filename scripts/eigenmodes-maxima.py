@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-import os, sys, time
+import os, sys, time, logging
 import multiprocessing as mp
 import numpy as np
 
@@ -53,8 +53,6 @@ def task(value, αbracket, sigma, δinner, params):
     wtol       = params_base.get('wtol'   , 1e-3)
     w          = params_base.get('w'       , 0.0)
     a          = params_base.get('a'       , 1.0)
-
-    end='\n' if verbose else ''
 
     UP = '\033[F'
     info = f"  {dependence} = {value:+.3e}: "
@@ -116,13 +114,11 @@ def task(value, αbracket, sigma, δinner, params):
                 αup = αm * (1 + wtol)
             except DeltaError as ex:
                 status = False
-                if verbose:
-                    print(f"Stable eigenmode: {ex}")
+                logging.info(f"Stable eigenmode: {ex}")
         else:
             αlo, αup = αbracket
         if status:
-            if verbose:
-                print(f"Initial bracket for {dependence}={value:+.3e}: α = {αlo:.4e} … {αup:.4e}")
+            logging.debug(f"Initial bracket for {dependence}={value:+.3e}: α = {αlo:.4e} … {αup:.4e}")
             αu = (αup + 1.618 * αlo) / 2.618
 
             try:
@@ -138,7 +134,7 @@ def task(value, αbracket, sigma, δinner, params):
                     αa = 1e-3
                 bracket_line = info + f"α-bracket = [ {αa:.3e}, {αb:.3e}, {αc:.3e} ],  σ-values = [ {-σa:.3e}, {-σb:.3e}, {-    σc:.3e} ]  after {fn} function calls" + ' '*4
                 if verbose:
-                    print(f"{bracket_line}", flush=True)
+                    logging.info(f"{bracket_line}")
                 else:
                     print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
                 bracket_line = ''
@@ -147,8 +143,8 @@ def task(value, αbracket, sigma, δinner, params):
                 res = minimize_scalar(f, bracket=(αa, αb, αc), method='brent', options={'xtol': Δα})
 
                 if verbose:
-                    print(res)
-                    print('Final refinement:')
+                    logging.debug(res)
+                    logging.info('Final refinement:')
                 αm  = res.x
                 params_final = dict(params_base)
                 params_final["alpha"] = αm
@@ -165,18 +161,15 @@ def task(value, αbracket, sigma, δinner, params):
 
             except DeltaError as ex:
                 status = False
-                if verbose:
-                    print(f"Stable eigenmode: {ex}")
+                logging.info(f"Stable eigenmode: {ex}")
 
             except ValueError as ex:
                 status = False
-                if verbose:
-                    print(f"Wrong parameter: {ex}")
+                logging.info(f"Wrong parameter: {ex}")
 
             except Exception as ex:
                 status = False
-                if verbose:
-                    print(f"\nCould not find brackets for {dependence} = {value:+.3e}: {ex}")
+                logging.warning(f"Could not find brackets for {dependence} = {value:+.3e}: {ex}")
 
 
     n = 0
@@ -193,7 +186,7 @@ def task(value, αbracket, sigma, δinner, params):
     if status:
         result_line = info + f"α={αm:.4e}±{Δα:.1e}  σ={σm.real:.4e}±{Δσ:.1e}  δin={δin:.3e}  nin={nin}  nwa={nwa}  C={C:.3e}  N={N} after {nit} function calls" + ' '*6
         if verbose:
-            print(f"{result_line}", flush=True)
+            logging.info(f"{result_line}")
         else:
             print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
 
@@ -201,7 +194,7 @@ def task(value, αbracket, sigma, δinner, params):
         bracket_line = info + "could not find any bracket!" + ' '*80
         result_line  = info + "could not find any maximum!" + ' '*80
         if verbose:
-            print(f"{result_line}", flush=True)
+            logging.info(f"{result_line}")
         else:
             print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
 
@@ -210,6 +203,10 @@ def main():
         Given provided options, calculates eigenmodes of the equilibrium field with magnetic and velocity shear.
     '''
     params = build_params(parser_type='maximum')
+
+    # Configure logging
+    log_level = logging.DEBUG if params.get('verbose') else logging.INFO
+    logging.basicConfig(level=log_level, format='%(message)s')
 
     dpath = build_dpath(params)
 
@@ -228,13 +225,13 @@ def main():
     if not os.path.exists(dpath):
         os.makedirs(dpath)
 
-    print("\nCalculation of the maximum growth rate dependence on several parameters for the selected eigenmode.")
-    print("Use option '-h' to show all possible arguments.\n")
+    logging.info("\nCalculation of the maximum growth rate dependence on several parameters for the selected eigenmode.")
+    logging.info("Use option '-h' to show all possible arguments.\n")
 
     print_info(params)
 
     if ntasks > 1 and os.getenv("OMP_NUM_THREADS") != "1":
-        print("\n\033[1mPlease set OMP_NUM_THREADS=1 to ensure optimal performance!\033[0m")
+        logging.warning("\n\033[1mPlease set OMP_NUM_THREADS=1 to ensure optimal performance!\033[0m")
         nprocs = 1
 
     k = refine_wavenumber_bracket(vs, params)
@@ -242,8 +239,8 @@ def main():
     g = refine_growth_rate(vs, params)
 
     plural = 'es' if nprocs > 1 else ''
-    print(f'\nCalculation initiated with {nprocs} process{plural}'
-          f' for {ntasks} values.\n')
+    logging.info(f'\nCalculation initiated with {nprocs} process{plural}'
+                 f' for {ntasks} values.\n')
 
     delta_time = -time.time()
 
@@ -262,7 +259,7 @@ def main():
 
     if not params['verbose']:
         sys.stdout.write("\n\n\n\n")
-    sys.stdout.write(f"\nCalculation done in {delta_time:.2f} seconds.\n")
+    logging.info(f"\nCalculation done in {delta_time:.2f} seconds.\n")
 
 
 if __name__ == "__main__":
