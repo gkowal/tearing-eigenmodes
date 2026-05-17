@@ -1,8 +1,11 @@
 import os
 import glob
+import logging
 import numpy as np
 from typing import Dict, Any
 from psecas import ChebyshevRationalGrid
+
+logger = logging.getLogger(__name__)
 
 def build_dpath(params: dict) -> str:
     """
@@ -150,9 +153,13 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
     if not dpath or not os.path.exists(dpath):
         raise FileNotFoundError(f"Data path {dpath!r} does not exist")
 
-    fname = f"{dpath}.dat"
-    v, α, σ, e, δ, c, nin, nwa, N = load_eigenmodes(dpath)
+    try:
+        v, α, σ, e, δ, c, nin, nwa, N = load_eigenmodes(dpath)
+    except FileNotFoundError:
+        logger.warning(f"No results found in {dpath}. Skipping .dat file creation.")
+        return
 
+    fname = f"{dpath}.dat"
     dep_key = params.get('dependence')
 
     with open(fname, 'w') as io:
