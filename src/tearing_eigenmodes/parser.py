@@ -519,43 +519,57 @@ def validate_parameters(args: argparse.Namespace) -> None:
     args : argparse.Namespace
         Namespace returned by ``parser.parse_args()``.
     """
-    # ------------------------------------------------------------------
-    # 1) Basic physical bounds
-    # ------------------------------------------------------------------
-    if args.Lundquist_number <= 0:
-        raise ParameterError(
-            "Lundquist number (--Lundquist-number / -S) must be > 0"
-        )
 
-    if args.Prandtl_number < 0:
-        raise ParameterError(
-            "Prandtl number (--Prandtl-number / -Pr) cannot be negative"
-        )
-
-    if args.plasma_beta < 0:
-        raise ParameterError(
-            "Plasma‑β (--plasma-beta / -β) cannot be negative"
-        )
+    def get_range(attr, symbol):
+        val = getattr(args, attr)
+        if hasattr(args, 'dependence') and args.dependence == symbol:
+            v1, v2, _ = args.range
+            if args.logarithmic:
+                return 10**v1, 10**v2
+            else:
+                return v1, v2
+        return val, val
 
     # ------------------------------------------------------------------
-    # 2) Plasma‑β consistency
-    #
-    # The two command‑line options describe a perpendicular β (β⊥)
-    # and the difference Δβ = β∥ – β⊥.  Therefore
-    #
-    #     β∥ = β⊥ + Δβ
-    #
-    # Physically the parallel plasma‑β must be non‑negative; a negative
-    # value would correspond to an unphysical pressure anisotropy.
+    # 1) Physical bounds (fixed and ranges)
     # ------------------------------------------------------------------
-    if args.plasma_beta + args.plasma_beta_difference < 0:
+    S_min, S_max = get_range('Lundquist_number', 'S')
+    if min(S_min, S_max) <= 0:
+        raise ParameterError("Lundquist number must be > 0")
+
+    Pr_min, Pr_max = get_range('Prandtl_number', 'Pr')
+    if min(Pr_min, Pr_max) < 0:
+        raise ParameterError("Prandtl number cannot be negative")
+
+    beta_min, beta_max = get_range('plasma_beta', 'β')
+    if min(beta_min, beta_max) < 0:
+        raise ParameterError("Plasma‑β must be ≥ 0")
+
+    dbeta_min, dbeta_max = get_range('plasma_beta_difference', 'Δβ')
+    if min(beta_min, beta_max) + min(dbeta_min, dbeta_max) < 0:
         raise ParameterError(
             f"Parallel plasma‑β (β∥ = β⊥ + Δβ) must be ≥ 0 "
-            f"(got β⊥ = {args.plasma_beta:.3g}, Δβ = {args.plasma_beta_difference:.3g})"
+            f"(min β⊥ = {min(beta_min, beta_max):.3g}, min Δβ = {min(dbeta_min, dbeta_max):.3g})"
         )
 
+    xi_min, xi_max = get_range('magnetic_transverse_field', 'ξ')
+    if min(xi_min, xi_max) < 0:
+        raise ParameterError("Magnetic transverse field strength (ξ) must be ≥ 0")
+
+    hall_min, hall_max = get_range('Hall_parameter', 'ϵ')
+    if min(hall_min, hall_max) < 0:
+        raise ParameterError("Hall parameter (ϵ) must be ≥ 0")
+
+    a_min, a_max = get_range('thickness', 'a')
+    if min(a_min, a_max) <= 0:
+        raise ParameterError("Current sheet thickness (a) must be > 0")
+
+    w_min, w_max = get_range('width', 'w')
+    if min(w_min, w_max) < 0:
+        raise ParameterError("Current sheet half‑width (w) must be ≥ 0")
+
     # ------------------------------------------------------------------
-    # 3) Equation‑of‑state consistency
+    # 2) Equation‑of‑state consistency
     # ------------------------------------------------------------------
     if args.eos == "custom":
         # When custom EOS is requested, both gamma values must be supplied.
@@ -567,13 +581,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
     # For built‑in EOS choices we ignore any user‑supplied gamma.
 
     # ------------------------------------------------------------------
-    # 4) Resolution range sanity
-    #
-    #   * The lower bound must not exceed the upper bound.
-    #   * The increment must be strictly positive.
-    #   * Additionally, the step size cannot exceed the lowest resolution
-    #     because that would mean we never actually hit the start value
-    #     (e.g. Nmin=32, Ninc=64 → no values are generated).
+    # 3) Resolution range sanity
     # ------------------------------------------------------------------
     Nmin, Nmax, Ninc = args.resolution_range
 
@@ -592,7 +600,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
         )
 
     # ------------------------------------------------------------------
-    # 5) Tolerance sanity
+    # 4) Tolerance sanity
     # ------------------------------------------------------------------
     _check_positive_tol("absolute tolerance", args.absolute_tolerance)
     _check_positive_tol("relative tolerance", args.relative_tolerance)
@@ -600,7 +608,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
     _check_positive_tol("thickness tolerance", args.thickness_tolerance)
 
     # ------------------------------------------------------------------
-    # 6) Growth‑rate bounds
+    # 5) Growth‑rate bounds
     # ------------------------------------------------------------------
     gmin, gmax = args.real_part_range
     if not (gmin <= gmax):
@@ -611,7 +619,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
         raise ParameterError("Growth‑rate lower bound cannot be negative")
 
     # ------------------------------------------------------------------
-    # 7) Inner collocation points with corresponding width
+    # 6) Inner collocation points with corresponding width
     # ------------------------------------------------------------------
     if args.n_inner < 3:
         raise ParameterError(
@@ -623,30 +631,13 @@ def validate_parameters(args: argparse.Namespace) -> None:
         )
 
     # ------------------------------------------------------------------
-    # 8) Hall parameter
-    # ------------------------------------------------------------------
-    if args.Hall_parameter < 0:
-        raise ParameterError("Hall parameter (--Hall-parameter / -ϵ) cannot be negative")
-
-    # ------------------------------------------------------------------
-    # 9) Thickness/width consistency
-    # ------------------------------------------------------------------
-    if args.thickness <= 0:
-        raise ParameterError(
-            "Thickness of the current sheet (--thickness / -a) must be > 0"
-        )
-    if args.width < 0:
-        raise ParameterError("Width of the current sheet (--width / -w) cannot be negative")
-
-    if args.inner_layer_thickness is not None and args.inner_layer_thickness <= 0:
-        raise ParameterError("Inner-layer thickness (--inner-layer-thickness / -δinner) cannot be negative")
-
-    # ------------------------------------------------------------------
-    # 10) Optional limits
+    # 7) Optional limits
     # ------------------------------------------------------------------
     if args.scaling_factor is not None and args.inner_layer_thickness is not None:
         raise ParameterError(
             "Both '--scaling_factor / -C' and '--inner_layer_thickness / -δinner' were provided. "
             "Only one of these options may be set at a time."
         )
+    if args.inner_layer_thickness is not None and args.inner_layer_thickness <= 0:
+        raise ParameterError("Inner-layer thickness (--inner-layer-thickness / -δinner) must be > 0")
 # If we reach this point everything passed.
