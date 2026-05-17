@@ -21,16 +21,9 @@ def setup_logging(verbose=False, log_file=None):
     
     - Console handler uses SmartStreamHandler with INFO (or DEBUG if verbose).
     - File handler (if provided) always uses DEBUG level.
-    - Timestamps are included in both.
+    - Timestamps are included in the file log, but console remains clean.
     """
     log_level = logging.DEBUG if verbose else logging.INFO
-    
-    # Define formats
-    console_fmt = logging.Formatter('%(asctime)s - %(message)s', datefmt='%H:%M:%S')
-    # If using SmartStreamHandler for interactive progress, we might want a simpler format 
-    # for progress lines specifically, but Formatter applies to all.
-    # Let's use a simpler format for console to keep it clean.
-    console_fmt = logging.Formatter('%(asctime)s - %(message)s', datefmt='%H:%M:%S')
     
     # Root logger
     root_logger = logging.getLogger()
@@ -40,13 +33,13 @@ def setup_logging(verbose=False, log_file=None):
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
         
-    # Console handler
+    # Console handler: Always clean (no timestamps/metadata)
     console_handler = SmartStreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
-    console_handler.setFormatter(console_fmt)
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
     root_logger.addHandler(console_handler)
     
-    # File handler
+    # File handler: Detailed (includes timestamps and metadata)
     if log_file:
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
