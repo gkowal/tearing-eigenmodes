@@ -16,7 +16,7 @@ This list tracks planned improvements for the `tearing-eigenmodes` project, cate
 - [ ] **Type Hinting**: Expand type hints across all modules, particularly in `solver.py` and `refinement.py`.
 
 ## 3. Execution & User Experience
-- [ ] **Graceful Interrupts**: Improve `multiprocessing` handling to ensure clean termination on `Ctrl+C`.
+- [x] **Graceful Interrupts**: Improve `multiprocessing` handling to ensure clean termination on `Ctrl+C`. (Implemented in `scripts/eigenmodes-compute.py` and `scripts/eigenmodes-maxima.py`)
 - [ ] **Advanced Logging**:
     *   Add a `--log-file` argument to capture detailed `DEBUG` output to disk.
     *   Include timestamps in log messages for long-running sweeps.

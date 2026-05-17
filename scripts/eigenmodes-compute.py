@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-import os, sys, time, logging
+import os, sys, time, logging, signal
 import multiprocessing as mp
 import numpy as np
 
@@ -26,6 +26,8 @@ class SmartStreamHandler(logging.StreamHandler):
 
 def init_worker(shared_counter):
     """Assign the shared object to the global variable in this worker."""
+    # Worker processes should ignore SIGINT; only the main process will handle it.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     global counter
     counter = shared_counter
 
@@ -192,12 +194,16 @@ def main():
     s = refine_growth_rate(ks, params)
     d = refine_thickness(ks, params)
 
-    with mp.Pool(
-        processes=nprocs,
-        initializer=init_worker,
-        initargs=(shared_counter,)
-    ) as pool:
-        pool.starmap(task, [(k, s[n], d[n], params) for n, k in enumerate(ks)])
+    try:
+        with mp.Pool(
+            processes=nprocs,
+            initializer=init_worker,
+            initargs=(shared_counter,)
+        ) as pool:
+            pool.starmap(task, [(k, s[n], d[n], params) for n, k in enumerate(ks)])
+    except KeyboardInterrupt:
+        logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
+        sys.exit(1)
 
     delta_time += time.time()
 
