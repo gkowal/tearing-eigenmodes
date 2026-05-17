@@ -150,7 +150,7 @@ def task(value, αbracket, sigma, δinner, params):
                 if verbose:
                     logging.info(f"{bracket_line}")
                 else:
-                    logging.info(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}")
+                    print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
                 bracket_line = ''
 
                 Δα = wtol * αa
@@ -202,7 +202,7 @@ def task(value, αbracket, sigma, δinner, params):
         if verbose:
             logging.info(f"{result_line}")
         else:
-            logging.info(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}")
+            print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
 
     else:
         bracket_line = info + "could not find any bracket!" + ' '*80
@@ -210,7 +210,7 @@ def task(value, αbracket, sigma, δinner, params):
         if verbose:
             logging.info(f"{result_line}")
         else:
-            logging.info(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}")
+            print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
 
 def main():
     '''
