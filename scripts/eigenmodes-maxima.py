@@ -168,10 +168,37 @@ def task(value, αbracket, sigma, δinner, params):
                     Δσ  = rtol * σm.real * e
                     nit = res.nfev
 
+                    # Include physical and numerical parameters for reproducibility
+                    metadata = {
+                        'S': params_final.get('S'),
+                        'Pr': params_final.get('Pr'),
+                        'plasma_beta': params_final.get('plasma_beta'),
+                        'plasma_beta_difference': params_final.get('plasma_beta_difference'),
+                        'xi': params_final.get('xi'),
+                        'Hall': params_final.get('Hall'),
+                        'a': params_final.get('a'),
+                        'w': params_final.get('w'),
+                        'parallel_index': params_final.get('parallel_index'),
+                        'perpendicular_index': params_final.get('perpendicular_index'),
+                        'eos': params_final.get('eos'),
+                        'CGL': params_final.get('CGL'),
+                        'noshear': params_final.get('noshear'),
+                        'Nmin': params_final.get('Nmin'),
+                        'Nmax': params_final.get('Nmax'),
+                        'Ninc': params_final.get('Ninc'),
+                        'atol': params_final.get('atol'),
+                        'rtol': params_final.get('rtol'),
+                        'gtol': params_final.get('gtol'),
+                        'dtol': params_final.get('dtol'),
+                        'n_inner_req': params_final.get('n_inner'),
+                        'f_outer': params_final.get('f_outer'),
+                        'mode': params_final.get('mode'),
+                    }
+
                     save_eigenmode(sname, value=value, wavenumber=αm, wavenumber_error=Δα, \
                                     growth_rate=σm, growth_rate_error=Δσ, tolerance=e, \
                                     inner_scale=δin, scaling_factor=C, n_inner=nin, n_wa=nwa, \
-                                    niter=nit, resolution=N, grid=z, **s)
+                                    niter=nit, resolution=N, grid=z, **metadata, **s)
 
             except DeltaError as ex:
                 status = False

@@ -74,9 +74,36 @@ def task(k, sigma, δinner, params):
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
 
             if status:
+                # Include physical and numerical parameters for reproducibility
+                metadata = {
+                    'S': params_base.get('S'),
+                    'Pr': params_base.get('Pr'),
+                    'plasma_beta': params_base.get('plasma_beta'),
+                    'plasma_beta_difference': params_base.get('plasma_beta_difference'),
+                    'xi': params_base.get('xi'),
+                    'Hall': params_base.get('Hall'),
+                    'a': params_base.get('a'),
+                    'w': params_base.get('w'),
+                    'parallel_index': params_base.get('parallel_index'),
+                    'perpendicular_index': params_base.get('perpendicular_index'),
+                    'eos': params_base.get('eos'),
+                    'CGL': params_base.get('CGL'),
+                    'noshear': params_base.get('noshear'),
+                    'Nmin': params_base.get('Nmin'),
+                    'Nmax': params_base.get('Nmax'),
+                    'Ninc': params_base.get('Ninc'),
+                    'atol': params_base.get('atol'),
+                    'rtol': params_base.get('rtol'),
+                    'gtol': params_base.get('gtol'),
+                    'dtol': params_base.get('dtol'),
+                    'n_inner_req': params_base.get('n_inner'),
+                    'f_outer': params_base.get('f_outer'),
+                    'mode': params_base.get('mode'),
+                }
+
                 save_eigenmode(sname, value=α, wavenumber=α, growth_rate=σ, tolerance=e, \
                                     inner_scale=δin, scaling_factor=C, n_inner=nin, n_wa=nwa, \
-                                    resolution=N, grid=z, **s)
+                                    resolution=N, grid=z, **metadata, **s)
 
         except Exception as ex:
             status = False

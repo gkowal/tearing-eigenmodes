@@ -88,36 +88,40 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     rows = []
     for f in files:
         with np.load(f) as state:
-            growth = state['growth_rate'] if 'growth_rate' in state else state['eigenvalues'][0]
-            val = state['value'] if 'value' in state else state['wavenumber']
-            
-            dlt = state['inner_scale']
-            nin = state['n_inner'] if 'n_inner' in state else 0
-            nwa = state['n_wa'] if 'n_wa' in state else 0
+            # Helper to get value with fallback
+            def get_val(key, default=None):
+                return state[key] if key in state else default
 
-            # If point counts are not in state, attempt to compute them
-            if nin == 0 or nwa == 0:
-                if 'resolution' in state and 'scaling_factor' in state:
-                    N = state['resolution']
-                    C = state['scaling_factor']
-                    grid = ChebyshevRationalGrid(N, C=C)
-                    if nin == 0:
-                        nin = max(1, np.where(np.abs(grid.zg) <= dlt)[0].size)
-                    if nwa == 0:
-                        a = state['a'] if 'a' in state else 1.0
-                        w = state['w'] if 'w' in state else 0.0
-                        nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
+            growth = get_val('growth_rate', get_val('eigenvalues', [0])[0])
+            val = get_val('value', get_val('wavenumber', 0))
+            dlt = get_val('inner_scale', 0)
+            tol = get_val('tolerance', 0)
+            scaling = get_val('scaling_factor', 0)
+            res = get_val('resolution', 0)
+
+            nin = get_val('n_inner', 0)
+            nwa = get_val('n_wa', 0)
+
+            # If point counts are not in state, attempt to compute them (fallback for old files)
+            if (nin == 0 or nwa == 0) and res > 0 and scaling > 0:
+                grid = ChebyshevRationalGrid(res, C=scaling)
+                if nin == 0:
+                    nin = max(1, np.where(np.abs(grid.zg) <= dlt)[0].size)
+                if nwa == 0:
+                    a = get_val('a', 1.0)
+                    w = get_val('w', 0.0)
+                    nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
 
             rows.append([
                 val,
-                state['wavenumber'],
+                get_val('wavenumber', val),
                 growth,
-                state['tolerance'],
+                tol,
                 dlt,
                 int(nin),
                 int(nwa),
-                state['scaling_factor'],
-                state['resolution']
+                scaling,
+                res
             ])
 
     rows.sort()
@@ -148,15 +152,20 @@ def load_eig_scales(path: str, pattern: str = "*.npz"):
     rows = []
     for f in files:
         with np.load(f) as state:
-            val = state['value'] if 'value' in state else state['wavenumber']
-            nwa = state['n_wa'] if 'n_wa' in state else 0
-            if nwa == 0 and 'resolution' in state and 'scaling_factor' in state:
-                N = state['resolution']
-                C = state['scaling_factor']
-                grid = ChebyshevRationalGrid(N, C=C)
-                a = state['a'] if 'a' in state else 1.0
-                w = state['w'] if 'w' in state else 0.0
-                nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
+            def get_val(key, default=None):
+                return state[key] if key in state else default
+
+            val = get_val('value', get_val('wavenumber', 0))
+            nwa = get_val('n_wa', 0)
+            
+            if nwa == 0:
+                res = get_val('resolution', 0)
+                scaling = get_val('scaling_factor', 0)
+                if res > 0 and scaling > 0:
+                    grid = ChebyshevRationalGrid(res, C=scaling)
+                    a = get_val('a', 1.0)
+                    w = get_val('w', 0.0)
+                    nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
 
             rows.append([val, int(nwa)])
 
