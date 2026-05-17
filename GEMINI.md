@@ -23,6 +23,11 @@ The project includes CLI scripts for running calculations:
 
 These scripts should be run from the project root. It is recommended to install the package in editable mode (`pip install -e .`) to ensure the scripts can correctly import the `tearing_eigenmodes` library.
 
+### Persistence and Resuming
+By default, the scripts save state in the `RESULTS/` directory. If a calculation is interrupted or rerun with the same parameters, the scripts will resume from the existing `.npz` files.
+- To start from scratch, remove the `RESULTS/` directory: `rm -rf RESULTS/`.
+- To overwrite existing results without deleting the directory, use the `--force` (or `-f`) flag.
+
 ## Key Conventions
 
 ### Attribute Safety
