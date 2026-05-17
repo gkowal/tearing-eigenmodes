@@ -8,23 +8,10 @@ from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
                              refine_thickness, refine_growth_rate, \
-                             eigenmodes, write_results, DeltaError, estimate_max, save_eigenmode
+                             eigenmodes, write_results, DeltaError, \
+                             estimate_max, save_eigenmode, setup_logging
 
 counter = None
-
-class SmartStreamHandler(logging.StreamHandler):
-    """A logging handler that doesn't add a newline if the message starts with \r."""
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            if msg.startswith('\r'):
-                self.terminator = ''
-            else:
-                self.terminator = '\n'
-            self.stream.write(msg + self.terminator)
-            self.flush()
-        except Exception:
-            self.handleError(record)
 
 def init_worker(shared_counter):
     """Assign the shared object to the global variable in this worker."""
@@ -247,11 +234,8 @@ def main():
     '''
     params = build_params(parser_type='maximum')
 
-    # Configure logging with custom SmartStreamHandler
-    log_level = logging.DEBUG if params.get('verbose') else logging.INFO
-    handler = SmartStreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('%(message)s'))
-    logging.basicConfig(level=log_level, handlers=[handler])
+    # Configure logging
+    setup_logging(verbose=params.get('verbose'), log_file=params.get('log_file'))
 
     dpath = build_dpath(params)
 

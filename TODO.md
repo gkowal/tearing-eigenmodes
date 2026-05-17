@@ -12,12 +12,12 @@ This list tracks planned improvements for the `tearing-eigenmodes` project, cate
 ## 2. Code Quality & Maintenance
 - [ ] **Typed Parameters**: Transition the `params` dictionary to a `dataclass` or `NamedTuple` for better type safety and IDE support.
 - [ ] **Eliminate Script Duplication**: Extract shared state-management logic from the `task()` functions in CLI scripts into `io.py`.
-- [ ] **Library-based Logging**: Move `SmartStreamHandler` into the library (e.g., `tearing_eigenmodes.logging`) to avoid code duplication across scripts.
+- [x] **Library-based Logging**: Move `SmartStreamHandler` into the library (e.g., `tearing_eigenmodes.logging_utils`) to avoid code duplication across scripts.
 - [ ] **Type Hinting**: Expand type hints across all modules, particularly in `solver.py` and `refinement.py`.
 
 ## 3. Execution & User Experience
 - [x] **Graceful Interrupts**: Improve `multiprocessing` handling to ensure clean termination on `Ctrl+C`. (Implemented in `scripts/eigenmodes-compute.py` and `scripts/eigenmodes-maxima.py`)
-- [ ] **Advanced Logging**:
+- [x] **Advanced Logging**:
     *   Add a `--log-file` argument to capture detailed `DEBUG` output to disk.
     *   Include timestamps in log messages for long-running sweeps.
 - [x] **Range Validation**: Add checks to ensure generated sweep ranges (wavenumbers or dependent parameters) are not empty before starting calculations. (Implemented in `scripts/eigenmodes-compute.py` and `scripts/eigenmodes-maxima.py`)

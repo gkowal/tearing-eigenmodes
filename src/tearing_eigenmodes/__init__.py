@@ -7,6 +7,7 @@ from .io import build_dpath, load_config, load_eigenmodes, write_results, save_e
 from .parser import parser_setup, build_parser, build_params, validate_parameters
 from .printing import print_info
 from .solver import eigenmodes
+from .logging_utils import setup_logging
 
 __all__ = [
     "DeltaError", 
@@ -32,4 +33,5 @@ __all__ = [
     "eigenmodes",
     "write_results",
     "print_info",
+    "setup_logging",
 ]

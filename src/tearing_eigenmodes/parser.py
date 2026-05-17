@@ -245,6 +245,13 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
         help="be verbose"
     )
 
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="path to a file where detailed logs will be saved"
+    )
+
     # ------------------------------------------------------------------
     return parser
 
@@ -437,6 +444,7 @@ def build_params(parser_type='dispersion') -> dict:
         'noshear'               : args.no_shear,
         'force'                 : args.force,
         'verbose'               : args.verbose,
+        'log_file'              : args.log_file,
         **params_eos  # Include the raw EOS and gamma values in the dict
     }
 
