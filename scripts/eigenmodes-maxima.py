@@ -4,6 +4,7 @@ import os, sys, time, logging, signal
 import multiprocessing as mp
 import numpy as np
 
+from collections import deque
 from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
@@ -12,6 +13,43 @@ from tearing_eigenmodes import build_params, build_dpath, \
                              estimate_max, save_eigenmode, setup_logging
 
 counter = None
+
+class Extrapolator:
+    """
+    Tracks a history of (x, y) pairs and extrapolates y at a new x
+    using polynomial fitting (degree 1=linear, 2=quadratic, 3=cubic).
+    Falls back gracefully when insufficient history is available.
+    Direction-agnostic: works for both increasing and decreasing x sweeps.
+    """
+    def __init__(self, maxdeg=2, minpoints=2, maxhistory=6, ymin=None):
+        self.maxdeg    = maxdeg
+        self.minpoints = minpoints
+        self.ymin      = ymin        # optional lower clamp on predicted value
+        self.xs        = deque(maxlen=maxhistory)
+        self.ys        = deque(maxlen=maxhistory)
+
+    def add(self, x, y):
+        self.xs.append(float(x))
+        self.ys.append(y)
+
+    def predict(self, x_new):
+        n = len(self.xs)
+        if n < self.minpoints:
+            return None                          # not enough history yet
+        deg = min(self.maxdeg, n - 1)           # can't exceed n-1
+        xs  = np.array(self.xs)
+        ys  = np.array(self.ys)
+        # centre & scale for numerical stability; ptp() is direction-agnostic
+        x0     = xs.mean()
+        xscale = (xs.max() - xs.min()) or 1.0
+        coeffs = np.polyfit((xs - x0) / xscale, ys, deg)
+        y_pred = float(np.polyval(coeffs, (x_new - x0) / xscale))
+        if self.ymin is not None:
+            y_pred = max(y_pred, self.ymin)
+        return y_pred
+
+    def __len__(self):
+        return len(self.xs)
 
 def init_worker(shared_counter):
     """Assign the shared object to the global variable in this worker."""
@@ -220,6 +258,8 @@ def task(value, αbracket, sigma, δinner, params):
         else:
             print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
 
+        return αm, σm, δin, N, status
+
     else:
         bracket_line = info + "could not find any bracket!" + ' '*80
         result_line  = info + "could not find any maximum!" + ' '*80
@@ -227,6 +267,8 @@ def task(value, αbracket, sigma, δinner, params):
             logging.info(f"{result_line}")
         else:
             print(f"\r{bracket_line}\n{result_line}\n\n{progress_line}{UP}{UP}{UP}", end='', flush=True)
+
+        return None, None, None, None, status
 
 def main():
     '''
@@ -280,12 +322,58 @@ def main():
     shared_counter = mp.Value('i', 0)
 
     try:
-        with mp.Pool(
-            processes=nprocs,
-            initializer=init_worker,
-            initargs=(shared_counter,)
-        ) as pool:
-            pool.starmap(task, [(v, k[n], g[n], d[n], params) for n, v in enumerate(vs)])
+        if params.get('step'):
+            extrap_deg   = params.get('extrap_deg',   2)
+            extrap_guard = params.get('extrap_guard', 0.01)
+
+            k_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-6)
+            d_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-10)
+            g_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-10)
+
+            global counter
+            counter = shared_counter
+
+            # Initial values from refinement if any
+            gm, dm = params.get('sigma'), params.get('delta')
+
+            for n, v in enumerate(vs):
+                # ── extrapolate wavenumber bracket ────────────────────────────────
+                k_pred = k_extrap.predict(v)
+                if k_pred is not None:
+                    guard = extrap_guard * k_pred
+                    kl    = max(k_pred - guard, 1e-6)
+                    ku    = k_pred + guard
+                    kn    = [kl, ku]
+                    if params.get('verbose'):
+                        logging.info(f"  k extrapolated: {k_pred:.4e}  →  bracket [{kl:.4e}, {ku:.4e}]")
+                else:
+                    kn = k[n]
+
+                # ── use previous step results as guesses if refinement is default ─
+                gn = gm if g[n] == params.get('sigma') else g[n]
+                dn = dm if d[n] == params.get('delta') else d[n]
+
+                km, gm, dm, N, status = task(v, kn, gn, dn, params)
+
+                if not status:
+                    break
+                if gm.real < 1e-6:
+                    logging.info(f"Growth rate dropped below 1e-6 ({gm.real:.3e}). Stopping sweep.")
+                    break
+
+                # ── record for next extrapolation ─────────────────────────────────
+                k_extrap.add(v, km)
+                if dm is not None:
+                    d_extrap.add(v, dm)
+                if gm is not None:
+                    g_extrap.add(v, gm)
+        else:
+            with mp.Pool(
+                processes=nprocs,
+                initializer=init_worker,
+                initargs=(shared_counter,)
+            ) as pool:
+                pool.starmap(task, [(v, k[n], g[n], d[n], params) for n, v in enumerate(vs)])
     except KeyboardInterrupt:
         logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
         sys.exit(1)

@@ -335,6 +335,24 @@ def build_parser(parser_type='dispersion'):
             default=0,
             help="the eigenmode number"
         )
+        parser.add_argument(
+            "--step",
+            action='store_true',
+            default=False,
+            help="calculate values sequentially using extrapolation for initial guesses"
+        )
+        parser.add_argument(
+            "--extrap-deg",
+            type=int,
+            default=2,
+            help="degree of polynomial extrapolation (1=linear, 2=quadratic, 3=cubic)"
+        )
+        parser.add_argument(
+            "--extrap-guard",
+            type=float,
+            default=0.01,
+            help="maximum fractional deviation allowed for extrapolated bracket"
+        )
 
     # ------------------------------------------------------------------
     # 3️⃣  Check for local configuration file (params.cfg)
@@ -492,6 +510,11 @@ def build_params(parser_type='dispersion') -> dict:
 
     if hasattr(args, 'wavenumber_bracket'):
         params['kbracket'] = args.wavenumber_bracket
+
+    if hasattr(args, 'step'):
+        params['step']         = args.step
+        params['extrap_deg']   = args.extrap_deg
+        params['extrap_guard'] = args.extrap_guard
 
     return params
 
