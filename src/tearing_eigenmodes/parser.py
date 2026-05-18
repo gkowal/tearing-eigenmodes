@@ -252,6 +252,13 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
         help="path to a file where detailed logs will be saved"
     )
 
+    parser.add_argument(
+        "--logarithmic", "-log",
+        action='store_true',
+        default=False,
+        help="scale is logarithmic"
+    )
+
     # ------------------------------------------------------------------
     return parser
 
@@ -286,12 +293,6 @@ def build_parser(parser_type='dispersion'):
             type=float, nargs=3,
             default=[0.0, 1.0, 0.01],
             help="bounds and step size for the wavenumber"
-        )
-        parser.add_argument(
-            "--logarithmic", "-log",
-            action='store_true',
-            default=False,
-            help="wavenumber scale is logarithmic"
         )
         parser.add_argument(
             "--mode", "-m",
