@@ -60,6 +60,7 @@ def process_file(sname, params):
             
             ax.plot(z_plot, data.real, label='Real', linewidth=1.5)
             ax.plot(z_plot, data.imag, '--', label='Imag', linewidth=1.5)
+            ax.plot(z_plot, np.abs(data), ':', label='Abs', linewidth=2.0, color='black', alpha=0.6)
             
             ax.set_ylabel(f'${var}$', fontsize=12)
             ax.grid(True, linestyle=':', alpha=0.7)
