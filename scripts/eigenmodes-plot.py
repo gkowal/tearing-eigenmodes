@@ -68,12 +68,35 @@ def process_file(sname, params):
         axes[-1].set_xlabel('$z$', fontsize=12)
         
         # Determine title
-        title = f"Eigenmode Solutions"
-        if 'wavenumber' in state:
+        title = "Eigenmode Solutions"
+        if 'value' in state:
+            val = float(state['value'])
+            dep = params.get('dependence')
+            
+            # If dependence not provided, try to find it in metadata
+            if not dep:
+                if 'dependence' in state:
+                    dep = str(state['dependence'])
+                else:
+                    # Mapping from symbol to metadata key
+                    dep_map = {
+                        'S': 'S', 'Pr': 'Pr', 'β': 'plasma_beta', 'Δβ': 'plasma_beta_difference',
+                        'ξ': 'xi', 'ϵ': 'Hall', 'w': 'w', 'a': 'a'
+                    }
+                    for symbol, key in dep_map.items():
+                        if key in state and np.isclose(float(state[key]), val, rtol=1e-8):
+                            dep = symbol
+                            break
+            
+            if dep:
+                title += f" (${dep} = {val:.4e}$)"
+            else:
+                title += f" (value = {val:.4e})"
+            
+            if 'wavenumber' in state:
+                title += f", $\\alpha = {float(state['wavenumber']):.4e}$"
+        elif 'wavenumber' in state:
             title += f" ($\\alpha = {float(state['wavenumber']):.4e}$)"
-        elif 'value' in state:
-            # Try to find which parameter it is from the filename if possible, or just show value
-            title += f" (value = {float(state['value']):.4e})"
         
         fig.suptitle(title, fontsize=14)
 

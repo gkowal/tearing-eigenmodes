@@ -197,8 +197,10 @@ def task(value, αbracket, sigma, δinner, params):
 
                     # Include physical and numerical parameters for reproducibility
                     metadata = {
+                        'dependence': dependence,
                         'S': params_final.get('S'),
                         'Pr': params_final.get('Pr'),
+
                         'plasma_beta': params_final.get('plasma_beta'),
                         'plasma_beta_difference': params_final.get('plasma_beta_difference'),
                         'xi': params_final.get('xi'),
