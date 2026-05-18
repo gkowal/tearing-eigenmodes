@@ -395,6 +395,12 @@ def build_parser(parser_type='dispersion'):
             help="Direct path to .npz file"
         )
         parser.add_argument(
+            "--dir", "-D",
+            type=str,
+            default=None,
+            help="Directory containing .npz files to plot"
+        )
+        parser.add_argument(
             "--output", "-o",
             type=str,
             default=None,
@@ -569,6 +575,7 @@ def build_params(parser_type='dispersion') -> dict:
         params['alpha_plot']  = args.alpha
         params['value_plot']  = args.value
         params['file_plot']   = args.file
+        params['dir_plot']    = args.dir
         params['output_plot'] = args.output
 
     return params
