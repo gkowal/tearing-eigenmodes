@@ -74,20 +74,29 @@ def process_file(sname, params):
             val = float(state['value'])
             dep = params.get('dependence')
             
-            # If dependence not provided, try to find it in metadata
+            # If dependence not provided, try to find it in metadata or filename
             if not dep:
                 if 'dependence' in state:
                     dep = str(state['dependence'])
                 else:
-                    # Mapping from symbol to metadata key
-                    dep_map = {
-                        'S': 'S', 'Pr': 'Pr', 'β': 'plasma_beta', 'Δβ': 'plasma_beta_difference',
-                        'ξ': 'xi', 'ϵ': 'Hall', 'w': 'w', 'a': 'a'
-                    }
-                    for symbol, key in dep_map.items():
-                        if key in state and np.isclose(float(state[key]), val, rtol=1e-8):
-                            dep = symbol
-                            break
+                    # Try to parse from filename: state_{dependence}{value:+.6e}.npz
+                    import re
+                    fname = os.path.basename(sname)
+                    # This regex matches 'state_', then captures everything up to the first '+' or '-' 
+                    # followed by a digit (the start of the value).
+                    match = re.match(r'state_(.+?)[+-][0-9]', fname)
+                    if match:
+                        dep = match.group(1)
+                    else:
+                        # Fallback heuristic (prone to ambiguity if value is 0.0)
+                        dep_map = {
+                            'S': 'S', 'Pr': 'Pr', 'β': 'plasma_beta', 'Δβ': 'plasma_beta_difference',
+                            'ξ': 'xi', 'ϵ': 'Hall', 'w': 'w', 'a': 'a'
+                        }
+                        for symbol, key in dep_map.items():
+                            if key in state and np.isclose(float(state[key]), val, rtol=1e-8):
+                                dep = symbol
+                                break
             
             if dep:
                 title += f" (${dep} = {val:.4e}$)"
