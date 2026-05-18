@@ -315,12 +315,6 @@ def build_parser(parser_type='dispersion'):
             help="the range of the dependent parameter to evaluate followed by the increment"
         )
         parser.add_argument(
-            "--logarithmic", "-log",
-            action='store_true',
-            default=False,
-            help="dependence scale is logarithmic"
-        )
-        parser.add_argument(
             "--wavenumber-bracket", "-K",
             type=float, nargs=2,
             default=None,
