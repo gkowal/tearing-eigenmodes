@@ -269,6 +269,8 @@ def build_parser(parser_type='dispersion'):
         description = "Computes the tearing‑instability dispersion relation for a given set of parameters."
     elif parser_type == 'maximum':
         description = "Computes the tearing-instability maximum eigenmodes for a given set of parameters."
+    elif parser_type == 'plot':
+        description = "Plots eigenmode solutions from a .npz file."
 
     # ------------------------------------------------------------------
     # 1️⃣  Create a basic ArgumentParser instance (your helper handles
@@ -352,6 +354,50 @@ def build_parser(parser_type='dispersion'):
             type=float,
             default=0.01,
             help="maximum fractional deviation allowed for extrapolated bracket"
+        )
+    elif parser_type == 'plot':
+        parser.add_argument(
+            "--zmin",
+            type=float,
+            default=None,
+            help="Minimum z for plotting"
+        )
+        parser.add_argument(
+            "--zmax",
+            type=float,
+            default=None,
+            help="Maximum z for plotting"
+        )
+        parser.add_argument(
+            "--alpha",
+            type=float,
+            default=None,
+            help="Wavenumber alpha (for dispersion runs)"
+        )
+        parser.add_argument(
+            "--value",
+            type=float,
+            default=None,
+            help="Value of the dependent parameter (for maxima runs)"
+        )
+        parser.add_argument(
+            "--dependence", "-d",
+            choices=['S', 'Pr', 'β', 'Δβ', 'ξ', 'ϵ', 'w', 'a'],
+            default=None,
+            help=("the dependence of the quantity to calculate: S, Pr, β, ξ, "
+                "ϵ, w, or a")
+        )
+        parser.add_argument(
+            "--file", "-F",
+            type=str,
+            default=None,
+            help="Direct path to .npz file"
+        )
+        parser.add_argument(
+            "--output", "-o",
+            type=str,
+            default=None,
+            help="Output plot filename"
         )
 
     # ------------------------------------------------------------------
@@ -515,6 +561,14 @@ def build_params(parser_type='dispersion') -> dict:
         params['step']         = args.step
         params['extrap_deg']   = args.extrap_deg
         params['extrap_guard'] = args.extrap_guard
+
+    if hasattr(args, 'zmin'):
+        params['zmin']        = args.zmin
+        params['zmax']        = args.zmax
+        params['alpha_plot']  = args.alpha
+        params['value_plot']  = args.value
+        params['file_plot']   = args.file
+        params['output_plot'] = args.output
 
     return params
 
