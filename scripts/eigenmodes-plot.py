@@ -55,6 +55,15 @@ def process_file(sname, params):
             z_plot = z
             mask = slice(None)
 
+        # Mapping for LaTeX labels
+        label_map = {
+            'duz': r'$\delta u_z$',
+            'dbz': r'$\delta B_z$',
+            'duy': r'$\delta u_y$',
+            'dby': r'$\delta B_y$',
+            'ddp': r'$\delta \Delta p$'
+        }
+
         for ax, var in zip(axes, variables):
             data = state[var][mask]
             
@@ -62,7 +71,8 @@ def process_file(sname, params):
             ax.plot(z_plot, data.imag, label='Imag', color='orange', linewidth=1.5)
             ax.plot(z_plot, np.abs(data), label='Abs', color='black', linewidth=1.5)
             
-            ax.set_ylabel(f'${var}$', fontsize=12)
+            label = label_map.get(var, f'${var}$')
+            ax.set_ylabel(label, fontsize=12)
             ax.grid(True, linestyle=':', alpha=0.7)
             ax.legend(loc='upper right')
 
