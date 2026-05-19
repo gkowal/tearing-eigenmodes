@@ -23,7 +23,7 @@ This list tracks planned improvements for the `tearing-eigenmodes` project, cate
 - [x] **Range Validation**: Add checks to ensure generated sweep ranges (wavenumbers or dependent parameters) are not empty before starting calculations. (Implemented in `scripts/eigenmodes-compute.py` and `scripts/eigenmodes-maxima.py`)
 
 ## 4. Testing
-- [ ] **Verification Suite**: Add a `tests/` directory with `pytest` cases for:
+- [x] **Verification Suite**: Add a `tests/` directory with `pytest` cases for:
     *   Grid determination logic (`select_NC`).
     *   Layer thickness diagnostics.
     *   Parameter parsing and validation.
