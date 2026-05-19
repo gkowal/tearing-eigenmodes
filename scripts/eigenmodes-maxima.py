@@ -119,30 +119,16 @@ def task(value, αbracket, sigma, δinner, params):
         with np.load(sname) as state:
 
             αm  = state['wavenumber']
-            σm  = state['growth_rate']
+            σm  = state['eigenvalue']
             e   = state['tolerance']
-            δin = state['inner_scale']
-            nin = state['n_inner']
-            if 'n_wa' in state:
-                nwa = state['n_wa']
-            else:
-                z = state['grid']
-                I = np.where(np.abs(z) <= (w + a))
-                nwa = I[0].size
+            δin = state['resistive_layer_thickness']
+            nin = state['resistive_layer_nodes']
+            nwa = state['current_sheet_nodes']
             N   = state['resolution']
-            C   = state['scaling_factor']
-            if 'niter' in state.keys():
-                nit = state['niter']
-            else:
-                nit = 1
-            if 'wavenumber_error' in state.keys():
-                Δα = state['wavenumber_error']
-            else:
-                Δα = wtol * αm
-            if 'eigenvalue_error' in state.keys():
-                Δσ = state['eigenvalue_error']
-            else:
-                Δσ = rtol * σm.real * e
+            C   = state['grid_scaling_factor']
+            nit = state['niter']
+            Δα  = state['wavenumber_error']
+            Δσ  = state['eigenvalue_error']
 
             status = not force and not (e > 1.0 and N < Nmax)
 
@@ -197,7 +183,7 @@ def task(value, αbracket, sigma, δinner, params):
 
                     # Include physical and numerical parameters for reproducibility
                     metadata = {
-                        'dependence': dependence,
+                        'scan_parameter': dependence,
                         'S': params_final.get('S'),
                         'Pr': params_final.get('Pr'),
 
@@ -224,9 +210,10 @@ def task(value, αbracket, sigma, δinner, params):
                         'mode': params_final.get('mode'),
                     }
 
-                    save_eigenmode(sname, value=value, wavenumber=αm, wavenumber_error=Δα, \
-                                    growth_rate=σm, growth_rate_error=Δσ, tolerance=e, \
-                                    inner_scale=δin, scaling_factor=C, n_inner=nin, n_wa=nwa, \
+                    save_eigenmode(sname, scan_parameter_value=value, wavenumber=αm, wavenumber_error=Δα, \
+                                    eigenvalue=σm, eigenvalue_error=Δσ, tolerance=e, \
+                                    resistive_layer_thickness=δin, grid_scaling_factor=C, \
+                                    resistive_layer_nodes=nin, current_sheet_nodes=nwa, \
                                     niter=nit, resolution=N, grid=z, **metadata, **s)
 
             except DeltaError as ex:

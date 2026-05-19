@@ -38,18 +38,13 @@ def task(k, sigma, δinner, params):
     if os.path.exists(sname):
         with np.load(sname) as state:
             α   = state['wavenumber']
-            σ   = state['growth_rate']
+            σ   = state['eigenvalue']
             e   = state['tolerance']
-            δin = state['inner_scale']
-            nin = state['n_inner']
-            if 'n_wa' in state:
-                nwa = state['n_wa']
-            else:
-                z = state['grid']
-                I = np.where(np.abs(z) <= (w + a))
-                nwa = I[0].size
+            δin = state['resistive_layer_thickness']
+            nin = state['resistive_layer_nodes']
+            nwa = state['current_sheet_nodes']
             N   = state['resolution']
-            C   = state['scaling_factor']
+            C   = state['grid_scaling_factor']
 
         status = not force and not (e > 1.0 and N < Nmax)
 
@@ -89,8 +84,9 @@ def task(k, sigma, δinner, params):
                     'mode': params_base.get('mode'),
                 }
 
-                save_eigenmode(sname, value=α, wavenumber=α, growth_rate=σ, tolerance=e, \
-                                    inner_scale=δin, scaling_factor=C, n_inner=nin, n_wa=nwa, \
+                save_eigenmode(sname, wavenumber=α, eigenvalue=σ, tolerance=e, \
+                                    resistive_layer_thickness=δin, grid_scaling_factor=C, \
+                                    resistive_layer_nodes=nin, current_sheet_nodes=nwa, \
                                     resolution=N, grid=z, **metadata, **s)
 
         except Exception as ex:

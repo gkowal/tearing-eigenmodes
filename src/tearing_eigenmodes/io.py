@@ -3,7 +3,6 @@ import glob
 import logging
 import numpy as np
 from typing import Dict, Any
-from psecas import ChebyshevRationalGrid
 
 logger = logging.getLogger(__name__)
 
@@ -88,38 +87,33 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     rows = []
     for f in files:
         with np.load(f) as state:
-            # Helper to get value with fallback
-            def get_val(key, default=None):
-                return state[key] if key in state else default
+            if 'scan_parameter' in state:
+                val = float(state['scan_parameter_value'])
+            elif 'dependence' in state:
+                val = float(state['value'])
+            else:
+                val = float(state['wavenumber'])
 
-            growth = get_val('growth_rate', get_val('eigenvalues', [0])[0])
-            val = get_val('value', get_val('wavenumber', 0))
-            dlt = get_val('inner_scale', 0)
-            tol = get_val('tolerance', 0)
-            scaling = get_val('scaling_factor', 0)
-            res = get_val('resolution', 0)
+            growth = state['eigenvalue'] if 'eigenvalue' in state else state['growth_rate']
+            if isinstance(growth, np.ndarray) and growth.ndim > 0:
+                growth = growth[0]
 
-            nin = get_val('n_inner', 0)
-            nwa = get_val('n_wa', 0)
-
-            # If point counts are not in state, attempt to compute them (fallback for old files)
-            if (nin == 0 or nwa == 0) and res > 0 and scaling > 0:
-                grid = ChebyshevRationalGrid(res, C=scaling)
-                if nin == 0:
-                    nin = max(1, np.where(np.abs(grid.zg) <= dlt)[0].size)
-                if nwa == 0:
-                    a = get_val('a', 1.0)
-                    w = get_val('w', 0.0)
-                    nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
+            wavenumber = float(state['wavenumber'])
+            dlt = float(state['resistive_layer_thickness']) if 'resistive_layer_thickness' in state else float(state['inner_scale'])
+            tol = float(state['tolerance'])
+            scaling = float(state['grid_scaling_factor']) if 'grid_scaling_factor' in state else float(state['scaling_factor'])
+            res = int(state['resolution'])
+            nin = int(state['resistive_layer_nodes']) if 'resistive_layer_nodes' in state else int(state['n_inner'])
+            nwa = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
 
             rows.append([
                 val,
-                get_val('wavenumber', val),
+                wavenumber,
                 growth,
                 tol,
                 dlt,
-                int(nin),
-                int(nwa),
+                nin,
+                nwa,
                 scaling,
                 res
             ])
@@ -152,22 +146,14 @@ def load_eig_scales(path: str, pattern: str = "*.npz"):
     rows = []
     for f in files:
         with np.load(f) as state:
-            def get_val(key, default=None):
-                return state[key] if key in state else default
-
-            val = get_val('value', get_val('wavenumber', 0))
-            nwa = get_val('n_wa', 0)
-            
-            if nwa == 0:
-                res = get_val('resolution', 0)
-                scaling = get_val('scaling_factor', 0)
-                if res > 0 and scaling > 0:
-                    grid = ChebyshevRationalGrid(res, C=scaling)
-                    a = get_val('a', 1.0)
-                    w = get_val('w', 0.0)
-                    nwa = np.where(np.abs(grid.zg) <= (w + a))[0].size
-
-            rows.append([val, int(nwa)])
+            if 'scan_parameter' in state:
+                val = float(state['scan_parameter_value'])
+            elif 'dependence' in state:
+                val = float(state['value'])
+            else:
+                val = float(state['wavenumber'])
+            nwa = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
+            rows.append([val, nwa])
 
     rows.sort()
     v = np.array([x[0] for x in rows])
@@ -191,7 +177,7 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
         return
 
     fname = f"{dpath}.dat"
-    dep_key = params.get('dependence')
+    dep_key = params.get('scan_parameter', params.get('dependence'))
 
     with open(fname, 'w') as io:
         io.write(f"#\n# Tearing Instability - mode {params['mode']}\n#\n")

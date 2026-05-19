@@ -8,6 +8,7 @@ from .parser import parser_setup, build_parser, build_params, validate_parameter
 from .printing import print_info
 from .solver import eigenmodes
 from .logging_utils import setup_logging
+from .validation import validate_and_fix_file
 
 __all__ = [
     "DeltaError", 
@@ -34,4 +35,5 @@ __all__ = [
     "write_results",
     "print_info",
     "setup_logging",
+    "validate_and_fix_file",
 ]
