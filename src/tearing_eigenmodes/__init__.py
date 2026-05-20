@@ -11,11 +11,11 @@ from .logging_utils import setup_logging
 from .validation import validate_and_fix_file
 
 __all__ = [
-    "DeltaError", 
+    "DeltaError",
     "ConvergenceError",
     "ParameterError",
-    "select_NC", 
-    "inner_layer_thickness", 
+    "select_NC",
+    "inner_layer_thickness",
     "find_peak_location",
     "eos_indices",
     "estimate_max",

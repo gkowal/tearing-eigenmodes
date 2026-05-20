@@ -406,20 +406,20 @@ def build_parser(parser_type='dispersion'):
     config_file = "params.cfg"
     if os.path.exists(config_file):
         config_data = load_config(config_file)
-        
+
         # Build mapping from option names to action destinations
         opt_to_dest = {action.dest: action.dest for action in parser._actions}
         for action in parser._actions:
             for opt in action.option_strings:
                 opt_to_dest[opt.lstrip('-')] = action.dest
-        
+
         typed_config = {}
         for key, val in config_data.items():
             if key in opt_to_dest:
                 dest = opt_to_dest[key]
                 # Find the action associated with this destination
                 action = next(a for a in parser._actions if a.dest == dest)
-                
+
                 try:
                     if action.nargs and action.nargs != 1:
                         # Handle list-like arguments (e.g., 64 2048 32)
@@ -438,7 +438,7 @@ def build_parser(parser_type='dispersion'):
                         typed_config[dest] = val
                 except (ValueError, TypeError):
                     continue
-        
+
         parser.set_defaults(**typed_config)
 
     # ------------------------------------------------------------------

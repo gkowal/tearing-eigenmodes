@@ -10,7 +10,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
     """
     Validate an eigenmode .npz file, rename older keys to modern ones, and backfill
     any missing required fields. If modified and dry_run is False, updates the file atomically.
-    
+
     Returns:
         bool: True if the file is valid (or successfully updated to be valid), False otherwise.
     """
@@ -47,7 +47,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
         is_dependence = True
 
     # 2. Key Mapping & Renaming
-    
+
     # 2a. Growth rate / eigenvalue rename
     if 'growth_rate' in data:
         data['eigenvalue'] = data.pop('growth_rate')
@@ -56,7 +56,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
         # Standardize error naming first if growth_rate_error exists
         data['eigenvalue_error'] = data['growth_rate_error']
         # Do not delete growth_rate_error yet, we can keep it as an alias or standardise
-        
+
     if 'eigenvalues' in data and 'eigenvalue' not in data:
         # Handle old array-based format
         eigenvalues = data.pop('eigenvalues')
@@ -140,7 +140,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
 
     # 5. Recalculate and backfill missing secondary fields
     grid = data['grid']
-    
+
     # 5a. resistive_layer_nodes
     if 'resistive_layer_nodes' not in data:
         thick = float(data['resistive_layer_thickness'])
@@ -171,7 +171,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
             modified = True
             if verbose:
                 logger.info(f"[{filepath}] Set missing 'scan_parameter' to guessed value: {param_fallback}")
-            
+
         # scan_parameter_value
         if 'scan_parameter_value' not in data:
             p_name = str(data['scan_parameter'])

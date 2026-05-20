@@ -62,7 +62,7 @@ def save_eigenmode(file_path: str, **kwargs):
     # Ensure directory exists
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
-    
+
     fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".npz")
     os.close(fd)
     try:

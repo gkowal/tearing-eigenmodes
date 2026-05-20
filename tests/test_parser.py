@@ -16,7 +16,7 @@ def test_validate_parameters_lundquist():
     args.Lundquist_number = 0.0
     with pytest.raises(ParameterError, match="Lundquist number must be > 0"):
         validate_parameters(args)
-        
+
     args.Lundquist_number = -5.0
     with pytest.raises(ParameterError, match="Lundquist number must be > 0"):
         validate_parameters(args)
@@ -64,7 +64,7 @@ def test_validate_parameters_thickness_width():
     args.thickness = 0.0
     with pytest.raises(ParameterError, match="Current sheet thickness .* must be > 0"):
         validate_parameters(args)
-        
+
     args.thickness = 1.0
     args.width = -0.1
     with pytest.raises(ParameterError, match="Current sheet half‑width .* must be ≥ 0"):
@@ -74,7 +74,7 @@ def test_validate_parameters_eos_custom():
     parser = parser_setup()
     args = parser.parse_args([])
     args.eos = "custom"
-    
+
     # If one or both gamma parameters are missing
     if hasattr(args, "gamma_parallel"):
         delattr(args, "gamma_parallel")
@@ -84,17 +84,17 @@ def test_validate_parameters_eos_custom():
 def test_validate_parameters_resolution_range():
     parser = parser_setup()
     args = parser.parse_args([])
-    
+
     # Nmin > Nmax
     args.resolution_range = [128, 64, 32]
     with pytest.raises(ParameterError, match="Resolution range start .* must be ≤ end"):
         validate_parameters(args)
-        
+
     # Ninc <= 0
     args.resolution_range = [64, 128, 0]
     with pytest.raises(ParameterError, match="Resolution increment .* must be positive"):
         validate_parameters(args)
-        
+
     # Ninc > Nmin
     args.resolution_range = [64, 128, 128]
     with pytest.raises(ParameterError, match="cannot exceed the minimum resolution"):
@@ -103,11 +103,11 @@ def test_validate_parameters_resolution_range():
 def test_validate_parameters_tolerances():
     parser = parser_setup()
     args = parser.parse_args([])
-    
+
     args.absolute_tolerance = 0.0
     with pytest.raises(ParameterError, match="absolute tolerance .* must be > 0"):
         validate_parameters(args)
-        
+
     args = parser.parse_args([])
     args.relative_tolerance = -1e-5
     with pytest.raises(ParameterError, match="relative tolerance .* must be > 0"):
@@ -116,12 +116,12 @@ def test_validate_parameters_tolerances():
 def test_validate_parameters_growth_rate():
     parser = parser_setup()
     args = parser.parse_args([])
-    
+
     # gmin > gmax
     args.real_part_range = [1.0, 0.5]
     with pytest.raises(ParameterError, match="Growth‑rate lower bound .* must be ≤ upper bound"):
         validate_parameters(args)
-        
+
     # gmin < 0
     args.real_part_range = [-0.1, 1.0]
     with pytest.raises(ParameterError, match="Growth‑rate lower bound cannot be negative"):
@@ -130,11 +130,11 @@ def test_validate_parameters_growth_rate():
 def test_validate_parameters_inner_points():
     parser = parser_setup()
     args = parser.parse_args([])
-    
+
     args.n_inner = 2
     with pytest.raises(ParameterError, match="Minimum number of inner collocation points .* must be >= 3"):
         validate_parameters(args)
-        
+
     args = parser.parse_args([])
     args.l_inner = 1e-7
     with pytest.raises(ParameterError, match="minimum width for the inner collocation points .* must be >= 1.0e-6"):
@@ -143,12 +143,12 @@ def test_validate_parameters_inner_points():
 def test_validate_parameters_conflicting_scaling():
     parser = parser_setup()
     args = parser.parse_args([])
-    
+
     args.scaling_factor = 1.0
     args.inner_layer_thickness = 0.1
     with pytest.raises(ParameterError, match="Only one of these options may be set at a time"):
         validate_parameters(args)
-        
+
     args = parser.parse_args([])
     args.inner_layer_thickness = -0.1
     with pytest.raises(ParameterError, match="Inner-layer thickness .* must be > 0"):
@@ -164,9 +164,9 @@ def test_build_params_dispersion(monkeypatch):
         "-K", "0.1", "0.5", "0.05",
         "--eos", "isothermal"
     ])
-    
+
     params = build_params(parser_type="dispersion")
-    
+
     assert params["S"] == 1.5e4
     assert params["Pr"] == 0.2
     assert params["a"] == 2.0
@@ -185,9 +185,9 @@ def test_build_params_maximum(monkeypatch):
         "-R", "1e3", "1e5", "1e4",
         "--CGL"
     ])
-    
+
     params = build_params(parser_type="maximum")
-    
+
     assert params["dependence"] == "S"
     assert params["vmin"] == 1e3
     assert params["vmax"] == 1e5

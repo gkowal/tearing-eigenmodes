@@ -22,7 +22,7 @@ def process_file(sname, params):
     # Load the state
     with np.load(sname) as state:
         z = state['grid']
-        
+
         # Determine variables to plot based on what is present in the state file
         possible_variables = ['duz', 'dbz', 'duy', 'dby', 'ddp']
         variables = [v for v in possible_variables if v in state]
@@ -48,7 +48,7 @@ def process_file(sname, params):
                 mask &= (z >= zmin)
             if zmax is not None:
                 mask &= (z <= zmax)
-            
+
             z_plot = z[mask]
         else:
             z_plot = z
@@ -65,18 +65,18 @@ def process_file(sname, params):
 
         for ax, var in zip(axes, variables):
             data = state[var][mask]
-            
+
             ax.plot(z_plot, data.real, label='Real', color='blue', linewidth=1.5)
             ax.plot(z_plot, data.imag, label='Imag', color='orange', linewidth=1.5)
             ax.plot(z_plot, np.abs(data), label='Abs', color='black', linewidth=1.5)
-            
+
             label = label_map.get(var, f'${var}$')
             ax.set_ylabel(label, fontsize=12)
             ax.grid(True, linestyle=':', alpha=0.7)
             ax.legend(loc='upper right')
 
         axes[-1].set_xlabel('$z$', fontsize=12)
-        
+
         # Determine title
         title = "Eigenmode Solutions"
         dep = state.get('scan_parameter', state.get('dependence', None))
@@ -88,14 +88,14 @@ def process_file(sname, params):
                 title += f", $\\alpha = {float(state['wavenumber']):.4e}$"
         elif 'wavenumber' in state:
             title += f" ($\\alpha = {float(state['wavenumber']):.4e}$)"
-        
+
         fig.suptitle(title, fontsize=14)
 
         # Save or show the plot
         out_name = params.get('output_plot')
         if not out_name or len(glob.glob(params.get('dir_plot', '') + '/*.npz')) > 1:
             out_name = os.path.splitext(sname)[0] + '.png'
-        
+
         plt.savefig(out_name, dpi=300)
         plt.close(fig)  # Close to free memory
         logging.info(f"Plot saved to {out_name}")
@@ -120,12 +120,12 @@ def main():
         if not os.path.exists(dir_name):
             logging.error(f"Error: Directory not found: {dir_name}")
             sys.exit(1)
-        
+
         files = sorted(glob.glob(os.path.join(dir_name, "*.npz")))
         if not files:
             logging.error(f"Error: No .npz files found in {dir_name}")
             sys.exit(1)
-        
+
         logging.info(f"Processing {len(files)} files in {dir_name}...")
         for f in files:
             process_file(f, params)

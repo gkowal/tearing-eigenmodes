@@ -31,7 +31,7 @@ def test_select_nc_cmean_strategies():
         params['Cmean'] = m
         N, C = select_NC(params)
         results[m] = (N, C)
-    
+
     # Check that all scaling strategies return float scaling factors and int resolutions
     for m in means:
         assert isinstance(results[m][0], int)
