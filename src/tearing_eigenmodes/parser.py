@@ -282,6 +282,7 @@ def build_parser(parser_type='dispersion'):
     # ------------------------------------------------------------------
     # 1️⃣  Create a basic ArgumentParser instance (your helper handles
     #     formatting, defaults, etc.).
+    # pyrefly: ignore [unbound-name]
     parser = parser_setup(description=description)
 
     # ------------------------------------------------------------------
@@ -424,7 +425,7 @@ def build_parser(parser_type='dispersion'):
                     if action.nargs and action.nargs != 1:
                         # Handle list-like arguments (e.g., 64 2048 32)
                         parts = val.strip('[]()').replace(',', ' ').split()
-                        if action.type:
+                        if action.type and callable(action.type):
                             typed_config[dest] = [action.type(p) for p in parts]
                         else:
                             typed_config[dest] = parts
@@ -432,7 +433,7 @@ def build_parser(parser_type='dispersion'):
                         typed_config[dest] = val.lower() in ('true', 'yes', '1', 'on')
                     elif isinstance(action, argparse._StoreFalseAction):
                         typed_config[dest] = val.lower() in ('false', 'no', '0', 'off')
-                    elif action.type:
+                    elif action.type and callable(action.type):
                         typed_config[dest] = action.type(val)
                     else:
                         typed_config[dest] = val

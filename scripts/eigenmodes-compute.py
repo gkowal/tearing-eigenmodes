@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 import os, sys, time, logging, signal
+from typing import Any
 import multiprocessing as mp
 import numpy as np
 
@@ -8,7 +9,7 @@ from tearing_eigenmodes import build_params, build_dpath, print_info, \
                              refine_growth_rate, refine_thickness, \
                              eigenmodes, write_results, save_eigenmode, setup_logging
 
-counter = None
+counter: Any = None
 
 def init_worker(shared_counter):
     """Assign the shared object to the global variable in this worker."""
@@ -32,6 +33,17 @@ def task(k, sigma, δinner, params):
     status   = False
 
     α = k * a
+
+    # Initialize variables to satisfy static analysis
+    σ = np.array([])
+    e = 0.0
+    δin = 0.0
+    nin = 0
+    nwa = 0
+    N = 0
+    C = 0.0
+    z = None
+    s = {}
 
     sname  = os.path.join(params_base.get('data_path', './'), f'state_α{α:.6e}.npz')
 
@@ -93,9 +105,11 @@ def task(k, sigma, δinner, params):
             status = False
             logging.warning(f"Could not find eigenmode for α = {α:.3e}: {ex}")
 
-    with counter.get_lock():
-        counter.value += 1
-        n = counter.value
+    n = 0
+    if counter is not None:
+        with counter.get_lock():
+            counter.value += 1
+            n = counter.value
 
     fmt    = r'[{:' + str(len(str(ntasks))) + 'd}/' + str(ntasks) + ']'
     output = f"{fmt.format(n)}  α = {α:.3e}: "

@@ -103,18 +103,20 @@ def eigenmodes(params):
         if allmodes:
             return σ, v, e, δin, nin, nwa, C, N, system.grid.zg, True
 
-        if np.isclose(σ, system.result['sigma']):
-            σ = system.result['sigma']
-            e = system.result['error']
-            z = system.result['grid']
+        system_result = getattr(system, 'result')
+        if np.isclose(σ, system_result['sigma']):
+            σ = system_result['sigma']
+            e = system_result['error']
+            z = system_result['grid']
         else:
             logger.warning("Solver returned inconsistent eigenvalue!")
             σ = σ[0]
             e = e[0]
             z = system.grid.zg
         s = {}
-        for key in system.variables:
-            s[key] = system.result[key]
+        system_variables = getattr(system, 'variables')
+        for key in system_variables:
+            s[key] = system_result[key]
 
         logger.debug(
             f'Calculation done for α = {α:.4e} with C = {C:.3e} '

@@ -27,7 +27,7 @@ def test_select_nc_cmean_strategies():
     means = ['geometric', 'harmonic', 'average', 'lower', 'outer', 'upper', 'inner', 'unknown_mean']
     results = {}
     for m in means:
-        params = base_params.copy()
+        params = dict(base_params)
         params['Cmean'] = m
         N, C = select_NC(params)
         results[m] = (N, C)

@@ -69,6 +69,7 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
     # Build interpolator once
     fast_interp = make_fast_interpolator(grid)
 
+    δ = 0.0
     # check if Td changes sign in the interval
     if Tin.min() <= 0.0 and Tin.max() >= 0.0:
         # start from z at which Tin is maximum and search at which distance Td becomes negative
@@ -87,7 +88,7 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
                 tm = fast_interp(zm, Td)
                 # pick the point with smallest absolute value
                 best = min(((abs(tl), zl), (abs(tm), zm), (abs(th), zh)), key=lambda x: x[0])[1]
-                δ = float(best)
+                δ = best
             else:
                 it = 0
                 while 2.0 * (zh - zl) > δtol * (zh + zl) and it < maxiter:
@@ -101,10 +102,7 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
                     else:
                         zh, th = zm, tm
                     it += 1
-                δ = float(0.5 * (zl + zh))
-    else:
-        # no region where Td >= 0: set δ to zero (no inner layer detected)
-        δ = 0.0
+                δ = 0.5 * (zl + zh)
 
     I = np.where(np.abs(grid.zg) <= δ)
     nin = max(1, I[0].size)
@@ -143,7 +141,7 @@ def find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1.0e-3, maxiter=50):
             peak_idx = idx
 
     # Refine using one neighboring grid point on each side of the coarse peak.
-    if field_idx is not None and 0 < peak_idx < (grid.zg.size - 1):
+    if field_idx is not None and peak_idx is not None and 0 < peak_idx < (grid.zg.size - 1):
         zl = max(0.0, float(grid.zg[peak_idx - 1]))
         zh = min(float(a), float(grid.zg[peak_idx + 1]))
 

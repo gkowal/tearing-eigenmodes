@@ -6,13 +6,13 @@ from tearing_eigenmodes.io import save_eigenmode
 logger = logging.getLogger(__name__)
 
 
-def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = False) -> bool:
+def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = False) -> tuple[bool, bool]:
     """
     Validate an eigenmode .npz file, rename older keys to modern ones, and backfill
     any missing required fields. If modified and dry_run is False, updates the file atomically.
 
     Returns:
-        bool: True if the file is valid (or successfully updated to be valid), False otherwise.
+        tuple[bool, bool]: (isValid, isModified). True if the file is valid (or successfully updated to be valid), False otherwise.
     """
     if not os.path.exists(filepath):
         logger.error(f"File not found: {filepath}")

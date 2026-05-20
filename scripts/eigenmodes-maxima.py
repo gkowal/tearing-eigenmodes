@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 import os, sys, time, logging, signal
+from typing import Any
 import multiprocessing as mp
 import numpy as np
 
@@ -12,7 +13,7 @@ from tearing_eigenmodes import build_params, build_dpath, \
                              eigenmodes, write_results, DeltaError, \
                              estimate_max, save_eigenmode, setup_logging
 
-counter = None
+counter: Any = None
 
 class Extrapolator:
     """
@@ -69,10 +70,10 @@ def make_objective(params_base):
         p = dict(params_fixed)
         p["alpha"] = αq
         σ, _, _, _, _, _, _, _, _, status = eigenmodes(p)
-        return float(-σ.real) if status else 0.0
+        return float(-σ.real) if (status and σ is not None) else 0.0
 
     def f(α: float) -> float:
-        return objective(round(float(α), 12))
+        return objective(round(α, 12))
 
     return f
 
@@ -84,6 +85,21 @@ def task(value, αbracket, sigma, δinner, params):
     status = False
 
     params_base = dict(params)
+
+    # Initialize variables to satisfy static analysis
+    αm = 0.0
+    σm = np.array([])
+    e = 0.0
+    δin = 0.0
+    nin = 0
+    nwa = 0
+    N = 0
+    C = 0.0
+    nit = 0
+    Δα = 0.0
+    Δσ = 0.0
+    z = None
+    s = {}
 
     ntasks     = params_base.get('ntasks'  , 1)
     dependence = params_base.get('dependence'  , 'S')
@@ -178,7 +194,7 @@ def task(value, αbracket, sigma, δinner, params):
                 σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_final)
                 if status:
                     σm  = σ
-                    Δσ  = rtol * σm.real * e
+                    Δσ  = rtol * σm.real * e if σm is not None else 0.0
                     nit = res.nfev
 
                     # Include physical and numerical parameters for reproducibility
@@ -230,9 +246,10 @@ def task(value, αbracket, sigma, δinner, params):
 
 
     n = 0
-    with counter.get_lock():
-        counter.value += 1
-        n = counter.value
+    if counter is not None:
+        with counter.get_lock():
+            counter.value += 1
+            n = counter.value
 
     progress   = n / ntasks
     percentage = int(progress * 100)
@@ -346,7 +363,7 @@ def main():
 
                 if not status:
                     break
-                if gm.real < 1e-6:
+                if gm is not None and gm.real < 1e-6:
                     logging.info(f"Growth rate dropped below 1e-6 ({gm.real:.3e}). Stopping sweep.")
                     break
 
