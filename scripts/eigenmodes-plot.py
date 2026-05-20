@@ -23,15 +23,14 @@ def process_file(sname, params):
     with np.load(sname) as state:
         z = state['grid']
         
-        variables = ['duz', 'dbz']
-        if params.get('CGL'):
-            variables += ['duy', 'dby', 'ddp']
+        # Determine variables to plot based on what is present in the state file
+        possible_variables = ['duz', 'dbz', 'duy', 'dby', 'ddp']
+        variables = [v for v in possible_variables if v in state]
 
-        # Check if all variables exist in the state
-        missing = [v for v in variables if v not in state]
-        if missing:
-            logging.error(f"Error: Missing variables in state file: {', '.join(missing)}")
+        if not variables:
+            logging.error(f"Error: No eigenfunctions found in state file: {sname}")
             return
+
 
         # Plotting
         n_vars = len(variables)

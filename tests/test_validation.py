@@ -195,3 +195,42 @@ def test_validate_dispersion_guess_from_filename():
         with np.load(filepath) as state:
             assert "scan_parameter" not in state
             assert state["wavenumber"] == 0.25
+
+
+def test_validate_isothermal_cgl_file():
+    """Test validation of a CGL=True file that is missing the ddp eigenfunction (e.g. double-isothermal)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "state_a0.1.npz")
+        
+        # Save a mock CGL=True file with only 4 eigenfunctions (no ddp)
+        mock_data = {
+            "wavenumber": np.array(0.1),
+            "growth_rate": np.array(0.05),
+            "tolerance": np.array(1e-6),
+            "inner_scale": np.array(0.15),
+            "scaling_factor": np.array(2.5),
+            "resolution": np.array(128),
+            "grid": np.linspace(-10, 10, 128),
+            "a": np.array(1.0),
+            "w": np.array(0.0),
+            "CGL": np.array(True),
+            "duz": np.sin(np.linspace(0, np.pi, 128)),
+            "dbz": np.cos(np.linspace(0, np.pi, 128)),
+            "duy": np.sin(np.linspace(0, np.pi, 128)),
+            "dby": np.cos(np.linspace(0, np.pi, 128)),
+        }
+        
+        np.savez(filepath, **mock_data)
+        
+        # Run validation
+        success, modified = validate_and_fix_file(filepath, dry_run=False, verbose=True)
+        assert success is True
+        assert modified is True
+        
+        # Ensure it loaded and saved correctly without raising any errors/complaints about missing ddp
+        with np.load(filepath) as state:
+            assert state["CGL"] == True
+            assert "ddp" not in state
+            assert "duy" in state
+            assert "dby" in state
+

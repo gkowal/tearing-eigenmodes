@@ -115,14 +115,13 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
         logger.warning(f"File {filepath} is invalid: missing core fields {missing_cores}")
         return False, False
 
-    cgl = bool(data.get('CGL', False))
-    required_eigenfunctions = ['duz', 'dbz']
-    if cgl:
-        required_eigenfunctions += ['duy', 'dby', 'ddp']
-    missing_efs = [k for k in required_eigenfunctions if k not in data]
-    if missing_efs:
-        logger.warning(f"File {filepath} is invalid: missing eigenfunctions {missing_efs}")
+    # We require the core eigenfunctions 'duz' and 'dbz' to be present
+    required_core = ['duz', 'dbz']
+    missing_core = [k for k in required_core if k not in data]
+    if missing_core:
+        logger.warning(f"File {filepath} is invalid: missing core eigenfunctions {missing_core}")
         return False, False
+
 
     # 4. Fill in metadata defaults if missing
     metadata_defaults = {
