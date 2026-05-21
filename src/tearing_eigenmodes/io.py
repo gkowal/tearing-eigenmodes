@@ -133,35 +133,6 @@ def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.n
     return v, α, σ, e, δ, c, nin_arr, nwa_arr, N
 
 
-def load_eig_scales(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Load eigenmode data from .npz files focusing on scales.
-    """
-    search_path = os.path.join(path, pattern)
-    files = sorted(glob.glob(search_path))
-
-    if not files:
-        raise FileNotFoundError(f"No files matching {pattern} found in {path}")
-
-    rows = []
-    for f in files:
-        with np.load(f) as state:
-            if 'scan_parameter' in state:
-                val = float(state['scan_parameter_value'])
-            elif 'dependence' in state:
-                val = float(state['value'])
-            else:
-                val = float(state['wavenumber'])
-            nwa_val = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
-            rows.append([val, nwa_val])
-
-    rows.sort()
-    v = np.array([x[0] for x in rows])
-    nwa_arr = np.array([x[1] for x in rows])
-
-    return v, nwa_arr
-
-
 def write_results(params: Dict[str, Any], delta_time: float) -> None:
     """
     Unified result writer for simulation output.

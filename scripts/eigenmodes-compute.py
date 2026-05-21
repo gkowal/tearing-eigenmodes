@@ -6,7 +6,7 @@ import multiprocessing as mp
 import numpy as np
 
 from tearing_eigenmodes import build_params, build_dpath, print_info, \
-                             refine_growth_rate, refine_thickness, \
+                             refine_eigenvalues, \
                              eigenmodes, write_results, save_eigenmode, setup_logging
 
 counter: Any = None
@@ -18,7 +18,7 @@ def init_worker(shared_counter):
     global counter
     counter = shared_counter
 
-def task(k, sigma, δinner, params):
+def task(k, sigma, params):
     global counter
 
     params_base = dict(params)
@@ -64,7 +64,6 @@ def task(k, sigma, δinner, params):
         try:
             params_base['sigma']   = sigma
             params_base['alpha']   = α
-            params_base['delta']   = δinner
 
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
 
@@ -184,8 +183,7 @@ def main():
 
     shared_counter = mp.Value('i', 0)
 
-    s = refine_growth_rate(ks, params)
-    d = refine_thickness(ks, params)
+    s = refine_eigenvalues(ks, params)
 
     try:
         with mp.Pool(
@@ -193,7 +191,7 @@ def main():
             initializer=init_worker,
             initargs=(shared_counter,)
         ) as pool:
-            pool.starmap(task, [(k, s[n], d[n], params) for n, k in enumerate(ks)])
+            pool.starmap(task, [(k, s[n], params) for n, k in enumerate(ks)])
     except KeyboardInterrupt:
         logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
         sys.exit(1)

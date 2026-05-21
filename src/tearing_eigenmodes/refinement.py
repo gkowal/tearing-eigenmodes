@@ -1,46 +1,78 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
+import os
+import glob
 import numpy as np
 import logging
 from scipy.interpolate import make_interp_spline
-from .io import load_eigenmodes, load_eig_scales
+from .io import load_eigenmodes
 
 logger = logging.getLogger(__name__)
 
-def refine_inner_scale(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
-    linner = [params['l_inner']] * vs.size
+# Cache dictionary to map directory path & pattern to last seen directory state and loaded data.
+# The cache key is (path, pattern).
+# The cache value is (directory_state, data).
+# directory_state is a tuple of (filename, mtime, size) tuples.
+_load_eigenmodes_cache: Dict[Tuple[str, str], Tuple[Tuple[Tuple[str, float, int], ...], Tuple]] = {}
 
-    """Update thickness using cached eigenmodes if available."""
+
+def _get_directory_state(path: str, pattern: str) -> Tuple[Tuple[str, float, int], ...]:
+    """
+    Return a tuple of (filename, mtime, size) for all matching files.
+    This uniquely identifies the state of the directory.
+    """
+    search_path = os.path.join(path, pattern)
+    files = sorted(glob.glob(search_path))
+    state = []
+    for f in files:
+        try:
+            st = os.stat(f)
+            state.append((f, st.st_mtime, st.st_size))
+        except FileNotFoundError:
+            continue
+    return tuple(state)
+
+
+def _cached_load_eigenmodes(
+    path: str, pattern: str = "*.npz"
+) -> Tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+]:
+    """
+    Wrapper around load_eigenmodes that caches results based on the files' sizes and modification times.
+    """
+    key = (path, pattern)
     try:
-        v, l = load_eig_scales(params['data_path'])
-    except FileNotFoundError:
-        return linner
+        current_state = _get_directory_state(path, pattern)
+    except Exception:
+        # If directory/files access fails, bypass cache
+        return load_eigenmodes(path, pattern)
 
-    if v.size < 2:
-        return linner
+    if key in _load_eigenmodes_cache:
+        cached_state, data = _load_eigenmodes_cache[key]
+        if cached_state == current_state:
+            logger.debug(f"Refinement I/O Cache HIT for {path}")
+            return data
 
-    degree = min(3, v.size - 1)
-    spline = make_interp_spline(v, l, k=degree)
-    linner = spline(vs)
-    if linner.min() <= 0.0:
-        spline = make_interp_spline(v, l, k=0)
-        linner = spline(vs)
-
-    vmn, vmx = v.min(), v.max()
-
-    linner = linner.tolist()
-    for i, x in enumerate(vs):
-        if x < vmn or x > vmx:
-            linner[i] = params['l_inner']
-
-    return linner
+    logger.debug(f"Refinement I/O Cache MISS for {path}")
+    data = load_eigenmodes(path, pattern)
+    _load_eigenmodes_cache[key] = (current_state, data)
+    return data
 
 
-def refine_growth_rate(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
+def refine_eigenvalues(vs: np.ndarray, params: Dict[str, Any]) -> List[Any]:
     sigma = [params['sigma']] * vs.size
 
-    """Update thickness using cached eigenmodes if available."""
+    """Update eigenvalues using cached eigenmodes if available."""
     try:
-        v, _, σ, _, _, _, _, _, _ = load_eigenmodes(params['data_path'])
+        v, _, σ, _, _, _, _, _, _ = _cached_load_eigenmodes(params['data_path'])
     except FileNotFoundError:
         return sigma
 
@@ -50,7 +82,7 @@ def refine_growth_rate(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
     degree = min(3, v.size - 1)
     spline = make_interp_spline(v, σ, k=degree)
     sigma = spline(vs)
-    if sigma.min() <= 0.0:
+    if np.real(sigma).min() <= 0.0:
         spline = make_interp_spline(v, σ, k=0)
         sigma = spline(vs)
 
@@ -64,35 +96,6 @@ def refine_growth_rate(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
     return sigma
 
 
-def refine_thickness(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
-    δinner = [params['delta']] * vs.size
-
-    """Update thickness using cached eigenmodes if available."""
-    try:
-        v, _, _, _, δ, _, _, _, _ = load_eigenmodes(params['data_path'])
-    except FileNotFoundError:
-        return δinner
-
-    if v.size < 2:
-        return δinner
-
-    degree = min(3, v.size - 1)
-    spline = make_interp_spline(v, δ, k=degree)
-    δinner = spline(vs)
-    if δinner.min() <= 0.0:
-        spline = make_interp_spline(v, δ, k=0)
-        δinner = spline(vs)
-
-    vmn, vmx = v.min(), v.max()
-
-    δinner = δinner.tolist()
-    for i, x in enumerate(vs):
-        if x < vmn or x > vmx:
-            δinner[i] = params['delta']
-
-    return δinner
-
-
 def refine_wavenumber_bracket(vs: np.ndarray, params: Dict[str, Any]) -> List[Optional[List[float]]]:
     """Update wavenumber brackets using cached eigenmodes if available."""
     # Initialize with default bracket from params
@@ -100,7 +103,7 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: Dict[str, Any]) -> List[Op
 
     try:
         # Assuming load_eigenmodes returns arrays
-        v, α, *_ = load_eigenmodes(params['data_path'])
+        v, α, *_ = _cached_load_eigenmodes(params['data_path'])
     except (FileNotFoundError, KeyError, TypeError):
         return kbracket
 

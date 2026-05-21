@@ -9,7 +9,7 @@ from collections import deque
 from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
-                             refine_thickness, refine_growth_rate, \
+                             refine_eigenvalues, \
                              eigenmodes, write_results, DeltaError, \
                              estimate_max, save_eigenmode, setup_logging
 
@@ -77,7 +77,7 @@ def make_objective(params_base):
 
     return f
 
-def task(value, αbracket, sigma, δinner, params):
+def task(value, αbracket, sigma, params):
     from scipy.optimize import bracket, minimize_scalar
 
     global counter
@@ -166,7 +166,6 @@ def task(value, αbracket, sigma, δinner, params):
 
             try:
                 params_base['sigma']   = sigma
-                params_base['delta']   = δinner
 
                 f = make_objective(params_base)
 
@@ -316,8 +315,7 @@ def main():
         nprocs = 1
 
     k = refine_wavenumber_bracket(vs, params)
-    d = refine_thickness(vs, params)
-    g = refine_growth_rate(vs, params)
+    g = refine_eigenvalues(vs, params)
 
     plural = 'es' if nprocs > 1 else ''
     logging.info(f'\nCalculation initiated with {nprocs} process{plural}'
@@ -333,14 +331,13 @@ def main():
             extrap_guard = params.get('extrap_guard', 0.01)
 
             k_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-6)
-            d_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-10)
             g_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-10)
 
             global counter
             counter = shared_counter
 
             # Initial values from refinement if any
-            gm, dm = params.get('sigma'), params.get('delta')
+            gm = params.get('sigma')
 
             for n, v in enumerate(vs):
                 # ── extrapolate wavenumber bracket ────────────────────────────────
@@ -357,9 +354,8 @@ def main():
 
                 # ── use previous step results as guesses if refinement is default ─
                 gn = gm if g[n] == params.get('sigma') else g[n]
-                dn = dm if d[n] == params.get('delta') else d[n]
 
-                km, gm, dm, N, status = task(v, kn, gn, dn, params)
+                km, gm, _, N, status = task(v, kn, gn, params)
 
                 if not status:
                     break
@@ -369,8 +365,6 @@ def main():
 
                 # ── record for next extrapolation ─────────────────────────────────
                 k_extrap.add(v, km)
-                if dm is not None:
-                    d_extrap.add(v, dm)
                 if gm is not None:
                     g_extrap.add(v, gm)
         else:
@@ -379,7 +373,7 @@ def main():
                 initializer=init_worker,
                 initargs=(shared_counter,)
             ) as pool:
-                pool.starmap(task, [(v, k[n], g[n], d[n], params) for n, v in enumerate(vs)])
+                pool.starmap(task, [(v, k[n], g[n], params) for n, v in enumerate(vs)])
     except KeyboardInterrupt:
         logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
         sys.exit(1)
