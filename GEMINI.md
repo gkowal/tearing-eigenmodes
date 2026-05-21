@@ -32,6 +32,17 @@ By default, the scripts save state in the `RESULTS/` directory. If a calculation
 - To start from scratch, remove the `RESULTS/` directory: `rm -rf RESULTS/`.
 - To overwrite existing results without deleting the directory, use the `--force` (or `-f`) flag.
 
+## Testing
+
+The project includes unit tests located in the `tests/` directory. You can run them using `pytest` from the project root:
+
+```bash
+pytest
+```
+
+> [!IMPORTANT]
+> Always remove the `./RESULTS` folder after running tests to ensure a clean state and avoid interference with subsequent simulation runs.
+
 ## Key Conventions
 
 ### Attribute Safety
