@@ -1,11 +1,12 @@
 from .exceptions import DeltaError, ConvergenceError
+from typing import Dict, Tuple, Any
 import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def select_NC(params):
+def select_NC(params: Dict[str, Any]) -> Tuple[int, float]:
     """
     Determine the Chebyshev–TB grid resolution N and scaling factor C for the linear tearing
     instability eigenproblem under the mapping z = C tan(θ).

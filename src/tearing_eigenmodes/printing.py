@@ -1,9 +1,10 @@
+from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def print_info(params):
+def print_info(params: Dict[str, Any]) -> None:
     """
     Print the physical and numerical parameters used for the calculation.
     """

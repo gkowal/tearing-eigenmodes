@@ -1,9 +1,10 @@
 import logging
 import sys
+from typing import Optional
 
 class SmartStreamHandler(logging.StreamHandler):
     """A logging handler that doesn't add a newline if the message starts with \r."""
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         try:
             msg = self.format(record)
             if msg.startswith('\r'):
@@ -15,7 +16,7 @@ class SmartStreamHandler(logging.StreamHandler):
         except Exception:
             self.handleError(record)
 
-def setup_logging(verbose=False, log_file=None):
+def setup_logging(verbose: bool = False, log_file: Optional[str] = None) -> None:
     """
     Configure the logging system for the project.
 

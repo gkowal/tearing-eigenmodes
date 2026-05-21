@@ -2,12 +2,12 @@ import os
 import glob
 import logging
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def build_dpath(params: dict) -> str:
+def build_dpath(params: Dict[str, Any]) -> str:
     """
     Construct the directory name that will hold the results for a given run.
     """
@@ -30,11 +30,11 @@ def build_dpath(params: dict) -> str:
     return dpath + params['suffix']
 
 
-def load_config(file_path: str) -> dict:
+def load_config(file_path: str) -> Dict[str, Any]:
     """
     Read a simple key-value configuration file.
     """
-    config = {}
+    config: Dict[str, Any] = {}
     if not os.path.exists(file_path):
         return config
 
@@ -53,7 +53,7 @@ def load_config(file_path: str) -> dict:
     return config
 
 
-def save_eigenmode(file_path: str, **kwargs):
+def save_eigenmode(file_path: str, **kwargs: Any) -> None:
     """
     Save eigenmode data to a .npz file atomically.
     """
@@ -74,7 +74,7 @@ def save_eigenmode(file_path: str, **kwargs):
         raise e
 
 
-def load_eigenmodes(path: str, pattern: str = "*.npz"):
+def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Load eigenmode data from .npz files using glob and os.
     """
@@ -103,8 +103,8 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
             tol = float(state['tolerance'])
             scaling = float(state['grid_scaling_factor']) if 'grid_scaling_factor' in state else float(state['scaling_factor'])
             res = int(state['resolution'])
-            nin = int(state['resistive_layer_nodes']) if 'resistive_layer_nodes' in state else int(state['n_inner'])
-            nwa = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
+            nin_val = int(state['resistive_layer_nodes']) if 'resistive_layer_nodes' in state else int(state['n_inner'])
+            nwa_val = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
 
             rows.append([
                 val,
@@ -112,8 +112,8 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
                 growth,
                 tol,
                 dlt,
-                nin,
-                nwa,
+                nin_val,
+                nwa_val,
                 scaling,
                 res
             ])
@@ -126,14 +126,14 @@ def load_eigenmodes(path: str, pattern: str = "*.npz"):
     e = np.array([x[3] for x in rows])
     δ = np.array([x[4] for x in rows])
     c = np.array([x[7] for x in rows])
-    nin = np.array([x[5] for x in rows])
-    nwa = np.array([x[6] for x in rows])
+    nin_arr = np.array([x[5] for x in rows])
+    nwa_arr = np.array([x[6] for x in rows])
     N = np.array([x[8] for x in rows])
 
-    return v, α, σ, e, δ, c, nin, nwa, N
+    return v, α, σ, e, δ, c, nin_arr, nwa_arr, N
 
 
-def load_eig_scales(path: str, pattern: str = "*.npz"):
+def load_eig_scales(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.ndarray]:
     """
     Load eigenmode data from .npz files focusing on scales.
     """
@@ -152,14 +152,14 @@ def load_eig_scales(path: str, pattern: str = "*.npz"):
                 val = float(state['value'])
             else:
                 val = float(state['wavenumber'])
-            nwa = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
-            rows.append([val, nwa])
+            nwa_val = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
+            rows.append([val, nwa_val])
 
     rows.sort()
     v = np.array([x[0] for x in rows])
-    nwa = np.array([x[1] for x in rows])
+    nwa_arr = np.array([x[1] for x in rows])
 
-    return v, nwa
+    return v, nwa_arr
 
 
 def write_results(params: Dict[str, Any], delta_time: float) -> None:

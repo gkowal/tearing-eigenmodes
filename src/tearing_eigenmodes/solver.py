@@ -3,13 +3,27 @@ from .grid import select_NC
 from .analysis import inner_layer_thickness
 from psecas import Solver, ChebyshevRationalGrid
 from psecas.systems.tearing_instability import TearingClassicalMHD, TearingGyrotropicMHD
+from typing import Tuple, Dict, Any, Optional
 import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
 
+EigenmodesReturn = Tuple[
+    Optional[np.ndarray],            # σ (eigenvalues)
+    Optional[Dict[str, np.ndarray]], # s (eigenfunctions)
+    Optional[float],                 # e (error/tolerance)
+    Optional[float],                 # δin (inner layer thickness)
+    Optional[int],                   # nin (inner layer nodes)
+    Optional[int],                   # nwa (current sheet nodes)
+    Optional[float],                 # C (grid scaling factor)
+    Optional[int],                   # N (resolution)
+    Optional[np.ndarray],            # z (grid zg)
+    bool                             # success flag
+]
 
-def eigenmodes(params):
+
+def eigenmodes(params: Dict[str, Any]) -> EigenmodesReturn:
     """
     Calculates tearing instability eigenmodes for a given set of parameters.
     """

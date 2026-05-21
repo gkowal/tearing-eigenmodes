@@ -1,6 +1,7 @@
 from .exceptions import ParameterError
 from .physics import eos_indices
 from .io import load_config
+from typing import Dict, Any, Tuple, Optional
 
 import argparse
 import os
@@ -263,7 +264,7 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     return parser
 
 
-def build_parser(parser_type='dispersion'):
+def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
     """
     Construct and parse the command‑line interface for the tearing‑instability solver.
 
@@ -414,7 +415,7 @@ def build_parser(parser_type='dispersion'):
             for opt in action.option_strings:
                 opt_to_dest[opt.lstrip('-')] = action.dest
 
-        typed_config = {}
+        typed_config: Dict[str, Any] = {}
         for key, val in config_data.items():
             if key in opt_to_dest:
                 dest = opt_to_dest[key]
@@ -457,7 +458,7 @@ def build_parser(parser_type='dispersion'):
     return args
 
 
-def build_params(parser_type='dispersion') -> dict:
+def build_params(parser_type: str = 'dispersion') -> Dict[str, Any]:
     """
     Unified parameter builder for simulation arguments.
     """
@@ -608,7 +609,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
         Namespace returned by ``parser.parse_args()``.
     """
 
-    def get_range(attr, symbol):
+    def get_range(attr: str, symbol: str) -> Tuple[Any, Any]:
         val = getattr(args, attr)
         if hasattr(args, 'dependence') and args.dependence == symbol:
             v1, v2, _ = args.range

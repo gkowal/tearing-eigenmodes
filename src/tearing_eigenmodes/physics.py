@@ -1,6 +1,6 @@
 from .exceptions import DeltaError
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Dict, Any
 
 def eos_indices(eos: str) -> Tuple[float, float]:
     """
@@ -16,7 +16,7 @@ def eos_indices(eos: str) -> Tuple[float, float]:
     raise ValueError(f"Unsupported equation of state: {eos!r}")
 
 
-def estimate_max(params):
+def estimate_max(params: Dict[str, Any]) -> Tuple[float, float]:
     """
     Determine the maximum growth rate and corresponding wavenumber based on physics scaling.
     """

@@ -1,3 +1,4 @@
+from typing import List, Optional, Dict, Any
 import numpy as np
 import logging
 from scipy.interpolate import make_interp_spline
@@ -5,7 +6,7 @@ from .io import load_eigenmodes, load_eig_scales
 
 logger = logging.getLogger(__name__)
 
-def refine_inner_scale(vs, params):
+def refine_inner_scale(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
     linner = [params['l_inner']] * vs.size
 
     """Update thickness using cached eigenmodes if available."""
@@ -34,7 +35,7 @@ def refine_inner_scale(vs, params):
     return linner
 
 
-def refine_growth_rate(vs, params):
+def refine_growth_rate(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
     sigma = [params['sigma']] * vs.size
 
     """Update thickness using cached eigenmodes if available."""
@@ -63,7 +64,7 @@ def refine_growth_rate(vs, params):
     return sigma
 
 
-def refine_thickness(vs, params):
+def refine_thickness(vs: np.ndarray, params: Dict[str, Any]) -> List[float]:
     δinner = [params['delta']] * vs.size
 
     """Update thickness using cached eigenmodes if available."""
@@ -92,7 +93,7 @@ def refine_thickness(vs, params):
     return δinner
 
 
-def refine_wavenumber_bracket(vs, params):
+def refine_wavenumber_bracket(vs: np.ndarray, params: Dict[str, Any]) -> List[Optional[List[float]]]:
     """Update wavenumber brackets using cached eigenmodes if available."""
     # Initialize with default bracket from params
     kbracket = [params.get('kbracket')] * vs.size
@@ -148,7 +149,7 @@ def refine_wavenumber_bracket(vs, params):
 
         logger.debug(
             f"\t{params.get('dependence', 'v')} = {x:+.3e}: "
-            f"α-bracket = [{kbracket[n][0]:.4e}, {kbracket[n][1]:.4e}]"
+            f"α-bracket = [{kl:.4e}, {ku:.4e}]"
         )
 
     return kbracket

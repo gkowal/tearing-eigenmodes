@@ -1,7 +1,8 @@
+from typing import Callable, Union, Tuple, Any
 import numpy as np
 from scipy.optimize import minimize_scalar
 
-def make_fast_interpolator(grid):
+def make_fast_interpolator(grid: Any) -> Callable[[float, np.ndarray], float]:
     """
     Robust single-point interpolator for fields defined on grid.zg,
     using global barycentric interpolation on the mapped Chebyshev–Gauss nodes.
@@ -21,7 +22,7 @@ def make_fast_interpolator(grid):
 
     eps = 50 * np.finfo(float).eps
 
-    def fast_interpolate(z_target, f_values):
+    def fast_interpolate(z_target: float, f_values: np.ndarray) -> float:
         f_values = np.asarray(f_values)
         x = z_target / np.sqrt(grid.C**2 + z_target**2)
 
@@ -36,7 +37,7 @@ def make_fast_interpolator(grid):
     return fast_interpolate
 
 
-def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
+def inner_layer_thickness(system: Any, δtol: float = 1e-3, maxiter: int = 20) -> Tuple[float, int, int]:
     """
     Calculate the inner layer thickness δ for the tearing instability eigenmode.
     """
@@ -113,7 +114,7 @@ def inner_layer_thickness(system, δtol=1e-3, maxiter=20):
     return δ, nin, nwa
 
 
-def find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1.0e-3, maxiter=50):
+def find_peak_location(u0: np.ndarray, b0: np.ndarray, grid: Any, a: float = 1.0, w: float = 0.0, ztol: float = 1.0e-3, maxiter: int = 50) -> Tuple[float, int]:
     """
     Find the closest positive peak location among u, b, and their first two derivatives.
     """
@@ -162,10 +163,10 @@ def find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1.0e-3, maxiter=50):
 
             z_peak = max(candidates, key=lambda zz: -objective(zz))
 
-    I = np.where(np.abs(grid.zg) <= (w + a))
-    n = I[0].size
+    I_outer = np.where(np.abs(grid.zg) <= (w + a))
+    n = I_outer[0].size
     if w > 0:
-        I = np.where(np.abs(grid.zg) <= w)
-        n -= I[0].size
+        I_inner = np.where(np.abs(grid.zg) <= w)
+        n -= I_inner[0].size
 
     return z_peak, n
