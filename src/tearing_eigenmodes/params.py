@@ -5,8 +5,6 @@ from typing import Any, Optional, List
 class SimulationParams:
     # Physical and numerical properties
     eos: str = 'adiabatic'
-    gamma_parallel: float = 3.0
-    gamma_perpendicular: float = 2.0
     parallel_index: float = 3.0
     perpendicular_index: float = 2.0
     CGL: bool = False

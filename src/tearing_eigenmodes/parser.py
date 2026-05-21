@@ -465,14 +465,6 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
     """
     args = build_parser(parser_type=parser_type)
 
-    # 1. Handle EOS calculation
-    # We pass the user-provided gammas to the index calculator
-    # to handle the 'custom' EOS case correctly.
-    params_eos = {
-        'eos': args.eos,
-        'gamma_parallel': args.gamma_parallel,
-        'gamma_perpendicular': args.gamma_perpendicular
-    }
     if args.eos in [ 'isothermal', 'adiabatic', 'polytropic' ]:
         parallel_index, perpendicular_index = eos_indices(args.eos)
     else:
@@ -508,12 +500,12 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         'suffix'                : args.suffix,
         'parallel_index'        : parallel_index,
         'perpendicular_index'   : perpendicular_index,
+        'eos'                   : args.eos,
         'logarithmic'           : args.logarithmic,
         'noshear'               : args.no_shear,
         'force'                 : args.force,
         'verbose'               : args.verbose,
         'log_file'              : args.log_file,
-        **params_eos  # Include the raw EOS and gamma values in the dict
     }
 
     # 3. Handle 'mode' vs 'modes' naming discrepancy
