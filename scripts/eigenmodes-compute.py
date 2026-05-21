@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 import os, sys, time, logging, signal
-from typing import Any
+from typing import Any, Dict
 import multiprocessing as mp
 import numpy as np
 
@@ -11,14 +11,14 @@ from tearing_eigenmodes import build_params, build_dpath, print_info, \
 
 counter: Any = None
 
-def init_worker(shared_counter):
+def init_worker(shared_counter: Any) -> None:
     """Assign the shared object to the global variable in this worker."""
     # Worker processes should ignore SIGINT; only the main process will handle it.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     global counter
     counter = shared_counter
 
-def task(k, sigma, params):
+def task(k: float, sigma: Any, params: Dict[str, Any]) -> None:
     global counter
 
     params_base = dict(params)
@@ -130,7 +130,7 @@ def task(k, sigma, params):
         else:
             logging.info('\r{:<150s}'.format(msg))
 
-def main():
+def main() -> None:
     '''
         Given options, calculates the dispersion relation under the equilibrium field with magnetic and velocity shear.
     '''

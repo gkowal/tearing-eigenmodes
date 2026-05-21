@@ -15,7 +15,7 @@ This list tracks planned improvements for the `tearing-eigenmodes` project, cate
 - [ ] **Eliminate Script Duplication**: Extract shared state-management logic from the `task()` functions in CLI scripts into `io.py`.
 - [x] **Library-based Logging**: Move `SmartStreamHandler` into the library (e.g., `tearing_eigenmodes.logging_utils`) to avoid code duplication across scripts.
 - [x] **Type Hinting**: Expand type hints across all modules, particularly in `solver.py` and `refinement.py`.
-- [ ] **Type Hinting for Scripts**: Add type annotations to CLI scripts under `scripts/` to expand mypy static analysis coverage.
+- [x] **Type Hinting for Scripts**: Add type annotations to CLI scripts under `scripts/` to expand mypy static analysis coverage.
 - [ ] **Automated Static Analysis**: Run static type verification with `mypy` as part of the test runner or CI checks.
 
 ## 3. Execution & User Experience

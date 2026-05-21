@@ -14,7 +14,7 @@ from tearing_eigenmodes import setup_logging, validate_and_fix_file
 logger = logging.getLogger("eigenmodes-validate")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Validate and repair/backfill tearing instability eigenmode .npz files."
     )

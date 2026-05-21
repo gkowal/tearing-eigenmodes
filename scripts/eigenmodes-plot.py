@@ -3,13 +3,14 @@
 import os
 import sys
 import glob
+from typing import Any, Dict
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
 
 from tearing_eigenmodes import build_params, build_dpath, setup_logging
 
-def process_file(sname, params):
+def process_file(sname: str, params: Dict[str, Any]) -> None:
     """
     Process and plot a single .npz file.
     """
@@ -42,8 +43,8 @@ def process_file(sname, params):
         zmax = params.get('zmax')
 
         # Filter indices if zmin/zmax are provided
+        mask = np.ones_like(z, dtype=bool)
         if zmin is not None or zmax is not None:
-            mask = np.ones_like(z, dtype=bool)
             if zmin is not None:
                 mask &= (z >= zmin)
             if zmax is not None:
@@ -52,7 +53,6 @@ def process_file(sname, params):
             z_plot = z[mask]
         else:
             z_plot = z
-            mask = slice(None)
 
         # Mapping for LaTeX labels
         label_map = {
@@ -100,7 +100,7 @@ def process_file(sname, params):
         plt.close(fig)  # Close to free memory
         logging.info(f"Plot saved to {out_name}")
 
-def main():
+def main() -> None:
     """
     Reads an eigenmode state from a .npz file and plots the solutions.
     """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 import os, sys, time, logging, signal
-from typing import Any
+from typing import Any, Dict, Tuple, List, Optional, Callable, Deque
 import multiprocessing as mp
 import numpy as np
 
@@ -22,18 +22,18 @@ class Extrapolator:
     Falls back gracefully when insufficient history is available.
     Direction-agnostic: works for both increasing and decreasing x sweeps.
     """
-    def __init__(self, maxdeg=2, minpoints=2, maxhistory=6, ymin=None):
-        self.maxdeg    = maxdeg
-        self.minpoints = minpoints
-        self.ymin      = ymin        # optional lower clamp on predicted value
-        self.xs        = deque(maxlen=maxhistory)
-        self.ys        = deque(maxlen=maxhistory)
+    def __init__(self, maxdeg: int = 2, minpoints: int = 2, maxhistory: int = 6, ymin: Optional[float] = None) -> None:
+        self.maxdeg: int = maxdeg
+        self.minpoints: int = minpoints
+        self.ymin: Optional[float] = ymin        # optional lower clamp on predicted value
+        self.xs: Deque[float] = deque(maxlen=maxhistory)
+        self.ys: Deque[Any] = deque(maxlen=maxhistory)
 
-    def add(self, x, y):
+    def add(self, x: float, y: Any) -> None:
         self.xs.append(float(x))
         self.ys.append(y)
 
-    def predict(self, x_new):
+    def predict(self, x_new: float) -> Optional[float]:
         n = len(self.xs)
         if n < self.minpoints:
             return None                          # not enough history yet
@@ -49,17 +49,17 @@ class Extrapolator:
             y_pred = max(y_pred, self.ymin)
         return y_pred
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.xs)
 
-def init_worker(shared_counter):
+def init_worker(shared_counter: Any) -> None:
     """Assign the shared object to the global variable in this worker."""
     # Worker processes should ignore SIGINT; only the main process will handle it.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     global counter
     counter = shared_counter
 
-def make_objective(params_base):
+def make_objective(params_base: Dict[str, Any]) -> Callable[[float], float]:
     # capture a shallow copy once; treat as immutable thereafter
     params_fixed = dict(params_base)
 
@@ -77,7 +77,7 @@ def make_objective(params_base):
 
     return f
 
-def task(value, αbracket, sigma, params):
+def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Dict[str, Any]) -> Tuple[Optional[float], Any, Any, Optional[int], bool]:
     from scipy.optimize import bracket, minimize_scalar
 
     global counter
@@ -275,7 +275,7 @@ def task(value, αbracket, sigma, params):
 
         return None, None, None, None, status
 
-def main():
+def main() -> None:
     '''
         Given provided options, calculates eigenmodes of the equilibrium field with magnetic and velocity shear.
     '''
