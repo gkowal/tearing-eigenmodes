@@ -117,10 +117,10 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     )
 
     parser.add_argument(
-        "--inner-layer-thickness", "-δinner",
+        "--resistive-scale", "-δres",
         type=float,
         default=None,
-        help=("The initial inner-layer thickness.")
+        help=("The initial resistive scale (thickness).")
     )
 
     parser.add_argument(
@@ -136,6 +136,14 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
         default=5,
         help=("Minimum number of collocation points required to resolve "
               "the smallest inner‑layer width.")
+    )
+
+    parser.add_argument(
+        "--n-resistivity", "-nres",
+        type=int,
+        default=5,
+        help=("Minimum number of collocation points required to resolve "
+              "the resistive layer thickness.")
     )
 
     parser.add_argument(
@@ -478,12 +486,13 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         'Nmax'                  : args.resolution_range[1],
         'Ninc'                  : args.resolution_range[2],
         'n_inner'               : args.n_inner,
+        'n_resistivity'         : args.n_resistivity,
         'l_inner'               : args.l_inner,
         'f_outer'               : args.amp_fraction_outer,
         'decay_efolds'          : -np.log(args.amp_fraction_outer),
         'CGL'                   : args.CGL,
         'C'                     : args.scaling_factor,
-        'delta'                 : args.inner_layer_thickness,
+        'delta'                 : args.resistive_scale,
         'alpha'                 : None,
         'sigma'                 : args.sigma,
         'sigma_real_lower'      : args.real_part_range[0],
@@ -707,6 +716,10 @@ def validate_parameters(args: argparse.Namespace) -> None:
         raise ParameterError(
             "Minimum number of inner collocation points (--n-inner / -nin) must be >= 3"
         )
+    if args.n_resistivity < 3:
+        raise ParameterError(
+            "Minimum number of resistivity layer collocation points (--n-resistivity / -nres) must be >= 3"
+        )
     if args.l_inner < 1.0e-6:
         raise ParameterError(
             "The minimum width for the inner collocation points (--l-inner / -lin) must be >= 1.0e-6"
@@ -715,11 +728,11 @@ def validate_parameters(args: argparse.Namespace) -> None:
     # ------------------------------------------------------------------
     # 7) Optional limits
     # ------------------------------------------------------------------
-    if args.scaling_factor is not None and args.inner_layer_thickness is not None:
+    if args.scaling_factor is not None and args.resistive_scale is not None:
         raise ParameterError(
-            "Both '--scaling_factor / -C' and '--inner_layer_thickness / -δinner' were provided. "
+            "Both '--scaling_factor / -C' and '--resistive-scale / -δres' were provided. "
             "Only one of these options may be set at a time."
         )
-    if args.inner_layer_thickness is not None and args.inner_layer_thickness <= 0:
-        raise ParameterError("Inner-layer thickness (--inner-layer-thickness / -δinner) must be > 0")
+    if args.resistive_scale is not None and args.resistive_scale <= 0:
+        raise ParameterError("Resistive scale (--resistive-scale / -δres) must be > 0")
 # If we reach this point everything passed.

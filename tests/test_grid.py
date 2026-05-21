@@ -173,3 +173,25 @@ def test_select_nc_stable_sigma_guarded():
     N, C = select_NC(params)
     assert N >= 64
     assert C > 0.0
+
+def test_select_nc_resistive_scale():
+    # Verify that specifying a small resistive scale delta and n_resistivity forces a larger resolution N (or smaller C)
+    params_no_res = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        w=0.0,
+        delta=None,
+    )
+    N_no_res, C_no_res = select_NC(params_no_res)
+
+    params_with_res = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        w=0.0,
+        delta=0.01,
+        n_resistivity=5,
+    )
+    N_with_res, C_with_res = select_NC(params_with_res)
+
+    # With a small delta, C_inner is much smaller, so it should take a higher N (or smaller C) to satisfy Cout <= Cinn
+    assert (N_with_res > N_no_res) or (C_with_res < C_no_res)

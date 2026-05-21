@@ -9,7 +9,7 @@ from collections import deque
 from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
-                             refine_eigenvalues, \
+                             refine_eigenvalues, refine_resistive_scale, \
                              eigenmodes, write_results, DeltaError, \
                              estimate_max, save_eigenmode, setup_logging, \
                              check_state, compile_metadata, SimulationParams
@@ -79,7 +79,7 @@ def make_objective(params_base: SimulationParams) -> Callable[[float], float]:
 
     return f
 
-def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: SimulationParams) -> Tuple[Optional[float], Optional[np.ndarray], Optional[float], Optional[int], bool]:
+def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Optional[float], params: SimulationParams) -> Tuple[Optional[float], Optional[np.ndarray], Optional[float], Optional[int], bool]:
     from scipy.optimize import bracket, minimize_scalar
 
     global counter
@@ -167,6 +167,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Sim
 
             try:
                 params_base.sigma   = sigma
+                params_base.delta   = delta
 
                 f = make_objective(params_base)
 
@@ -308,6 +309,7 @@ def main() -> None:
 
     k = refine_wavenumber_bracket(vs, params)
     g = refine_eigenvalues(vs, params)
+    deltas = refine_resistive_scale(vs, params)
 
     plural = 'es' if nprocs > 1 else ''
     logging.info(f'\nCalculation initiated with {nprocs} process{plural}'
@@ -330,6 +332,7 @@ def main() -> None:
 
             # Initial values from refinement if any
             gm = params.sigma
+            δm = params.delta
 
             for n, v in enumerate(vs):
                 # ── extrapolate wavenumber bracket ────────────────────────────────
@@ -347,8 +350,9 @@ def main() -> None:
 
                 # ── use previous step results as guesses if refinement is default ─
                 gn = gm if g[n] == params.sigma else g[n]
+                δn = δm if (deltas[n] == params.delta and δm is not None and δm > 0.0) else deltas[n]
 
-                km, gm, _, N, status = task(v, kn, gn, params)
+                km, gm, δm, N, status = task(v, kn, gn, δn, params)
 
                 if not status:
                     break
@@ -366,7 +370,7 @@ def main() -> None:
                 initializer=init_worker,
                 initargs=(shared_counter,)
             ) as pool:
-                pool.starmap(task, [(v, k[n], g[n], params) for n, v in enumerate(vs)])
+                pool.starmap(task, [(v, k[n], g[n], deltas[n], params) for n, v in enumerate(vs)])
     except KeyboardInterrupt:
         logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
         sys.exit(1)

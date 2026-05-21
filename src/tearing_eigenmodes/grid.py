@@ -27,6 +27,8 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
     Nmax         = params.Nmax
     Ninc         = params.Ninc
     n_inner      = params.n_inner
+    n_resistivity = params.n_resistivity
+    delta        = params.delta
     decay_efolds = params.decay_efolds
     CGL          = params.CGL
     β            = params.plasma_beta
@@ -57,6 +59,11 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
     if n_inner % 2 == 0:
         n_inner += 1
     m = (n_inner - 1) / 2
+
+    # Enforce odd n_resistivity
+    if n_resistivity % 2 == 0:
+        n_resistivity += 1
+    m_res = (n_resistivity - 1) / 2
     # --- λ: decaying factor of the outer solution;
     if CGL:
         R = 0.0 if σ is None else σ.real**2 / α**2
@@ -105,6 +112,9 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
             )
         Np   = N + 1
         Cinn = zmin / np.tan(πm / Np)
+        if delta is not None and delta > 0.0:
+            Cinn_res = delta / np.tan(np.pi * m_res / Np)
+            Cinn = min(Cinn, Cinn_res)
         Cout = zmax * np.tan(πh / Np)
         if Cout <= Cinn:
             break

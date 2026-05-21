@@ -6,7 +6,7 @@ import multiprocessing as mp
 import numpy as np
 
 from tearing_eigenmodes import build_params, build_dpath, print_info, \
-                             refine_eigenvalues, \
+                             refine_eigenvalues, refine_resistive_scale, \
                              eigenmodes, write_results, save_eigenmode, setup_logging, \
                              check_state, compile_metadata, SimulationParams
 
@@ -19,7 +19,7 @@ def init_worker(shared_counter: Any) -> None:
     global counter
     counter = shared_counter
 
-def task(k: float, sigma: Any, params: SimulationParams) -> None:
+def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams) -> None:
     global counter
 
     import copy
@@ -63,6 +63,7 @@ def task(k: float, sigma: Any, params: SimulationParams) -> None:
     if not status:
         try:
             params_base.sigma   = sigma
+            params_base.delta   = delta
             params_base.alpha   = α
 
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
@@ -174,6 +175,7 @@ def main() -> None:
     shared_counter = mp.Value('i', 0)
 
     s = refine_eigenvalues(ks, params)
+    deltas = refine_resistive_scale(ks, params)
 
     try:
         with mp.Pool(
@@ -181,7 +183,7 @@ def main() -> None:
             initializer=init_worker,
             initargs=(shared_counter,)
         ) as pool:
-            pool.starmap(task, [(k, s[n], params) for n, k in enumerate(ks)])
+            pool.starmap(task, [(k, s[n], deltas[n], params) for n, k in enumerate(ks)])
     except KeyboardInterrupt:
         logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
         sys.exit(1)

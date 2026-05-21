@@ -8,6 +8,7 @@ from typing import Generator
 from tearing_eigenmodes import (
     refine_eigenvalues,
     refine_wavenumber_bracket,
+    refine_resistive_scale,
     SimulationParams,
 )
 from tearing_eigenmodes.refinement import (
@@ -129,3 +130,21 @@ def test_refinement_functions(temp_npz_dir: str) -> None:
     brackets = refine_wavenumber_bracket(vs, params)
     assert brackets[0] is not None
     assert len(brackets[0]) == 2
+
+def test_refine_resistive_scale(temp_npz_dir: str) -> None:
+    _load_eigenmodes_cache.clear()
+    create_mock_npz(temp_npz_dir, "state_1.npz", val=1.0, wavenumber=0.1, growth=0.5, thickness=0.02)
+    create_mock_npz(temp_npz_dir, "state_2.npz", val=2.0, wavenumber=0.2, growth=0.6, thickness=0.04)
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        sigma=0.1,
+        delta=0.05,
+    )
+
+    # Test refine_resistive_scale
+    vs = np.array([1.5])
+    deltas = refine_resistive_scale(vs, params)
+    # Since vs=1.5 is between 1.0 and 2.0, it should interpolate between 0.02 and 0.04
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], 0.03, atol=0.005)

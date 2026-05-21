@@ -162,3 +162,52 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: SimulationParams) -> List[
         )
 
     return kbracket
+
+
+def refine_resistive_scale(vs: np.ndarray, params: SimulationParams) -> List[Optional[float]]:
+    """Update resistive scale (delta) using cached eigenmodes if available."""
+    deltas: List[Optional[float]] = [params.delta] * vs.size
+
+    try:
+        if params.data_path is None:
+            return deltas
+        v, _, _, _, δ, _, _, _, _ = _cached_load_eigenmodes(params.data_path)
+    except Exception:
+        return deltas
+
+    if v.size < 2:
+        return deltas
+
+    # Filter out invalid / zero / None delta values
+    valid_indices = np.where((δ != 0.0) & (δ is not None) & (~np.isnan(δ)))[0]
+    if valid_indices.size < 2:
+        return deltas
+
+    v_valid = v[valid_indices]
+    δ_valid = δ[valid_indices]
+
+    try:
+        degree = min(3, v_valid.size - 1)
+        spline = make_interp_spline(v_valid, δ_valid, k=degree)
+        δ_interp = spline(vs)
+
+        # Fallback to nearest neighbor (k=0) if any interpolated value is <= 0 or nan
+        if np.any(δ_interp <= 0.0) or np.any(np.isnan(δ_interp)):
+            spline = make_interp_spline(v_valid, δ_valid, k=0)
+            δ_interp = spline(vs)
+    except Exception:
+        try:
+            spline = make_interp_spline(v_valid, δ_valid, k=0)
+            δ_interp = spline(vs)
+        except Exception:
+            return deltas
+
+    vmn, vmx = v_valid.min(), v_valid.max()
+    for i, x in enumerate(vs):
+        within_bounds = (vmn <= x <= vmx) or np.isclose(x, vmn) or np.isclose(x, vmx)
+        if within_bounds:
+            val = float(δ_interp[i])
+            if val > 0.0:
+                deltas[i] = val
+
+    return deltas

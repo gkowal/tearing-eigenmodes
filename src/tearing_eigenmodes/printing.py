@@ -62,9 +62,6 @@ def print_info(params: SimulationParams) -> None:
     logger.info(f"  {'Real part range':<34} =  [{params.sigma_real_lower}, {params.sigma_real_upper}]")
     logger.info(f"  {'Imaginary part range':<34} =  [{params.sigma_imag_lower}, {params.sigma_imag_upper}]")
 
-    if params.sigma_imag is not None:
-        log_head("Imaginary amplitude limit", 'sigma_imag')
-
     logger.info(f"  {'Number of inner collocation points':<34} =  {params.n_inner}")
     logger.info(f"  {'Width for the collocation points':<34} =  {params.l_inner}")
     logger.info(f"  {'Amplitude fraction at zmax':<34} =  {params.f_outer}")
