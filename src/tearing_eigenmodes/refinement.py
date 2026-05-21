@@ -67,12 +67,16 @@ def _cached_load_eigenmodes(
     return data
 
 
-def refine_eigenvalues(vs: np.ndarray, params: Dict[str, Any]) -> List[Any]:
-    sigma = [params['sigma']] * vs.size
+from .params import SimulationParams
+
+def refine_eigenvalues(vs: np.ndarray, params: SimulationParams) -> List[Any]:
+    sigma = [params.sigma] * vs.size
 
     """Update eigenvalues using cached eigenmodes if available."""
     try:
-        v, _, σ, _, _, _, _, _, _ = _cached_load_eigenmodes(params['data_path'])
+        if params.data_path is None:
+            return sigma
+        v, _, σ, _, _, _, _, _, _ = _cached_load_eigenmodes(params.data_path)
     except FileNotFoundError:
         return sigma
 
@@ -91,19 +95,21 @@ def refine_eigenvalues(vs: np.ndarray, params: Dict[str, Any]) -> List[Any]:
     sigma = sigma.tolist()
     for i, x in enumerate(vs):
         if x < vmn or x > vmx:
-            sigma[i] = params['sigma']
+            sigma[i] = params.sigma
 
     return sigma
 
 
-def refine_wavenumber_bracket(vs: np.ndarray, params: Dict[str, Any]) -> List[Optional[List[float]]]:
+def refine_wavenumber_bracket(vs: np.ndarray, params: SimulationParams) -> List[Optional[List[float]]]:
     """Update wavenumber brackets using cached eigenmodes if available."""
     # Initialize with default bracket from params
-    kbracket = [params.get('kbracket')] * vs.size
+    kbracket = [params.kbracket] * vs.size
 
     try:
+        if params.data_path is None:
+            return kbracket
         # Assuming load_eigenmodes returns arrays
-        v, α, *_ = _cached_load_eigenmodes(params['data_path'])
+        v, α, *_ = _cached_load_eigenmodes(params.data_path)
     except (FileNotFoundError, KeyError, TypeError):
         return kbracket
 
@@ -124,7 +130,8 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: Dict[str, Any]) -> List[Op
         return α[idx] if idx < v.size else None
 
     for n, x in enumerate(vs):
-        kl, ku = params.get('kbracket') or (None, None)
+        kbr = params.kbracket
+        kl, ku = (kbr[0], kbr[1]) if (kbr is not None and len(kbr) >= 2) else (None, None)
         within_bounds = (vmn <= x <= vmx) or np.isclose(x, vmn, atol=atol) or np.isclose(x, vmx, atol=atol)
 
         if within_bounds:
@@ -141,17 +148,16 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: Dict[str, Any]) -> List[Op
             kbracket[n] = None
             continue
 
-        todo = True
         if np.isclose(kl, ku, atol=atol):
-            tol_factor = 5.0 * params.get('ktol', 1e-3)
+            ktol = params.ktol if params.ktol is not None else 1e-3
+            tol_factor = 5.0 * ktol
             kl *= (1.0 - tol_factor)
             ku *= (1.0 + tol_factor)
-            todo = False
 
         kbracket[n] = [float(kl), float(ku)]
 
         logger.debug(
-            f"\t{params.get('dependence', 'v')} = {x:+.3e}: "
+            f"\t{params.dependence or 'v'} = {x:+.3e}: "
             f"α-bracket = [{kl:.4e}, {ku:.4e}]"
         )
 

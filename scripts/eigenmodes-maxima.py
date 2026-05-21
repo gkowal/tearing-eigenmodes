@@ -11,7 +11,8 @@ from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
                              refine_eigenvalues, \
                              eigenmodes, write_results, DeltaError, \
-                             estimate_max, save_eigenmode, setup_logging
+                             estimate_max, save_eigenmode, setup_logging, \
+                             check_state, compile_metadata, SimulationParams
 
 counter: Any = None
 
@@ -59,16 +60,17 @@ def init_worker(shared_counter: Any) -> None:
     global counter
     counter = shared_counter
 
-def make_objective(params_base: Dict[str, Any]) -> Callable[[float], float]:
+def make_objective(params_base: SimulationParams) -> Callable[[float], float]:
+    import copy
     # capture a shallow copy once; treat as immutable thereafter
-    params_fixed = dict(params_base)
+    params_fixed = copy.copy(params_base)
 
     @lru_cache(maxsize=1024)
     def objective(αq: float) -> float:
         if αq <= 0:
             return 0.0
-        p = dict(params_fixed)
-        p["alpha"] = αq
+        p = copy.copy(params_fixed)
+        p.alpha = αq
         σ, _, _, _, _, _, _, _, _, status = eigenmodes(p)
         return float(-σ.real) if (status and σ is not None) else 0.0
 
@@ -77,39 +79,40 @@ def make_objective(params_base: Dict[str, Any]) -> Callable[[float], float]:
 
     return f
 
-def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Dict[str, Any]) -> Tuple[Optional[float], Any, Any, Optional[int], bool]:
+def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: SimulationParams) -> Tuple[Optional[float], Optional[np.ndarray], Optional[float], Optional[int], bool]:
     from scipy.optimize import bracket, minimize_scalar
 
     global counter
 
     status = False
 
-    params_base = dict(params)
+    import copy
+    params_base = copy.copy(params)
 
     # Initialize variables to satisfy static analysis
-    αm = 0.0
-    σm = np.array([])
-    e = 0.0
-    δin = 0.0
-    nin = 0
-    nwa = 0
-    N = 0
-    C = 0.0
-    nit = 0
-    Δα = 0.0
-    Δσ = 0.0
-    z = None
-    s = {}
+    αm: float = 0.0
+    σm: Optional[np.ndarray] = None
+    e: Optional[float] = None
+    δin: Optional[float] = None
+    nin: Optional[int] = None
+    nwa: Optional[int] = None
+    N: Optional[int] = None
+    C: Optional[float] = None
+    nit: int = 0
+    Δα: float = 0.0
+    Δσ: Any = 0.0
+    z: Optional[np.ndarray] = None
+    s: Optional[Dict[str, np.ndarray]] = None
 
-    ntasks     = params_base.get('ntasks'  , 1)
-    dependence = params_base.get('dependence'  , 'S')
-    verbose    = params_base.get('verbose', False)
-    force      = params_base.get('force'  , False)
-    Nmax       = params_base.get('Nmax'   , 2048)
-    rtol       = params_base.get('rtol'   , 1e-5)
-    wtol       = params_base.get('wtol'   , 1e-3)
-    w          = params_base.get('w'       , 0.0)
-    a          = params_base.get('a'       , 1.0)
+    ntasks     = params_base.ntasks
+    dependence = params_base.dependence if params_base.dependence is not None else 'S'
+    verbose    = params_base.verbose
+    force      = params_base.force
+    Nmax       = params_base.Nmax
+    rtol       = params_base.rtol
+    wtol       = 1e-3
+    w          = params_base.w if params_base.w is not None else 0.0
+    a          = params_base.a if params_base.a is not None else 1.0
 
     UP = '\033[F'
     info = f"  {dependence} = {value:+.3e}: "
@@ -127,26 +130,24 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Dic
         'β':  'plasma_beta',
         'Δβ': 'plasma_beta_difference'
     }
-    params_base[dep_map[dependence]] = float(value)
+    setattr(params_base, dep_map[dependence], float(value))
 
-    sname = os.path.join(params_base.get('data_path', './'), f'state_{dependence}{value:+.6e}.npz')
+    sname = os.path.join(params_base.data_path if params_base.data_path is not None else './', f'state_{dependence}{value:+.6e}.npz')
 
-    if os.path.exists(sname):
-        with np.load(sname) as state:
-
-            αm  = state['wavenumber']
-            σm  = state['eigenvalue']
-            e   = state['tolerance']
-            δin = state['resistive_layer_thickness']
-            nin = state['resistive_layer_nodes']
-            nwa = state['current_sheet_nodes']
-            N   = state['resolution']
-            C   = state['grid_scaling_factor']
-            nit = state['niter']
-            Δα  = state['wavenumber_error']
-            Δσ  = state['eigenvalue_error']
-
-            status = not force and not (e > 1.0 and N < Nmax)
+    status, state_data = check_state(sname, force=force, Nmax=Nmax)
+    if status:
+        assert state_data is not None
+        αm  = float(state_data['wavenumber'])
+        σm  = state_data['eigenvalue']
+        e   = float(state_data['tolerance'])
+        δin = float(state_data['resistive_layer_thickness'])
+        nin = int(state_data['resistive_layer_nodes'])
+        nwa = int(state_data['current_sheet_nodes'])
+        N   = int(state_data['resolution'])
+        C   = float(state_data['grid_scaling_factor'])
+        nit = int(state_data['niter'])
+        Δα  = float(state_data['wavenumber_error'])
+        Δσ  = float(state_data['eigenvalue_error'])
 
     if not status:
         status = True
@@ -165,7 +166,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Dic
             αu = (αup + 1.618 * αlo) / 2.618
 
             try:
-                params_base['sigma']   = sigma
+                params_base.sigma   = sigma
 
                 f = make_objective(params_base)
 
@@ -188,42 +189,24 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Dic
                     logging.debug(res)
                     logging.info('Final refinement:')
                 αm  = res.x
-                params_final = dict(params_base)
-                params_final["alpha"] = αm
+                params_final = copy.copy(params_base)
+                params_final.alpha = αm
                 σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_final)
                 if status:
+                    assert σ is not None
+                    assert e is not None
+                    assert δin is not None
+                    assert C is not None
+                    assert nin is not None
+                    assert nwa is not None
+                    assert N is not None
+                    assert s is not None
                     σm  = σ
-                    Δσ  = rtol * σm.real * e if σm is not None else 0.0
+                    Δσ  = rtol * σm.real * e
                     nit = res.nfev
 
                     # Include physical and numerical parameters for reproducibility
-                    metadata = {
-                        'scan_parameter': dependence,
-                        'S': params_final.get('S'),
-                        'Pr': params_final.get('Pr'),
-
-                        'plasma_beta': params_final.get('plasma_beta'),
-                        'plasma_beta_difference': params_final.get('plasma_beta_difference'),
-                        'xi': params_final.get('xi'),
-                        'Hall': params_final.get('Hall'),
-                        'a': params_final.get('a'),
-                        'w': params_final.get('w'),
-                        'parallel_index': params_final.get('parallel_index'),
-                        'perpendicular_index': params_final.get('perpendicular_index'),
-                        'eos': params_final.get('eos'),
-                        'CGL': params_final.get('CGL'),
-                        'noshear': params_final.get('noshear'),
-                        'Nmin': params_final.get('Nmin'),
-                        'Nmax': params_final.get('Nmax'),
-                        'Ninc': params_final.get('Ninc'),
-                        'atol': params_final.get('atol'),
-                        'rtol': params_final.get('rtol'),
-                        'gtol': params_final.get('gtol'),
-                        'dtol': params_final.get('dtol'),
-                        'n_inner_req': params_final.get('n_inner'),
-                        'f_outer': params_final.get('f_outer'),
-                        'mode': params_final.get('mode'),
-                    }
+                    metadata = compile_metadata(params_final)
 
                     save_eigenmode(sname, scan_parameter_value=value, wavenumber=αm, wavenumber_error=Δα, \
                                     eigenvalue=σm, eigenvalue_error=Δσ, tolerance=e, \
@@ -257,6 +240,12 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Dic
     progress_line = f"Progress {percentage}% complete {'█' * (percentage // 2)}{' ' * (50 - (percentage // 2))} {fmt.format(n)}"
 
     if status:
+        assert σm is not None
+        assert δin is not None
+        assert C is not None
+        assert nin is not None
+        assert nwa is not None
+        assert N is not None
         result_line = info + f"α={αm:.4e}±{Δα:.1e}  σ={σm.real:.4e}±{Δσ:.1e}  δin={δin:.3e}  nin={nin}  nwa={nwa}  C={C:.3e}  N={N} after {nit} function calls" + ' '*6
         if verbose:
             logging.info(f"{result_line}")
@@ -282,25 +271,26 @@ def main() -> None:
     params = build_params(parser_type='maximum')
 
     # Configure logging
-    setup_logging(verbose=params.get('verbose'), log_file=params.get('log_file'))
+    setup_logging(verbose=bool(params.verbose), log_file=params.log_file)
 
     dpath = build_dpath(params)
 
-    vl, vu, dv = params['vmin'], params['vmax'], params['vinc']
+    vl, vu, dv = params.vmin, params.vmax, params.vinc
+    assert vl is not None and vu is not None and dv is not None, "Sweep parameters (vmin, vmax, vinc) must be defined."
     n_points = int(np.ceil((vu - vl + 0.5 * dv) / dv))
     if n_points <= 0:
         logging.error(f"Error: Parameter range is empty or invalid (min={vl:.3e}, max={vu:.3e}, inc={dv:.3e}).")
         sys.exit(1)
     vs = np.linspace(vl, vu, n_points)
-    if params['logarithmic']:
+    if params.logarithmic:
         vs = 10**vs
 
     ntasks = vs.size
     nprocs = int(os.getenv('SLURM_CPUS_PER_TASK', mp.cpu_count()))
     nprocs = min(ntasks, nprocs)
 
-    params['data_path'] = dpath
-    params['ntasks']    = ntasks
+    params.data_path = dpath
+    params.ntasks    = ntasks
 
     if not os.path.exists(dpath):
         os.makedirs(dpath)
@@ -326,9 +316,9 @@ def main() -> None:
     shared_counter = mp.Value('i', 0)
 
     try:
-        if params.get('step'):
-            extrap_deg   = params.get('extrap_deg',   2)
-            extrap_guard = params.get('extrap_guard', 0.01)
+        if params.step:
+            extrap_deg   = params.extrap_deg if params.extrap_deg is not None else 2
+            extrap_guard = params.extrap_guard if params.extrap_guard is not None else 0.01
 
             k_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-6)
             g_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-10)
@@ -337,23 +327,24 @@ def main() -> None:
             counter = shared_counter
 
             # Initial values from refinement if any
-            gm = params.get('sigma')
+            gm = params.sigma
 
             for n, v in enumerate(vs):
                 # ── extrapolate wavenumber bracket ────────────────────────────────
+                kn: Optional[List[float]] = None
                 k_pred = k_extrap.predict(v)
                 if k_pred is not None:
                     guard = extrap_guard * k_pred
-                    kl    = max(k_pred - guard, 1e-6)
-                    ku    = k_pred + guard
-                    kn    = [kl, ku]
-                    if params.get('verbose'):
-                        logging.info(f"  k extrapolated: {k_pred:.4e}  →  bracket [{kl:.4e}, {ku:.4e}]")
+                    kl_val = max(k_pred - guard, 1e-6)
+                    ku_val = k_pred + guard
+                    kn    = [kl_val, ku_val]
+                    if params.verbose:
+                        logging.info(f"  k extrapolated: {k_pred:.4e}  →  bracket [{kl_val:.4e}, {ku_val:.4e}]")
                 else:
                     kn = k[n]
 
                 # ── use previous step results as guesses if refinement is default ─
-                gn = gm if g[n] == params.get('sigma') else g[n]
+                gn = gm if g[n] == params.sigma else g[n]
 
                 km, gm, _, N, status = task(v, kn, gn, params)
 
@@ -382,7 +373,7 @@ def main() -> None:
 
     write_results(params, delta_time)
 
-    if not params['verbose']:
+    if not params.verbose:
         sys.stdout.write("\n\n\n\n")
     logging.info(f"\nCalculation done in {delta_time:.2f} seconds.\n")
 

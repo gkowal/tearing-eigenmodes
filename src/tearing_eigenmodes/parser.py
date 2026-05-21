@@ -1,7 +1,8 @@
 from .exceptions import ParameterError
 from .physics import eos_indices
 from .io import load_config
-from typing import Dict, Any, Tuple, Optional
+from .params import SimulationParams
+from typing import Dict, Any, Tuple, Optional, List
 
 import argparse
 import os
@@ -458,7 +459,7 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
     return args
 
 
-def build_params(parser_type: str = 'dispersion') -> Dict[str, Any]:
+def build_params(parser_type: str = 'dispersion') -> SimulationParams:
     """
     Unified parameter builder for simulation arguments.
     """
@@ -574,7 +575,7 @@ def build_params(parser_type: str = 'dispersion') -> Dict[str, Any]:
         params['dir_plot']    = args.dir
         params['output_plot'] = args.output
 
-    return params
+    return SimulationParams(**params)
 
 
 def _check_positive_tol(name: str, value: float) -> None:

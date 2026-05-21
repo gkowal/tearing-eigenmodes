@@ -1,3 +1,4 @@
+from .params import SimulationParams
 from .exceptions import DeltaError, ConvergenceError
 from .grid import select_NC
 from .analysis import inner_layer_thickness
@@ -23,42 +24,42 @@ EigenmodesReturn = Tuple[
 ]
 
 
-def eigenmodes(params: Dict[str, Any]) -> EigenmodesReturn:
+def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
     """
     Calculates tearing instability eigenmodes for a given set of parameters.
     """
-    α       = params.get('alpha'   ,   0.1)
-    verbose = params.get('verbose' , False)
+    α       = params.alpha if params.alpha is not None else 0.1
+    verbose = params.verbose
 
     try:
-        Nmin         = params.get('Nmin'                  ,   64          )
-        Nmax         = params.get('Nmax'                  , 2048          )
-        Ninc         = params.get('Ninc'                  ,   32          )
-        C            = params.get('C'                     , None          )
-        a            = params.get('a'                     ,   1.0         )
-        w            = params.get('w'                     ,   0.0         )
-        CGL          = params.get('CGL'                   , False         )
-        S            = params.get('S'                     ,   1.0e4       )
-        Pr           = params.get('Pr'                    ,   0.0         )
-        ζ            = params.get('zeta'                  ,   1.0         )
-        ξ            = params.get('xi'                    ,   0.0         )
-        ϵ            = params.get('Hall'                  ,   0.0         )
-        β            = params.get('plasma_beta'           ,   0.0         )
-        Δβ           = params.get('plasma_beta_difference',   0.0         )
-        ɣpar         = params.get('parallel_index'        ,   3.0         )
-        ɣper         = params.get('perpendicular_index'   ,   2.0         )
-        reσlo        = params.get('sigma_real_lower'      ,   1.0e-6      )
-        reσup        = params.get('sigma_real_upper'      ,   1.0         )
-        imσlo        = params.get('sigma_imag_lower'      , -10.0         )
-        imσup        = params.get('sigma_imag_upper'      ,  10.0         )
-        mode         = params.get('mode'                  ,   0           )
-        atol         = params.get('atol'                  ,   1.0e-10     )
-        rtol         = params.get('rtol'                  ,   1.0e-5      )
-        gtol         = params.get('gtol'                  ,   1.0e-2      )
-        δtol         = params.get('dtol'                  ,   1.0e-3      )
-        orderby      = params.get('orderby'               , 'real'        )
-        allmodes     = params.get('allmodes'              , False         )
-        noshear      = params.get('noshear'               , False         )
+        Nmin         = params.Nmin
+        Nmax         = params.Nmax
+        Ninc         = params.Ninc
+        C            = params.C
+        a            = params.a if params.a is not None else 1.0
+        w            = params.w if params.w is not None else 0.0
+        CGL          = params.CGL
+        S            = params.S if params.S is not None else 1.0e4
+        Pr           = params.Pr
+        ζ            = params.zeta
+        ξ            = params.xi
+        ϵ            = params.Hall
+        β            = params.plasma_beta
+        Δβ           = params.plasma_beta_difference
+        ɣpar         = params.parallel_index
+        ɣper         = params.perpendicular_index
+        reσlo        = params.sigma_real_lower
+        reσup        = params.sigma_real_upper
+        imσlo        = params.sigma_imag_lower
+        imσup        = params.sigma_imag_upper
+        mode         = params.mode if params.mode is not None else 0
+        atol         = params.atol
+        rtol         = params.rtol
+        gtol         = params.gtol
+        δtol         = params.dtol
+        orderby      = params.orderby
+        allmodes     = params.allmodes
+        noshear      = params.noshear
 
         if α <= 0:
             raise ValueError("α must be positive.")
@@ -84,7 +85,7 @@ def eigenmodes(params: Dict[str, Any]) -> EigenmodesReturn:
         else:
             Nlow = Nmin
 
-        if C <= 0:
+        if C is None or C <= 0:
             raise ValueError("C must be positive.")
 
         kx = α/a

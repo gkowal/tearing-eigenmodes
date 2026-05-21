@@ -5,9 +5,12 @@ import shutil
 import os
 import time
 from typing import Generator
-from tearing_eigenmodes.refinement import (
+from tearing_eigenmodes import (
     refine_eigenvalues,
     refine_wavenumber_bracket,
+    SimulationParams,
+)
+from tearing_eigenmodes.refinement import (
     _cached_load_eigenmodes,
     _load_eigenmodes_cache,
 )
@@ -107,13 +110,13 @@ def test_refinement_functions(temp_npz_dir: str) -> None:
     create_mock_npz(temp_npz_dir, "state_1.npz", val=1.0, wavenumber=0.1, growth=0.5)
     create_mock_npz(temp_npz_dir, "state_2.npz", val=2.0, wavenumber=0.2, growth=0.6)
 
-    params = {
-        'data_path': temp_npz_dir,
-        'sigma': 0.1,
-        'delta': 0.05,
-        'kbracket': [0.05, 0.25],
-        'ktol': 1e-3
-    }
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        sigma=0.1,
+        delta=0.05,
+        kbracket=[0.05, 0.25],
+        ktol=1e-3
+    )
 
     # Test refine_eigenvalues
     vs = np.array([1.5])

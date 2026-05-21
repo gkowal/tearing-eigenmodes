@@ -2,24 +2,26 @@ import os
 import glob
 import logging
 import numpy as np
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def build_dpath(params: Dict[str, Any]) -> str:
+from .params import SimulationParams
+
+def build_dpath(params: SimulationParams) -> str:
     """
     Construct the directory name that will hold the results for a given run.
     """
-    a, w = params['a'], params['w']
-    S, Pr = params['S'], params['Pr']
-    ξ, ϵ = params['xi'], params['Hall']
-    β, Δβ = params['plasma_beta'], params['plasma_beta_difference']
+    a, w = params.a, params.w
+    S, Pr = params.S, params.Pr
+    ξ, ϵ = params.xi, params.Hall
+    β, Δβ = params.plasma_beta, params.plasma_beta_difference
 
     dpath  = './RESULTS/'
     dpath += '' if S  is None else f'S{S:.3e}'
     dpath += '' if Pr is None else f'Pr{Pr:.3e}'
-    if params['CGL']:
+    if params.CGL:
         dpath += '' if β  is None else f'β{β:.3e}'
         dpath += '' if Δβ is None else f'Δβ{Δβ:+.2f}'
     dpath += '' if ξ is None else f'ξ{ξ:.3e}'
@@ -27,7 +29,7 @@ def build_dpath(params: Dict[str, Any]) -> str:
     dpath += '' if a is None else f'a{a:.3e}'
     dpath += '' if w is None else f'w{w:.3e}'
 
-    return dpath + params['suffix']
+    return dpath + params.suffix
 
 
 def load_config(file_path: str) -> Dict[str, Any]:
@@ -72,6 +74,70 @@ def save_eigenmode(file_path: str, **kwargs: Any) -> None:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         raise e
+
+
+def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """
+    Check if a state file exists and contains a completed/converged calculation.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the state .npz file.
+    force : bool
+        If True, force recalculation regardless of state file.
+    Nmax : int
+        Maximum resolution limit.
+
+    Returns
+    -------
+    tuple
+        (status, state_data) where status is True if we can reuse the results,
+        and state_data is a dictionary containing the loaded variables from the file.
+    """
+    if force or not os.path.exists(file_path):
+        return False, None
+
+    try:
+        with np.load(file_path, allow_pickle=True) as state:
+            data = {}
+            for key in state.files:
+                val = state[key]
+                if isinstance(val, np.ndarray) and val.ndim == 0:
+                    data[key] = val.item()
+                else:
+                    data[key] = val
+
+            e = data.get('tolerance')
+            N = data.get('resolution')
+            if e is not None and N is not None:
+                status = not (float(e) > 1.0 and int(N) < Nmax)
+                return status, data
+    except Exception as e_err:
+        logger.warning(f"Could not load state file {file_path}: {e_err}")
+
+    return False, None
+
+
+def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
+    """
+    Compile physical and numerical parameters for saving in the state file.
+    """
+    metadata_keys = [
+        'S', 'Pr', 'plasma_beta', 'plasma_beta_difference', 'xi', 'Hall',
+        'a', 'w', 'parallel_index', 'perpendicular_index', 'eos', 'CGL',
+        'noshear', 'Nmin', 'Nmax', 'Ninc', 'atol', 'rtol', 'gtol', 'dtol',
+        'f_outer', 'mode'
+    ]
+    metadata = {k: getattr(params, k) for k in metadata_keys}
+    metadata['n_inner_req'] = params.n_inner
+
+    # Optional dependence parameter
+    dep_key = params.scan_parameter or params.dependence
+    if dep_key:
+        metadata['scan_parameter'] = dep_key
+
+    return metadata
 
 
 def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -133,11 +199,11 @@ def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.n
     return v, α, σ, e, δ, c, nin_arr, nwa_arr, N
 
 
-def write_results(params: Dict[str, Any], delta_time: float) -> None:
+def write_results(params: SimulationParams, delta_time: float) -> None:
     """
     Unified result writer for simulation output.
     """
-    dpath = params['data_path']
+    dpath = params.data_path
     if not dpath or not os.path.exists(dpath):
         raise FileNotFoundError(f"Data path {dpath!r} does not exist")
 
@@ -148,29 +214,29 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
         return
 
     fname = f"{dpath}.dat"
-    dep_key = params.get('scan_parameter', params.get('dependence'))
+    dep_key = params.scan_parameter or params.dependence
 
     with open(fname, 'w') as io:
-        io.write(f"#\n# Tearing Instability - mode {params['mode']}\n#\n")
+        io.write(f"#\n# Tearing Instability - mode {params.mode}\n#\n")
         io.write("# Plasma parameters:\n")
-        eqns = "Gyrotropic" if params.get('CGL') else "Classical"
+        eqns = "Gyrotropic" if params.CGL else "Classical"
         io.write(f"#   Equations                            =   {eqns} MHD\n")
-        if params.get('CGL'):
-            io.write(f"#   Equation of State                    =   {params.get('eos')}\n")
+        if params.CGL:
+            io.write(f"#   Equation of State                    =   {params.eos}\n")
 
         def write_head(label, key, fmt="10.3e"):
-            val = params.get(key)
+            val = getattr(params, key)
             if val is not None:
                 io.write(f"#   {label:<36} =  {val:{fmt}}\n")
 
         write_head("Lundquist number (S)", 'S')
         write_head("Prandtl number (Pr)", 'Pr')
-        if params.get('CGL'):
+        if params.CGL:
             write_head("Plasma-β (β)", 'plasma_beta')
             write_head("Plasma-β difference (Δβ)", 'plasma_beta_difference')
         write_head("Magnetic transverse field (ξ)", 'xi')
         write_head("Hall current term strength (ϵ)", 'Hall')
-        if params.get('CGL'):
+        if params.CGL:
             write_head("  Parallel adiabatic index (γpar)", 'parallel_index')
             write_head("  Perpendicular adiabatic index (γper)", 'perpendicular_index')
 
@@ -179,25 +245,25 @@ def write_results(params: Dict[str, Any], delta_time: float) -> None:
         write_head("Current sheet half-width (w)", 'w')
 
         io.write("# Geometry/convergence parameters:\n")
-        io.write(f"#   {'Resolution range (N)':<36} =  [{params['Nmin']}, {params['Nmax']}] increment {params['Ninc']}\n")
-        io.write(f"#   {'Real part range':<36} =  [{params['sigma_real_lower']}, {params['sigma_real_upper']}]\n")
-        io.write(f"#   {'Imaginary part range':<36} =  [{params['sigma_imag_lower']}, {params['sigma_imag_upper']}]\n")
+        io.write(f"#   {'Resolution range (N)':<36} =  [{params.Nmin}, {params.Nmax}] increment {params.Ninc}\n")
+        io.write(f"#   {'Real part range':<36} =  [{params.sigma_real_lower}, {params.sigma_real_upper}]\n")
+        io.write(f"#   {'Imaginary part range':<36} =  [{params.sigma_imag_lower}, {params.sigma_imag_upper}]\n")
 
-        if params.get('sigma_imag') is not None:
-            io.write(f"#   {'Imaginary amplitude limit':<36} =  {params['sigma_imag']:10.3e}\n")
+        if params.sigma_imag is not None:
+            io.write(f"#   {'Imaginary amplitude limit':<36} =  {params.sigma_imag:10.3e}\n")
 
         write_head("Growth rate absolute tolerance", 'atol')
         write_head("Growth rate relative tolerance", 'rtol')
         write_head("Growth rate guess tolerance", 'gtol')
-        if 'ktol' in params:
+        if params.ktol is not None:
             write_head("Wavenumber relative tolerance", 'ktol')
 
-        io.write(f"#   {'Selection order':<36} =   {params['orderby']}\n")
-        io.write(f"#   {'Converge the mode':<36} =   {params['mode']}\n")
+        io.write(f"#   {'Selection order':<36} =   {params.orderby}\n")
+        io.write(f"#   {'Converge the mode':<36} =   {params.mode}\n")
         write_head("Inner-layer thickness tolerance", 'dtol')
-        io.write(f"#   {'Number of inner collocation points':<36} =   {params['n_inner']}\n")
-        io.write(f"#   {'Amplitude fraction at zmax':<36} =   {params['f_outer']}\n")
-        io.write(f"#   {'Decay e-folds at zmax':<36} =  {params['decay_efolds']:10.3e}\n")
+        io.write(f"#   {'Number of inner collocation points':<36} =   {params.n_inner}\n")
+        io.write(f"#   {'Amplitude fraction at zmax':<36} =   {params.f_outer}\n")
+        io.write(f"#   {'Decay e-folds at zmax':<36} =  {params.decay_efolds:10.3e}\n")
 
         io.write(f"#\n# Calculation done in {delta_time:.2f} seconds.\n#\n")
 

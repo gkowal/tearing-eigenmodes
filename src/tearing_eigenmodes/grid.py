@@ -1,4 +1,6 @@
 from .exceptions import DeltaError, ConvergenceError
+from .physics import calculate_cgl_factors
+from .params import SimulationParams
 from typing import Dict, Tuple, Any
 import numpy as np
 import logging
@@ -6,45 +8,45 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def select_NC(params: Dict[str, Any]) -> Tuple[int, float]:
+def select_NC(params: SimulationParams) -> Tuple[int, float]:
     """
     Determine the Chebyshev–TB grid resolution N and scaling factor C for the linear tearing
     instability eigenproblem under the mapping z = C tan(θ).
 
     Parameters
     ----------
-    params : dict
-        A dictionary containing physical and numerical parameters.
+    params : SimulationParams
+        A SimulationParams object containing physical and numerical parameters.
 
     Returns
     -------
     tuple
         A tuple (N, C) representing the determined resolution and scaling factor.
     """
-    Nmin         = params.get('Nmin'                  ,   64       )
-    Nmax         = params.get('Nmax'                  , 2048       )
-    Ninc         = params.get('Ninc'                  ,   32       )
-    n_inner      = params.get('n_inner'               ,    5       )
-    decay_efolds = params.get('decay_efolds'          ,    4.605   )
-    CGL          = params.get('CGL'                   , False      )
-    β            = params.get('plasma_beta'           ,    0.0     )
-    Δβ           = params.get('plasma_beta_difference',    0.0     )
-    ɣpar         = params.get('parallel_index'        ,    3       )
-    ɣper         = params.get('perpendicular_index'   ,    2       )
-    a            = params.get('a'                     ,    1.0     )
-    w            = params.get('w'                     ,    0.0     )
-    α            = params.get('alpha'                 ,    0.1     )
-    σ            = params.get('sigma'                 , None       )
-    ξ            = params.get('xi'                    ,    0.0     )
-    Cmean        = params.get('Cmean'                 , 'geometric')
+    Nmin         = params.Nmin
+    Nmax         = params.Nmax
+    Ninc         = params.Ninc
+    n_inner      = params.n_inner
+    decay_efolds = params.decay_efolds
+    CGL          = params.CGL
+    β            = params.plasma_beta
+    Δβ           = params.plasma_beta_difference
+    ɣpar         = params.parallel_index
+    ɣper         = params.perpendicular_index
+    a            = params.a
+    w            = params.w
+    α            = params.alpha
+    σ            = params.sigma
+    ξ            = params.xi
+    Cmean        = params.Cmean
     # Input validation checks
-    if α <= 0:
+    if α is None or α <= 0:
         raise ValueError("Wavenumber alpha must be positive.")
     if decay_efolds <= 0:
         raise ValueError("decay_efolds must be positive.")
-    if a <= 0:
+    if a is None or a <= 0:
         raise ValueError("Current sheet thickness a must be positive.")
-    if w < 0:
+    if w is None or w < 0:
         raise ValueError("Current sheet half-width w must be non-negative.")
     if Nmin <= 0 or Nmax <= 0:
         raise ValueError("Resolution limits Nmin and Nmax must be positive.")
@@ -58,14 +60,16 @@ def select_NC(params: Dict[str, Any]) -> Tuple[int, float]:
     # --- λ: decaying factor of the outer solution;
     if CGL:
         R = 0.0 if σ is None else σ.real**2 / α**2
-        C = 1.0 + R - Δβ/2
-        D = 1.0 + R + 0.5 * ((ɣpar + ɣper - 2) * β + ɣpar * Δβ)
-        if np.isclose(D, 0.0):
-            raise DeltaError(f"Infinite decaying factor for (β, Δβ) = ({β:.3e}, {Δβ:+.3e}) => stable eigenmode for α = {α:.3e}.")
-
-        μ = C / D
-        if μ < 0.0:
-            raise DeltaError(f"Decaying factor purely imaginary for (β, Δβ) = ({β:.3e}, {Δβ:+.3e}) => stable eigenmode for α = {α:.3e}.")
+        C_cgl, D_cgl = calculate_cgl_factors(
+            beta=β,
+            delta_beta=Δβ,
+            gamma_par=ɣpar,
+            gamma_per=ɣper,
+            R=R,
+            alpha=α,
+            context='grid',
+        )
+        μ = C_cgl / D_cgl
         λ = np.sqrt(μ) * α
     else:
         λ = α

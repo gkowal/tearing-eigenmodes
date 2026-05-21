@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 #
 import os, sys, time, logging, signal
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import multiprocessing as mp
 import numpy as np
 
 from tearing_eigenmodes import build_params, build_dpath, print_info, \
                              refine_eigenvalues, \
-                             eigenmodes, write_results, save_eigenmode, setup_logging
+                             eigenmodes, write_results, save_eigenmode, setup_logging, \
+                             check_state, compile_metadata, SimulationParams
 
 counter: Any = None
 
@@ -18,82 +19,58 @@ def init_worker(shared_counter: Any) -> None:
     global counter
     counter = shared_counter
 
-def task(k: float, sigma: Any, params: Dict[str, Any]) -> None:
+def task(k: float, sigma: Any, params: SimulationParams) -> None:
     global counter
 
-    params_base = dict(params)
+    import copy
+    params_base = copy.copy(params)
 
-    ntasks   = params_base.get('ntasks'  , 1)
-    verbose  = params_base.get('verbose' , False)
-    force    = params_base.get('force'   , False)
-    Nmax     = params_base.get('Nmax'    , 2048)
-    w        = params_base.get('w'       , 0.0)
-    a        = params_base.get('a'       , 1.0)
+    ntasks   = params_base.ntasks
+    verbose  = params_base.verbose
+    force    = params_base.force
+    Nmax     = params_base.Nmax
+    w        = params_base.w if params_base.w is not None else 0.0
+    a        = params_base.a if params_base.a is not None else 1.0
 
     status   = False
 
     α = k * a
 
     # Initialize variables to satisfy static analysis
-    σ = np.array([])
-    e = 0.0
-    δin = 0.0
-    nin = 0
-    nwa = 0
-    N = 0
-    C = 0.0
-    z = None
-    s = {}
+    σ: Optional[np.ndarray] = None
+    e: Optional[float] = None
+    δin: Optional[float] = None
+    nin: Optional[int] = None
+    nwa: Optional[int] = None
+    N: Optional[int] = None
+    C: Optional[float] = None
+    z: Optional[np.ndarray] = None
+    s: Optional[Dict[str, np.ndarray]] = None
+    sname = os.path.join(params_base.data_path if params_base.data_path is not None else './', f'state_α{α:.6e}.npz')
 
-    sname  = os.path.join(params_base.get('data_path', './'), f'state_α{α:.6e}.npz')
-
-    if os.path.exists(sname):
-        with np.load(sname) as state:
-            α   = state['wavenumber']
-            σ   = state['eigenvalue']
-            e   = state['tolerance']
-            δin = state['resistive_layer_thickness']
-            nin = state['resistive_layer_nodes']
-            nwa = state['current_sheet_nodes']
-            N   = state['resolution']
-            C   = state['grid_scaling_factor']
-
-        status = not force and not (e > 1.0 and N < Nmax)
+    status, state_data = check_state(sname, force=force, Nmax=Nmax)
+    if status:
+        assert state_data is not None
+        α   = float(state_data['wavenumber'])
+        σ   = state_data['eigenvalue']
+        e   = float(state_data['tolerance'])
+        δin = float(state_data['resistive_layer_thickness'])
+        nin = int(state_data['resistive_layer_nodes'])
+        nwa = int(state_data['current_sheet_nodes'])
+        N   = int(state_data['resolution'])
+        C   = float(state_data['grid_scaling_factor'])
 
     if not status:
         try:
-            params_base['sigma']   = sigma
-            params_base['alpha']   = α
+            params_base.sigma   = sigma
+            params_base.alpha   = α
 
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
 
             if status:
+                assert s is not None
                 # Include physical and numerical parameters for reproducibility
-                metadata = {
-                    'S': params_base.get('S'),
-                    'Pr': params_base.get('Pr'),
-                    'plasma_beta': params_base.get('plasma_beta'),
-                    'plasma_beta_difference': params_base.get('plasma_beta_difference'),
-                    'xi': params_base.get('xi'),
-                    'Hall': params_base.get('Hall'),
-                    'a': params_base.get('a'),
-                    'w': params_base.get('w'),
-                    'parallel_index': params_base.get('parallel_index'),
-                    'perpendicular_index': params_base.get('perpendicular_index'),
-                    'eos': params_base.get('eos'),
-                    'CGL': params_base.get('CGL'),
-                    'noshear': params_base.get('noshear'),
-                    'Nmin': params_base.get('Nmin'),
-                    'Nmax': params_base.get('Nmax'),
-                    'Ninc': params_base.get('Ninc'),
-                    'atol': params_base.get('atol'),
-                    'rtol': params_base.get('rtol'),
-                    'gtol': params_base.get('gtol'),
-                    'dtol': params_base.get('dtol'),
-                    'n_inner_req': params_base.get('n_inner'),
-                    'f_outer': params_base.get('f_outer'),
-                    'mode': params_base.get('mode'),
-                }
+                metadata = compile_metadata(params_base)
 
                 save_eigenmode(sname, wavenumber=α, eigenvalue=σ, tolerance=e, \
                                     resistive_layer_thickness=δin, grid_scaling_factor=C, \
@@ -114,6 +91,13 @@ def task(k: float, sigma: Any, params: Dict[str, Any]) -> None:
     output = f"{fmt.format(n)}  α = {α:.3e}: "
 
     if status:
+        assert σ is not None
+        assert δin is not None
+        assert nin is not None
+        assert nwa is not None
+        assert e is not None
+        assert C is not None
+        assert N is not None
         msg = (output \
              + f"{σ.size:3d} eigenmode{'s' if σ.size > 1 else ' '}," \
              + f" σ₀ = {σ.real:.3e}{σ.imag:+.4e}j" \
@@ -138,29 +122,31 @@ def main() -> None:
     params = build_params(parser_type='dispersion')
 
     # Configure logging
-    setup_logging(verbose=params.get('verbose'), log_file=params.get('log_file'))
+    setup_logging(verbose=bool(params.verbose), log_file=params.log_file)
 
     # Build data path
     dpath = build_dpath(params)
 
     # Wavenumber array
-    kl, ku, dk = params['kmin'], params['kmax'], params['kinc']
+    kl, ku, dk = params.kmin, params.kmax, params.kinc
+    assert kl is not None and ku is not None and dk is not None, "Wavenumber range parameters (kmin, kmax, kinc) must be defined."
     n_points = int(np.ceil((ku - kl + 0.5 * dk) / dk))
     if n_points <= 0:
         logging.error(f"Error: Wavenumber range is empty or invalid (min={kl:.3e}, max={ku:.3e}, inc={dk:.3e}).")
         sys.exit(1)
     ks = np.linspace(kl, ku, n_points)
-    if params['logarithmic']:
+    if params.logarithmic:
         ks = 10**ks
-    ks /= params['a']
+    assert params.a is not None, "Scaling parameter a must be defined."
+    ks /= params.a
 
     # Determine the number of independent tasks and CPU cores to use.
     ntasks = ks.size
     nprocs = int(os.getenv('SLURM_CPUS_PER_TASK', mp.cpu_count()))
     nprocs = min(ntasks, nprocs)
 
-    params['data_path'] = dpath
-    params['ntasks']    = ntasks
+    params.data_path = dpath
+    params.ntasks    = ntasks
 
     if not os.path.exists(dpath):
         os.makedirs(dpath)
@@ -200,7 +186,7 @@ def main() -> None:
 
     write_results(params, delta_time)
 
-    if not params['verbose']:
+    if not params.verbose:
         sys.stdout.write("\n")
     logging.info(f"\nCalculation done in {delta_time:.2f} seconds.\n")
 

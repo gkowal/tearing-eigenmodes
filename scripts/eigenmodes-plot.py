@@ -8,9 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 
-from tearing_eigenmodes import build_params, build_dpath, setup_logging
+from tearing_eigenmodes import build_params, build_dpath, setup_logging, SimulationParams
 
-def process_file(sname: str, params: Dict[str, Any]) -> None:
+def process_file(sname: str, params: SimulationParams) -> None:
     """
     Process and plot a single .npz file.
     """
@@ -39,8 +39,8 @@ def process_file(sname: str, params: Dict[str, Any]) -> None:
         if n_vars == 1:
             axes = [axes]
 
-        zmin = params.get('zmin')
-        zmax = params.get('zmax')
+        zmin = params.zmin
+        zmax = params.zmax
 
         # Filter indices if zmin/zmax are provided
         mask = np.ones_like(z, dtype=bool)
@@ -92,8 +92,8 @@ def process_file(sname: str, params: Dict[str, Any]) -> None:
         fig.suptitle(title, fontsize=14)
 
         # Save or show the plot
-        out_name = params.get('output_plot')
-        if not out_name or len(glob.glob(params.get('dir_plot', '') + '/*.npz')) > 1:
+        out_name = params.output_plot
+        if not out_name or len(glob.glob((params.dir_plot if params.dir_plot is not None else '') + '/*.npz')) > 1:
             out_name = os.path.splitext(sname)[0] + '.png'
 
         plt.savefig(out_name, dpi=300)
@@ -108,14 +108,14 @@ def main() -> None:
     params = build_params(parser_type='plot')
 
     # Configure logging
-    setup_logging(verbose=params.get('verbose'), log_file=params.get('log_file'))
+    setup_logging(verbose=bool(params.verbose), log_file=params.log_file)
 
     # Build data path
     dpath = build_dpath(params)
-    params['data_path'] = dpath
+    params.data_path = dpath
 
     # Check if directory plotting is requested
-    dir_name = params.get('dir_plot')
+    dir_name = params.dir_plot
     if dir_name:
         if not os.path.exists(dir_name):
             logging.error(f"Error: Directory not found: {dir_name}")
@@ -132,14 +132,14 @@ def main() -> None:
         return
 
     # Identify a single state file
-    sname = params.get('file_plot')
+    sname = params.file_plot
     if not sname:
-        if params.get('alpha_plot') is not None:
-            α = params['alpha_plot']
+        if params.alpha_plot is not None:
+            α = params.alpha_plot
             sname = os.path.join(dpath, f'state_α{α:.6e}.npz')
-        elif params.get('value_plot') is not None and params.get('dependence') is not None:
-            dep = params['dependence']
-            val = params['value_plot']
+        elif params.value_plot is not None and params.dependence is not None:
+            dep = params.dependence
+            val = params.value_plot
             sname = os.path.join(dpath, f'state_{dep}{val:+.6e}.npz')
         else:
             logging.error("Error: Must provide either --file, --dir, --alpha, or (--value and --dependence) to identify the state file(s).")
