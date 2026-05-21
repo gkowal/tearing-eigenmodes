@@ -111,7 +111,8 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
             e = data.get('tolerance')
             N = data.get('resolution')
             if e is not None and N is not None:
-                status = not (float(e) > 1.0 and int(N) < Nmax)
+                e_val = np.atleast_1d(e)[0]
+                status = not (float(e_val) > 1.0 and int(N) < Nmax)
                 return status, data
     except Exception as e_err:
         logger.warning(f"Could not load state file {file_path}: {e_err}")

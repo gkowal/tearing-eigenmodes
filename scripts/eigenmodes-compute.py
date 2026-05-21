@@ -98,11 +98,15 @@ def task(k: float, sigma: Any, params: SimulationParams) -> None:
         assert e is not None
         assert C is not None
         assert N is not None
+        σ_arr = np.atleast_1d(σ)
+        σ_val = σ_arr[0]
+        e_arr = np.atleast_1d(e)
+        e_val = e_arr[0]
         msg = (output \
-             + f"{σ.size:3d} eigenmode{'s' if σ.size > 1 else ' '}," \
-             + f" σ₀ = {σ.real:.3e}{σ.imag:+.4e}j" \
-             + f" (δin = {δin:.3e}, nin = {nin}, nwa = {nwa}, tol = {e:.3e}, C = {C:.3e}, N = {N})" \
-            + f" {'Did not converge!' if e > 1 else ''}")
+             + f"{σ_arr.size:3d} eigenmode{'s' if σ_arr.size > 1 else ' '}," \
+             + f" σ₀ = {σ_val.real:.3e}{σ_val.imag:+.4e}j" \
+             + f" (δin = {δin:.3e}, nin = {nin}, nwa = {nwa}, tol = {e_val:.3e}, C = {C:.3e}, N = {N})" \
+             + f" {'Did not converge!' if e_val > 1 else ''}")
         if verbose:
             logging.info(msg)
         else:

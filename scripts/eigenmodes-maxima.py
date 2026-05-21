@@ -138,7 +138,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Sim
     if status:
         assert state_data is not None
         αm  = float(state_data['wavenumber'])
-        σm  = state_data['eigenvalue']
+        σm  = np.atleast_1d(state_data['eigenvalue'])
         e   = float(state_data['tolerance'])
         δin = float(state_data['resistive_layer_thickness'])
         nin = int(state_data['resistive_layer_nodes'])
@@ -201,8 +201,8 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Sim
                     assert nwa is not None
                     assert N is not None
                     assert s is not None
-                    σm  = σ
-                    Δσ  = rtol * σm.real * e
+                    σm  = np.atleast_1d(σ)
+                    Δσ  = rtol * σm[0].real * e
                     nit = res.nfev
 
                     # Include physical and numerical parameters for reproducibility
@@ -246,7 +246,9 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, params: Sim
         assert nin is not None
         assert nwa is not None
         assert N is not None
-        result_line = info + f"α={αm:.4e}±{Δα:.1e}  σ={σm.real:.4e}±{Δσ:.1e}  δin={δin:.3e}  nin={nin}  nwa={nwa}  C={C:.3e}  N={N} after {nit} function calls" + ' '*6
+        σm_val = σm[0]
+        Δσ_val = np.atleast_1d(Δσ)[0]
+        result_line = info + f"α={αm:.4e}±{Δα:.1e}  σ={σm_val.real:.4e}±{Δσ_val:.1e}  δin={δin:.3e}  nin={nin}  nwa={nwa}  C={C:.3e}  N={N} after {nit} function calls" + ' '*6
         if verbose:
             logging.info(f"{result_line}")
         else:
