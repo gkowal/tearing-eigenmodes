@@ -37,12 +37,24 @@ def select_NC(params: Dict[str, Any]) -> Tuple[int, float]:
     σ            = params.get('sigma'                 , None       )
     ξ            = params.get('xi'                    ,    0.0     )
     Cmean        = params.get('Cmean'                 , 'geometric')
+    # Input validation checks
+    if α <= 0:
+        raise ValueError("Wavenumber alpha must be positive.")
+    if decay_efolds <= 0:
+        raise ValueError("decay_efolds must be positive.")
+    if a <= 0:
+        raise ValueError("Current sheet thickness a must be positive.")
+    if w < 0:
+        raise ValueError("Current sheet half-width w must be non-negative.")
+    if Nmin <= 0 or Nmax <= 0:
+        raise ValueError("Resolution limits Nmin and Nmax must be positive.")
+    if Ninc <= 0:
+        raise ValueError("Resolution increment Ninc must be positive.")
 
     # Enforce odd n_inner (so m is integer and z=0 is a collocation point)
     if n_inner % 2 == 0:
         n_inner += 1
     m = (n_inner - 1) / 2
-
     # --- λ: decaying factor of the outer solution;
     if CGL:
         R = 0.0 if σ is None else σ.real**2 / α**2
@@ -62,7 +74,7 @@ def select_NC(params: Dict[str, Any]) -> Tuple[int, float]:
     zmin = a + w
     zmax = decay_efolds / λ
     lk = ξ / α
-    if σ is not None and ξ > 0.0:
+    if σ is not None and ξ > 0.0 and σ.real > 0.0:
         lσ = ξ / σ.real
         lk = 2.0 * np.pi * ξ / np.abs(α + σ.imag)
 

@@ -28,11 +28,30 @@ def estimate_max(params: Dict[str, Any]) -> Tuple[float, float]:
     ɣpar         = params.get('parallel_index'        ,    3.0   )
     ɣper         = params.get('perpendicular_index'   ,    2.0   )
 
-    if CGL and (Δβ <= - (2 + (ɣpar + ɣper - 2) * β) / ɣpar or Δβ >= 2):
-        raise DeltaError(f"Δ' purely imaginary for Δβ = {Δβ:+.3e} => stable eigenmode for any α.")
+    if S <= 0:
+        raise ValueError("Lundquist number S must be positive.")
+    if Pr < 0:
+        raise ValueError("Prandtl number Pr cannot be negative.")
+    if ɣpar <= 0:
+        raise ValueError("Parallel adiabatic index ɣpar must be positive.")
+    if ɣper <= 0:
+        raise ValueError("Perpendicular adiabatic index ɣper must be positive.")
 
     C = 1 - Δβ/2
-    μ = np.sqrt((2 + (ɣpar + ɣper - 2) * β + ɣpar * Δβ) / (2 - Δβ)) if CGL else 1
+    if C <= 0:
+        raise DeltaError(f"Stable or unphysical regime: coefficient C = 1 - Δβ/2 = {C:+.3e} <= 0 (requires Δβ < 2).")
+
+    if CGL:
+        numerator = 2 + (ɣpar + ɣper - 2) * β + ɣpar * Δβ
+        denominator = 2 - Δβ
+        if denominator <= 0:
+            raise DeltaError(f"Stable or unphysical regime: Δβ = {Δβ:+.3e} >= 2 causes division by zero or negative denominator.")
+        μ_inside = numerator / denominator
+        if μ_inside <= 0:
+            raise DeltaError(f"Δ' purely imaginary or stable: decay coefficient μ_inside = {μ_inside:+.3e} <= 0.")
+        μ = np.sqrt(μ_inside)
+    else:
+        μ = 1.0
 
     αm = 1.3583e+00 * (S / (S + 400))**(1/4) * S**(-1/4) * C**(-1/8) * μ**(-3/4) * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**(1/8)
     Xm = αm * μ

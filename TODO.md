@@ -8,7 +8,7 @@ This list tracks planned improvements for the `tearing-eigenmodes` project, cate
 - [x] **I/O Performance**: Optimize `load_eigenmodes` in `io.py` by caching the `ChebyshevRationalGrid` object or its nodes to avoid repeated re-instantiation. (Obsolete: grid is saved directly in state files and loaded as a raw array)
 - [x] **Refinement I/O Caching**: Cache result tables loaded during parameter sweep initialization in `refinement.py` to avoid reading `.npz` files four times sequentially. (Implemented via directory-state-based cache)
 - [ ] **CGL Factor Consolidation**: Consolidate duplicated $C$ and $\mu$ formulas from `grid.py` and `physics.py` into a single central function in `physics.py`.
-- [ ] **Explicit Numerical Guards**: Add checks for potential division-by-zero or `log(negative)` in physical scaling laws to provide clearer error messages.
+- [x] **Explicit Numerical Guards**: Add checks for potential division-by-zero or `log(negative)` in physical scaling laws to provide clearer error messages.
 
 ## 2. Code Quality & Maintenance
 - [ ] **Typed Parameters**: Transition the `params` dictionary to a `dataclass` or `NamedTuple` for better type safety and IDE support.

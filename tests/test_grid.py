@@ -107,3 +107,71 @@ def test_select_nc_convergence_error():
     }
     with pytest.raises(ConvergenceError, match="Insufficient N up to Nmax"):
         select_NC(params)
+
+def test_select_nc_invalid_inputs():
+    # alpha <= 0
+    with pytest.raises(ValueError, match="Wavenumber alpha must be positive"):
+        select_NC({'alpha': 0.0})
+    
+    # decay_efolds <= 0
+    with pytest.raises(ValueError, match="decay_efolds must be positive"):
+        select_NC({'alpha': 0.1, 'decay_efolds': 0.0})
+
+    # a <= 0
+    with pytest.raises(ValueError, match="Current sheet thickness a must be positive"):
+        select_NC({'alpha': 0.1, 'a': 0.0})
+
+    # w < 0
+    with pytest.raises(ValueError, match="Current sheet half-width w must be non-negative"):
+        select_NC({'alpha': 0.1, 'w': -0.1})
+
+    # Nmin <= 0
+    with pytest.raises(ValueError, match="Resolution limits Nmin and Nmax must be positive"):
+        select_NC({'alpha': 0.1, 'Nmin': 0})
+
+    # Ninc <= 0
+    with pytest.raises(ValueError, match="Resolution increment Ninc must be positive"):
+        select_NC({'alpha': 0.1, 'Ninc': 0})
+
+def test_select_nc_cgl_coefficient_guards():
+    # C <= 0
+    # C = 1.0 + R - Δβ/2. Set Δβ = 3.0 => C = -0.5
+    with pytest.raises(DeltaError, match="Decaying factor purely imaginary"):
+        select_NC({
+            'alpha': 0.1,
+            'a': 1.0,
+            'w': 0.0,
+            'CGL': True,
+            'plasma_beta_difference': 3.0,
+        })
+
+    # D <= 0
+    # D = 1.0 + R + 0.5 * ((ɣpar + ɣper - 2) * β + ɣpar * Δβ)
+    # Let β = 1.0, Δβ = -2.0, ɣpar = 3.0, ɣper = 2.0.
+    # D = 1.0 + 0.5 * (3 * 1.0 + 3 * (-2.0)) = 1.0 + 0.5 * (-3.0) = -0.5
+    with pytest.raises(DeltaError, match="Decaying factor purely imaginary"):
+        select_NC({
+            'alpha': 0.1,
+            'a': 1.0,
+            'w': 0.0,
+            'CGL': True,
+            'plasma_beta': 1.0,
+            'plasma_beta_difference': -2.0,
+            'parallel_index': 3.0,
+            'perpendicular_index': 2.0,
+        })
+
+def test_select_nc_stable_sigma_guarded():
+    # If σ.real <= 0, the lσ calculation should be bypassed and not crash
+    params = {
+        'alpha': 0.1,
+        'a': 1.0,
+        'w': 0.0,
+        'xi': 1.0,
+        'sigma': complex(-0.05, 0.0), # σ.real <= 0
+    }
+    # This should complete successfully because the stable σ.real is bypassed
+    N, C = select_NC(params)
+    assert N >= 64
+    assert C > 0.0
+
