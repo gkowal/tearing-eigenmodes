@@ -57,6 +57,7 @@ def print_info(params):
 
     log_head("Growth rate absolute tolerance", 'atol')
     log_head("Growth rate relative tolerance", 'rtol')
+    log_head("Guess tolerance", 'gtol')
     logger.info(f"  {'Real part range':<34} =  [{params['sigma_real_lower']}, {params['sigma_real_upper']}]")
     logger.info(f"  {'Imaginary part range':<34} =  [{params['sigma_imag_lower']}, {params['sigma_imag_upper']}]")
 
