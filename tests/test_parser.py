@@ -140,10 +140,7 @@ def test_validate_parameters_inner_points():
     with pytest.raises(ParameterError, match="Minimum number of resistivity layer collocation points .* must be >= 3"):
         validate_parameters(args)
 
-    args = parser.parse_args([])
-    args.l_inner = 1e-7
-    with pytest.raises(ParameterError, match="minimum width for the inner collocation points .* must be >= 1.0e-6"):
-        validate_parameters(args)
+
 
 def test_validate_parameters_conflicting_scaling():
     parser = parser_setup()

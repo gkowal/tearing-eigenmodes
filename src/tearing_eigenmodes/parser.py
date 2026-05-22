@@ -146,13 +146,7 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
               "the resistive layer thickness.")
     )
 
-    parser.add_argument(
-        "--l-inner", "-lin",
-        type=float,
-        default=0.1,
-        help=("The width required to be resolved with the minimum number "
-              "of collocation points.")
-    )
+
 
     parser.add_argument(
         "--amp-fraction-outer", "--f-outer",
@@ -487,7 +481,6 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         'Ninc'                  : args.resolution_range[2],
         'n_inner'               : args.n_inner,
         'n_resistivity'         : args.n_resistivity,
-        'l_inner'               : args.l_inner,
         'f_outer'               : args.amp_fraction_outer,
         'decay_efolds'          : -np.log(args.amp_fraction_outer),
         'CGL'                   : args.CGL,
@@ -720,10 +713,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
         raise ParameterError(
             "Minimum number of resistivity layer collocation points (--n-resistivity / -nres) must be >= 3"
         )
-    if args.l_inner < 1.0e-6:
-        raise ParameterError(
-            "The minimum width for the inner collocation points (--l-inner / -lin) must be >= 1.0e-6"
-        )
+
 
     # ------------------------------------------------------------------
     # 7) Optional limits

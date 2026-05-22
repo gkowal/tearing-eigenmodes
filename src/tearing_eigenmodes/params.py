@@ -25,7 +25,6 @@ class SimulationParams:
     Ninc: int = 32
     n_inner: int = 5
     n_resistivity: int = 5
-    l_inner: float = 0.1
     f_outer: float = 0.01
     decay_efolds: float = 4.60517
     C: Optional[float] = None
