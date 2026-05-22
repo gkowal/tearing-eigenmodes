@@ -258,8 +258,10 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
 
         io.write(f"#   {'Selection order':<36} =   {params.orderby}\n")
         io.write(f"#   {'Converge the mode':<36} =   {params.mode}\n")
+        write_head("Resistive scale (δres)", 'delta')
         write_head("Inner-layer thickness tolerance", 'dtol')
         io.write(f"#   {'Number of inner collocation points':<36} =   {params.n_inner}\n")
+        io.write(f"#   {'Resistive layer collocation points':<36} =   {params.n_resistivity}\n")
         io.write(f"#   {'Amplitude fraction at zmax':<36} =   {params.f_outer}\n")
         io.write(f"#   {'Decay e-folds at zmax':<36} =  {params.decay_efolds:10.3e}\n")
 

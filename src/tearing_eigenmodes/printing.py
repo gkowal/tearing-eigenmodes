@@ -65,7 +65,9 @@ def print_info(params: SimulationParams) -> None:
     logger.info(f"  {'Number of inner collocation points':<34} =  {params.n_inner}")
     logger.info(f"  {'Width for the collocation points':<34} =  {params.l_inner}")
     logger.info(f"  {'Amplitude fraction at zmax':<34} =  {params.f_outer}")
+    logger.info(f"  {'Resistive layer collocation points':<34} =  {params.n_resistivity}")
 
+    log_head("Resistive scale (δres)", 'delta')
     log_head("Inner-layer thickness tolerance", 'dtol')
 
     logger.info("Miscellaneous/Runtime:")
