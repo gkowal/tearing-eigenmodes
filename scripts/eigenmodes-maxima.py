@@ -86,6 +86,11 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
 
     status = False
 
+    if hasattr(sigma, 'item'):
+        sigma = sigma.item()
+    elif isinstance(sigma, (np.ndarray, list)) and len(sigma) > 0:
+        sigma = sigma[0]
+
     import copy
     params_base = copy.copy(params)
 
@@ -356,9 +361,11 @@ def main() -> None:
 
                 if not status:
                     break
-                if gm is not None and gm.real < 1e-6:
-                    logging.info(f"Growth rate dropped below 1e-6 ({gm.real:.3e}). Stopping sweep.")
-                    break
+                if gm is not None:
+                    gm_val = np.atleast_1d(gm)[0]
+                    if gm_val.real < 1e-6:
+                        logging.info(f"Growth rate dropped below 1e-6 ({gm_val.real:.3e}). Stopping sweep.")
+                        break
 
                 # ── record for next extrapolation ─────────────────────────────────
                 k_extrap.add(v, km)

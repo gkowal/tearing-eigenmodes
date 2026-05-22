@@ -201,7 +201,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
         # eigenvalue_error
         if 'eigenvalue_error' not in data:
             rtol = float(data.get('rtol', 1e-5))
-            val = np.real(data['eigenvalue'])
+            val = float(np.real(data['eigenvalue']))
             tol = float(data['tolerance'])
             err = rtol * val * tol
             data['eigenvalue_error'] = np.array(err)

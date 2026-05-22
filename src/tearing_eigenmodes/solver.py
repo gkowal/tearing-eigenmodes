@@ -128,6 +128,11 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
             σ = σ[0]
             e = e[0]
             z = system.grid.zg
+
+        if hasattr(σ, 'item'):
+            σ = σ.item()
+        if hasattr(e, 'item'):
+            e = e.item()
         s = {}
         system_variables = getattr(system, 'variables')
         for key in system_variables:
