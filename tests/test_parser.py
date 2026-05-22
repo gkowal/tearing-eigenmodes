@@ -164,7 +164,8 @@ def test_build_params_dispersion(monkeypatch):
         "-Pr", "0.2",
         "-a", "2.0",
         "-K", "0.1", "0.5", "0.05",
-        "--eos", "isothermal"
+        "--eos", "isothermal",
+        "--scaling-mean", "harmonic"
     ])
 
     params = build_params(parser_type="dispersion")
@@ -178,6 +179,7 @@ def test_build_params_dispersion(monkeypatch):
     # Isothermal EOS -> parallel/perpendicular indices are 1.0, 1.0
     assert params["parallel_index"] == 1.0
     assert params["perpendicular_index"] == 1.0
+    assert params["Cmean"] == "harmonic"
 
 def test_build_params_maximum(monkeypatch):
     # Simulate arguments passed to eigenmodes-maxima.py

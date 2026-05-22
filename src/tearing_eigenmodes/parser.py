@@ -166,6 +166,13 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     )
 
     parser.add_argument(
+        "--scaling-mean", "--cmean",
+        choices=['geometric', 'harmonic', 'average', 'lower', 'outer', 'upper', 'inner'],
+        default='geometric',
+        help="the method to calculate the grid scaling factor C from inner and outer limits"
+    )
+
+    parser.add_argument(
         "--absolute-tolerance", "-atol",
         type=float,
         default=1e-10,
@@ -485,6 +492,7 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         'decay_efolds'          : -np.log(args.amp_fraction_outer),
         'CGL'                   : args.CGL,
         'C'                     : args.scaling_factor,
+        'Cmean'                 : args.scaling_mean,
         'delta'                 : args.resistive_scale,
         'alpha'                 : None,
         'sigma'                 : args.sigma,
