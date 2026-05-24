@@ -25,7 +25,7 @@ def process_file(sname: str, params: SimulationParams) -> None:
         z = state['grid']
 
         # Determine variables to plot based on what is present in the state file
-        possible_variables = ['duz', 'dbz', 'duy', 'dby', 'ddp']
+        possible_variables = ['duz', 'dbz', 'duy', 'dby', 'ddp', 'dpi']
         variables = [v for v in possible_variables if v in state]
 
         if not variables:
@@ -60,7 +60,8 @@ def process_file(sname: str, params: SimulationParams) -> None:
             'dbz': r'$\delta B_z$',
             'duy': r'$\delta u_y$',
             'dby': r'$\delta B_y$',
-            'ddp': r'$\delta \Delta p$'
+            'ddp': r'$\delta \Delta p$',
+            'dpi': r'$\delta \pi$'
         }
 
         for ax, var in zip(axes, variables):
