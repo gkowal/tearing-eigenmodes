@@ -85,10 +85,23 @@ def process_file(sname: str, params: SimulationParams) -> None:
             dep = str(dep)
             val = float(state.get('scan_parameter_value', state.get('value', 0.0)))
             title += f" (${dep} = {val:.4e}$)"
-            if 'wavenumber' in state:
-                title += f", $\\alpha = {float(state['wavenumber']):.4e}$"
-        elif 'wavenumber' in state:
-            title += f" ($\\alpha = {float(state['wavenumber']):.4e}$)"
+
+        details = []
+        if 'wavenumber' in state:
+            α_val = float(state['wavenumber'])
+            details.append(f"$\\alpha = {α_val:.3e}$")
+
+        ev_data = state.get('eigenvalue', state.get('growth_rate', None))
+        if ev_data is not None:
+            if isinstance(ev_data, np.ndarray) and ev_data.ndim > 0:
+                ev_val = ev_data[0]
+            else:
+                ev_val = ev_data
+            ev_complex = complex(ev_val)
+            details.append(f"$\\sigma = {ev_complex.real:.3e}{ev_complex.imag:+.3e}j$")
+
+        if details:
+            title += " (" + ", ".join(details) + ")"
 
         fig.suptitle(title, fontsize=14)
 
