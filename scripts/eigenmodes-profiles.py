@@ -25,7 +25,7 @@ def process_file(sname: str, params: SimulationParams) -> None:
         z = state['grid']
 
         # Determine variables to plot based on what is present in the state file
-        possible_variables = ['duz', 'dbz', 'duy', 'dby', 'ddp', 'dpi']
+        possible_variables = ['duy', 'duz', 'dby', 'dbz', 'ddp', 'dpi']
         variables = [v for v in possible_variables if v in state]
 
         if not variables:
