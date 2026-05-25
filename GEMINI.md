@@ -22,7 +22,7 @@ The project includes CLI scripts for running calculations and visualizing result
 
 - **`scripts/eigenmodes-compute.py`**: Calculates the dispersion relation (growth rate vs. wavenumber) for a given set of parameters.
 - **`scripts/eigenmodes-maxima.py`**: Finds the maximum growth rate and its corresponding wavenumber across a range of a specified parameter (e.g., S, Pr, β).
-- **`scripts/eigenmodes-plot.py`**: Visualizes the eigenfunctions (e.g., $\delta u_z, \delta B_z$) from saved `.npz` state files.
+- **`scripts/eigenmodes-profiles.py`**: Visualizes the eigenfunctions (e.g., $\delta u_z, \delta B_z$) from saved `.npz` state files.
 
 These scripts should be run from the project root. It is recommended to install the package in editable mode (`pip install -e .`) to ensure the scripts can correctly import the `tearing_eigenmodes` library.
 
