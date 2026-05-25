@@ -412,6 +412,18 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
             default=None,
             help="Output plot filename"
         )
+        parser.add_argument(
+            "--nx",
+            type=int,
+            default=100,
+            help="Number of points in the x direction for 2D mapping"
+        )
+        parser.add_argument(
+            "--nperiods",
+            type=float,
+            default=1.0,
+            help="Number of periods (wavelengths) to plot in x for 2D mapping"
+        )
 
     # ------------------------------------------------------------------
     # 3️⃣  Check for local configuration file (params.cfg)
@@ -576,6 +588,8 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         params['file_plot']   = args.file
         params['dir_plot']    = args.dir
         params['output_plot'] = args.output
+        params['nx']          = getattr(args, 'nx', 100)
+        params['nperiods']    = getattr(args, 'nperiods', 1.0)
 
     return SimulationParams(**params)
 
@@ -733,4 +747,12 @@ def validate_parameters(args: argparse.Namespace) -> None:
         )
     if args.resistive_scale is not None and args.resistive_scale <= 0:
         raise ParameterError("Resistive scale (--resistive-scale / -δres) must be > 0")
+
+    if hasattr(args, 'nx') and args.nx is not None:
+        if args.nx <= 0:
+            raise ParameterError("Number of x points (--nx) must be > 0")
+    if hasattr(args, 'nperiods') and args.nperiods is not None:
+        if args.nperiods <= 0:
+            raise ParameterError("Number of periods (--nperiods) must be > 0")
+
 # If we reach this point everything passed.

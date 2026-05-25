@@ -199,3 +199,39 @@ def test_build_params_maximum(monkeypatch):
     assert params["CGL"] is True
     # The swept parameter 'S' should be set to None in build_params
     assert params["S"] is None
+
+def test_build_params_plot_2d(monkeypatch):
+    # Simulate arguments passed to eigenmodes-maps.py or eigenmodes-profiles.py with 2D options
+    monkeypatch.setattr("sys.argv", [
+        "eigenmodes-maps.py",
+        "--nx", "150",
+        "--nperiods", "2.5",
+        "--zmin", "-1.0",
+        "--zmax", "1.0"
+    ])
+
+    params = build_params(parser_type="plot")
+
+    assert params["nx"] == 150
+    assert params["nperiods"] == 2.5
+    assert params["zmin"] == -1.0
+    assert params["zmax"] == 1.0
+
+def test_validate_parameters_plot_2d():
+    from tearing_eigenmodes.parser import parser_setup, validate_parameters
+    parser = parser_setup()
+    
+    # Try invalid nx <= 0
+    args = parser.parse_args([])
+    args.nx = 0
+    with pytest.raises(ParameterError, match="Number of x points .* must be > 0"):
+        validate_parameters(args)
+
+    # Try invalid nperiods <= 0
+    args = parser.parse_args([])
+    args.nx = 100
+    args.nperiods = -1.0
+    with pytest.raises(ParameterError, match="Number of periods .* must be > 0"):
+        validate_parameters(args)
+
+

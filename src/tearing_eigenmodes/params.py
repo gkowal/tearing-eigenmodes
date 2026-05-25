@@ -75,6 +75,9 @@ class SimulationParams:
     file_plot: Optional[str] = None
     dir_plot: Optional[str] = None
     output_plot: Optional[str] = None
+    nx: int = 100
+    nperiods: float = 1.0
+
 
     # Path to search or store state files
     data_path: Optional[str] = None

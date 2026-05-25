@@ -23,8 +23,14 @@ The project includes CLI scripts for running calculations and visualizing result
 - **`scripts/eigenmodes-compute.py`**: Calculates the dispersion relation (growth rate vs. wavenumber) for a given set of parameters.
 - **`scripts/eigenmodes-maxima.py`**: Finds the maximum growth rate and its corresponding wavenumber across a range of a specified parameter (e.g., S, Pr, β).
 - **`scripts/eigenmodes-profiles.py`**: Visualizes the eigenfunctions (e.g., $\delta u_z, \delta B_z$) from saved `.npz` state files.
+- **`scripts/eigenmodes-maps.py`**: Reconstructs and plots 2D color maps (in the XZ plane) of the eigenfunctions from saved `.npz` state files.
+
 
 These scripts should be run from the project root. It is recommended to install the package in editable mode (`pip install -e .`) to ensure the scripts can correctly import the `tearing_eigenmodes` library.
+
+> [!IMPORTANT]
+> Always use the Python environment in `~/.venv/` (e.g., `~/.venv/bin/python`) for executing scripts, running tests, or when checking package availability.
+
 
 ### Persistence and Resuming
 By default, the scripts save state in the `RESULTS/` directory. If a calculation is interrupted or rerun with the same parameters, the scripts will resume from the existing `.npz` files.
