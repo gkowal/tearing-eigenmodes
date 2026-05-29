@@ -174,7 +174,7 @@ def main() -> None:
 
     shared_counter = mp.Value('i', 0)
 
-    s = refine_eigenvalues(ks, params)
+    sigmas = refine_eigenvalues(ks, params)
     deltas = refine_resistive_scale(ks, params)
 
     try:
@@ -183,7 +183,7 @@ def main() -> None:
             initializer=init_worker,
             initargs=(shared_counter,)
         ) as pool:
-            pool.starmap(task, [(k, s[n], deltas[n], params) for n, k in enumerate(ks)])
+            pool.starmap(task, [(k, sigmas[n], deltas[n], params) for n, k in enumerate(ks)])
     except KeyboardInterrupt:
         logging.info("\n\nCalculation interrupted by user. Exiting cleanly...")
         sys.exit(1)
