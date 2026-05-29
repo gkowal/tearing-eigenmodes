@@ -54,7 +54,7 @@ def test_select_nc_cgl_success():
 def test_select_nc_cgl_infinite_decay():
     # Trigger D = 0
     # D = 1.0 + R + 0.5 * ((ɣpar + ɣper - 2) * β + ɣpar * Δβ)
-    # Let R = 0.0 (by setting σ to None)
+    # Let R = 0.0 (by setting σ to 0.0j)
     # We want (ɣpar + ɣper - 2) * β + ɣpar * Δβ = -2
     # Let ɣpar = 3, ɣper = 2. Then (ɣpar + ɣper - 2) = 3.
     # If β = 0, then 3 * Δβ = -2 => Δβ = -2/3.
@@ -67,7 +67,7 @@ def test_select_nc_cgl_infinite_decay():
         plasma_beta_difference=-2.0 / 3.0,
         parallel_index=3.0,
         perpendicular_index=2.0,
-        sigma=None,
+        sigma=complex(0.0, 0.0),
     )
     with pytest.raises(DeltaError, match="Infinite decaying factor"):
         select_NC(params)
@@ -75,7 +75,7 @@ def test_select_nc_cgl_infinite_decay():
 def test_select_nc_cgl_imaginary_decay():
     # Trigger μ < 0 => C / D < 0
     # C = 1.0 + R - Δβ/2
-    # Let σ = None => R = 0 => C = 1.0 - Δβ/2
+    # Let σ = 0.0j => R = 0 => C = 1.0 - Δβ/2
     # Let Δβ = 3.0 => C = 1.0 - 1.5 = -0.5
     # D = 1.0 + 0.5 * (3 * β + 3 * 3) = 1.0 + 1.5 * β + 4.5
     # If β = 0, D = 5.5 > 0.
@@ -89,7 +89,7 @@ def test_select_nc_cgl_imaginary_decay():
         plasma_beta_difference=3.0,
         parallel_index=3.0,
         perpendicular_index=2.0,
-        sigma=None,
+        sigma=complex(0.0, 0.0),
     )
     with pytest.raises(DeltaError, match="Decaying factor purely imaginary"):
         select_NC(params)
@@ -135,7 +135,7 @@ def test_select_nc_invalid_inputs():
 def test_select_nc_cgl_coefficient_guards():
     # C <= 0
     # C = 1.0 + R - Δβ/2. Set Δβ = 3.0 => C = -0.5
-    with pytest.raises(DeltaError, match="Decaying factor purely imaginary"):
+    with pytest.raises(DeltaError, match="Stable or unphysical regime"):
         select_NC(SimulationParams(
             alpha=0.1,
             a=1.0,
@@ -148,7 +148,7 @@ def test_select_nc_cgl_coefficient_guards():
     # D = 1.0 + R + 0.5 * ((ɣpar + ɣper - 2) * β + ɣpar * Δβ)
     # Let β = 1.0, Δβ = -2.0, ɣpar = 3.0, ɣper = 2.0.
     # D = 1.0 + 0.5 * (3 * 1.0 + 3 * (-2.0)) = 1.0 + 0.5 * (-3.0) = -0.5
-    with pytest.raises(DeltaError, match="Decaying factor purely imaginary"):
+    with pytest.raises(DeltaError, match="purely imaginary"):
         select_NC(SimulationParams(
             alpha=0.1,
             a=1.0,

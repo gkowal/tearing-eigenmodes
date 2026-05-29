@@ -1,7 +1,7 @@
 from .exceptions import DeltaError
 from .params import SimulationParams
 import numpy as np
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 
 def eos_indices(eos: str) -> Tuple[float, float]:
     """
@@ -22,32 +22,40 @@ def calculate_cgl_factors(
     delta_beta: float,
     gamma_par: float,
     gamma_per: float,
-    R: float = 0.0,
     alpha: float = 0.1,
-    context: str = 'grid',
+    sigma: Optional[Any] = None,
 ) -> Tuple[float, float]:
     """
-    Compute CGL coefficients C and D, validating physical scaling regimes.
+    Compute CGL coefficients A and R0, validating physical scaling regimes.
     """
-    C = 1.0 + R - delta_beta / 2
-    D = 1.0 + R + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
+    if sigma is None:
+        chi = 0.0
+        A = 1.0 + chi - delta_beta / 2
+        R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
 
-    if context == 'physics':
-        denominator = 2 * C
-        numerator = 2 * D
+        denominator = 2 * A
+        numerator = 2 * R0
         if denominator <= 0:
             raise DeltaError(f"Stable or unphysical regime: Δβ = {delta_beta:+.3e} >= 2 causes division by zero or negative denominator.")
         μ_inside = numerator / denominator
         if μ_inside <= 0:
             raise DeltaError(f"Δ' purely imaginary or stable: decay coefficient μ_inside = {μ_inside:+.3e} <= 0.")
     else:
-        if np.isclose(D, 0.0):
+        sigma_real = getattr(sigma, 'real', sigma)
+        if isinstance(sigma_real, np.ndarray):
+            sigma_real = np.atleast_1d(sigma_real)[0]
+        
+        chi = float(sigma_real)**2 / alpha**2
+        A = 1.0 + chi - delta_beta / 2
+        R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
+
+        if np.isclose(R0, 0.0):
             raise DeltaError(f"Infinite decaying factor for (β, Δβ) = ({beta:.3e}, {delta_beta:+.3e}) => stable eigenmode for α = {alpha:.3e}.")
-        μ = C / D
+        μ = A / R0
         if μ < 0.0:
             raise DeltaError(f"Decaying factor purely imaginary for (β, Δβ) = ({beta:.3e}, {delta_beta:+.3e}) => stable eigenmode for α = {alpha:.3e}.")
 
-    return C, D
+    return A, R0
 
 
 def estimate_max(params: SimulationParams) -> Tuple[float, float]:
@@ -71,25 +79,25 @@ def estimate_max(params: SimulationParams) -> Tuple[float, float]:
     if ɣper <= 0:
         raise ValueError("Perpendicular adiabatic index ɣper must be positive.")
 
-    C = 1 - Δβ/2
-    if C <= 0:
-        raise DeltaError(f"Stable or unphysical regime: coefficient C = 1 - Δβ/2 = {C:+.3e} <= 0 (requires Δβ < 2).")
+    A = 1 - Δβ/2
+    if A <= 0:
+        raise DeltaError(f"Stable or unphysical regime: coefficient A = 1 - Δβ/2 = {A:+.3e} <= 0 (requires Δβ < 2).")
 
     if CGL:
-        C_cgl, D_cgl = calculate_cgl_factors(
+        A_cgl, R0_cgl = calculate_cgl_factors(
             beta=β,
             delta_beta=Δβ,
             gamma_par=ɣpar,
             gamma_per=ɣper,
-            R=0.0,
-            context='physics',
+            alpha=1.0,
+            sigma=None,
         )
-        μ_inside = D_cgl / C_cgl
+        μ_inside = R0_cgl / A_cgl
         μ = np.sqrt(μ_inside)
     else:
         μ = 1.0
 
-    αm = 1.3583e+00 * (S / (S + 400))**(1/4) * S**(-1/4) * C**(-1/8) * μ**(-3/4) * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**(1/8)
+    αm = 1.3583e+00 * (S / (S + 400))**(1/4) * S**(-1/4) * A**(-1/8) * μ**(-3/4) * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**(1/8)
     Xm = αm * μ
     Δm = 2 * (1 / Xm - Xm)
 

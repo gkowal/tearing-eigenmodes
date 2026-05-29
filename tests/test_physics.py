@@ -35,9 +35,9 @@ def test_estimate_max_invalid_inputs():
         estimate_max(SimulationParams(perpendicular_index=0.0))
 
 def test_estimate_max_anisotropy_guards():
-    # C <= 0 (requires Δβ < 2)
-    # Let Δβ = 2.0 => C = 0.0 <= 0
-    with pytest.raises(DeltaError, match="Stable or unphysical regime: coefficient C.*<= 0"):
+    # A <= 0 (requires Δβ < 2)
+    # Let Δβ = 2.0 => A = 0.0 <= 0
+    with pytest.raises(DeltaError, match="Stable or unphysical regime: coefficient A.*<= 0"):
         estimate_max(SimulationParams(
             CGL=False,
             plasma_beta_difference=2.0,

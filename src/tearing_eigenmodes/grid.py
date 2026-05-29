@@ -66,17 +66,15 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
     m_res = (n_resistivity - 1) / 2
     # --- λ: decaying factor of the outer solution;
     if CGL:
-        R = 0.0 if σ is None else σ.real**2 / α**2
-        C_cgl, D_cgl = calculate_cgl_factors(
+        A_cgl, R0_cgl = calculate_cgl_factors(
             beta=β,
             delta_beta=Δβ,
             gamma_par=ɣpar,
             gamma_per=ɣper,
-            R=R,
             alpha=α,
-            context='grid',
+            sigma=σ,
         )
-        μ = C_cgl / D_cgl
+        μ = A_cgl / R0_cgl
         λ = np.sqrt(μ) * α
     else:
         λ = α
