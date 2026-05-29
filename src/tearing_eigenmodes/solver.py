@@ -29,6 +29,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
     Calculates tearing instability eigenmodes for a given set of parameters.
     """
     α       = params.alpha if params.alpha is not None else 0.1
+    σ       = params.sigma if params.sigma is not None else 0.0+0.0j
     verbose = params.verbose
 
     try:
@@ -100,7 +101,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         if CGL:
             system  = TearingGyrotropicMHD(grid, periodic=False, kx=kx, \
                                             a=a, S=S, Pr=Pr, β=β, Δβ=Δβ, \
-                                            ɣpar=ɣpar, ɣper=ɣper, ϵ=ϵ)
+                                            ɣpar=ɣpar, ɣper=ɣper, ϵ=ϵ, σ=σ.real)
         else:
             system  = TearingClassicalMHD(grid, periodic=False, kx=kx, \
                                           a=a, w=w, ζ=ζ, S=S, Pr=Pr, ξ=ξ, ϵ=ϵ, shear=not noshear)
