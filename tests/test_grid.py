@@ -73,13 +73,13 @@ def test_select_nc_cgl_infinite_decay():
         select_NC(params)
 
 def test_select_nc_cgl_imaginary_decay():
-    # Trigger μ < 0 => C / D < 0
-    # C = 1.0 + R - Δβ/2
-    # Let σ = 0.0j => R = 0 => C = 1.0 - Δβ/2
-    # Let Δβ = 3.0 => C = 1.0 - 1.5 = -0.5
-    # D = 1.0 + 0.5 * (3 * β + 3 * 3) = 1.0 + 1.5 * β + 4.5
-    # If β = 0, D = 5.5 > 0.
-    # Since C = -0.5 < 0 and D = 5.5 > 0, μ = C / D = -0.5 / 5.5 < 0.
+    # Trigger lambda_sq_ratio < 0 => A / R0 < 0
+    # A = 1.0 + chi - Δβ/2
+    # Let σ = 0.0j => chi = 0 => A = 1.0 - Δβ/2
+    # Let Δβ = 3.0 => A = 1.0 - 1.5 = -0.5
+    # R0 = 1.0 + 0.5 * (3 * β + 3 * 3) = 1.0 + 1.5 * β + 4.5
+    # If β = 0, R0 = 5.5 > 0.
+    # Since A = -0.5 < 0 and R0 = 5.5 > 0, lambda_sq_ratio = A / R0 = -0.5 / 5.5 < 0.
     params = SimulationParams(
         alpha=0.1,
         a=1.0,
@@ -133,8 +133,8 @@ def test_select_nc_invalid_inputs():
         select_NC(SimulationParams(alpha=0.1, Ninc=0))
 
 def test_select_nc_cgl_coefficient_guards():
-    # C <= 0
-    # C = 1.0 + R - Δβ/2. Set Δβ = 3.0 => C = -0.5
+    # A <= 0
+    # A = 1.0 + chi - Δβ/2. Set Δβ = 3.0 => A = -0.5
     with pytest.raises(DeltaError, match="Stable or unphysical regime"):
         select_NC(SimulationParams(
             alpha=0.1,

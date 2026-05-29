@@ -74,8 +74,8 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
             alpha=α,
             sigma=σ,
         )
-        μ = A_cgl / R0_cgl
-        λ = np.sqrt(μ) * α
+        lambda_sq_ratio = A_cgl / R0_cgl
+        λ = np.sqrt(lambda_sq_ratio) * α
     else:
         λ = α
 

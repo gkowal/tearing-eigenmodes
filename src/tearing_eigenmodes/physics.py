@@ -37,9 +37,9 @@ def calculate_cgl_factors(
         numerator = 2 * R0
         if denominator <= 0:
             raise DeltaError(f"Stable or unphysical regime: Δβ = {delta_beta:+.3e} >= 2 causes division by zero or negative denominator.")
-        μ_inside = numerator / denominator
-        if μ_inside <= 0:
-            raise DeltaError(f"Δ' purely imaginary or stable: decay coefficient μ_inside = {μ_inside:+.3e} <= 0.")
+        lambda_sq_ratio = A / R0
+        if lambda_sq_ratio <= 0:
+            raise DeltaError(f"Δ' purely imaginary or stable: decay coefficient lambda_sq_ratio = {lambda_sq_ratio:+.3e} <= 0.")
     else:
         sigma_real = getattr(sigma, 'real', sigma)
         if isinstance(sigma_real, np.ndarray):
@@ -51,8 +51,8 @@ def calculate_cgl_factors(
 
         if np.isclose(R0, 0.0):
             raise DeltaError(f"Infinite decaying factor for (β, Δβ) = ({beta:.3e}, {delta_beta:+.3e}) => stable eigenmode for α = {alpha:.3e}.")
-        μ = A / R0
-        if μ < 0.0:
+        lambda_inf_sq_ratio = A / R0
+        if lambda_inf_sq_ratio < 0.0:
             raise DeltaError(f"Decaying factor purely imaginary for (β, Δβ) = ({beta:.3e}, {delta_beta:+.3e}) => stable eigenmode for α = {alpha:.3e}.")
 
     return A, R0
@@ -92,13 +92,12 @@ def estimate_max(params: SimulationParams) -> Tuple[float, float]:
             alpha=1.0,
             sigma=None,
         )
-        μ_inside = R0_cgl / A_cgl
-        μ = np.sqrt(μ_inside)
+        sqrt_A_R0 = np.sqrt(A_cgl / R0_cgl)
     else:
-        μ = 1.0
+        sqrt_A_R0 = 1.0
 
-    αm = 1.3583e+00 * (S / (S + 400))**(1/4) * S**(-1/4) * A**(-1/8) * μ**(-3/4) * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**(1/8)
-    Xm = αm * μ
+    αm = 1.3583e+00 * (S / (S + 400))**(1/4) * S**(-1/4) * A**(-1/8) * (1.0 / sqrt_A_R0)**(-3/4) * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**(1/8)
+    Xm = αm / sqrt_A_R0
     Δm = 2 * (1 / Xm - Xm)
 
     return αm, Δm
