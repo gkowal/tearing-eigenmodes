@@ -91,7 +91,7 @@ def test_select_nc_cgl_imaginary_decay():
         perpendicular_index=2.0,
         sigma=complex(0.0, 0.0),
     )
-    with pytest.raises(DeltaError, match="Decaying factor purely imaginary"):
+    with pytest.raises(DeltaError, match="Stable or unphysical regime"):
         select_NC(params)
 
 def test_select_nc_convergence_error():

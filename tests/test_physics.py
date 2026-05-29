@@ -38,7 +38,7 @@ def test_estimate_max_anisotropy_guards():
     # Let Δβ = 2.0 => A = 0.0 <= 0
     with pytest.raises(DeltaError, match="Stable or unphysical regime: coefficient A.*<= 0"):
         estimate_max(SimulationParams(
-            CGL=False,
+            CGL=True,
             plasma_beta_difference=2.0,
         ))
 

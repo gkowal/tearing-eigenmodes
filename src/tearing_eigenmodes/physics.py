@@ -30,25 +30,23 @@ def calculate_cgl_factors(
     """
     if sigma is None:
         chi = 0.0
-        A = 1.0 + chi - delta_beta / 2
-        R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
-
-        denominator = 2 * A
-        numerator = 2 * R0
-        if denominator <= 0:
-            raise DeltaError(f"Stable or unphysical regime: Δβ = {delta_beta:+.3e} >= 2 causes division by zero or negative denominator.")
-        lambda_sq_ratio = A / R0
-        if lambda_sq_ratio <= 0:
-            raise DeltaError(f"Δ' purely imaginary or stable: decay coefficient lambda_sq_ratio = {lambda_sq_ratio:+.3e} <= 0.")
     else:
         sigma_real = getattr(sigma, 'real', sigma)
         if isinstance(sigma_real, np.ndarray):
             sigma_real = np.atleast_1d(sigma_real)[0]
-        
         chi = float(sigma_real)**2 / alpha**2
-        A = 1.0 + chi - delta_beta / 2
-        R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
 
+    A = 1.0 + chi - delta_beta / 2
+    R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
+
+    if A <= 0:
+        raise DeltaError(f"Stable or unphysical regime: coefficient A = 1 - Δβ/2 = {A:+.3e} <= 0 (requires Δβ < 2).")
+
+    if sigma is None:
+        lambda_sq_ratio = A / R0
+        if lambda_sq_ratio <= 0:
+            raise DeltaError(f"Δ' purely imaginary or stable: decay coefficient lambda_sq_ratio = {lambda_sq_ratio:+.3e} <= 0.")
+    else:
         if np.isclose(R0, 0.0):
             raise DeltaError(f"Infinite decaying factor for (β, Δβ) = ({beta:.3e}, {delta_beta:+.3e}) => stable eigenmode for α = {alpha:.3e}.")
         lambda_inf_sq_ratio = A / R0
@@ -78,10 +76,6 @@ def estimate_max(params: SimulationParams) -> float:
         raise ValueError("Parallel adiabatic index ɣpar must be positive.")
     if ɣper <= 0:
         raise ValueError("Perpendicular adiabatic index ɣper must be positive.")
-
-    A = 1 - Δβ/2
-    if A <= 0:
-        raise DeltaError(f"Stable or unphysical regime: coefficient A = 1 - Δβ/2 = {A:+.3e} <= 0 (requires Δβ < 2).")
 
     if CGL:
         A, R0 = calculate_cgl_factors(
