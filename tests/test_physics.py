@@ -12,10 +12,9 @@ def test_estimate_max_default():
         parallel_index=3.0,
         perpendicular_index=2.0,
     )
-    alpha, Delta = estimate_max(params)
+    alpha = estimate_max(params)
     assert alpha > 0.0
     assert isinstance(alpha, float)
-    assert isinstance(Delta, float)
 
 def test_estimate_max_invalid_inputs():
     # Lundquist number S <= 0

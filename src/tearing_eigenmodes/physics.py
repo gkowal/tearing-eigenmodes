@@ -58,7 +58,7 @@ def calculate_cgl_factors(
     return A, R0
 
 
-def estimate_max(params: SimulationParams) -> Tuple[float, float]:
+def estimate_max(params: SimulationParams) -> float:
     """
     Determine the maximum growth rate and corresponding wavenumber based on physics scaling.
     """
@@ -84,7 +84,7 @@ def estimate_max(params: SimulationParams) -> Tuple[float, float]:
         raise DeltaError(f"Stable or unphysical regime: coefficient A = 1 - Δβ/2 = {A:+.3e} <= 0 (requires Δβ < 2).")
 
     if CGL:
-        A_cgl, R0_cgl = calculate_cgl_factors(
+        A, R0 = calculate_cgl_factors(
             beta=β,
             delta_beta=Δβ,
             gamma_par=ɣpar,
@@ -92,12 +92,12 @@ def estimate_max(params: SimulationParams) -> Tuple[float, float]:
             alpha=1.0,
             sigma=None,
         )
-        sqrt_A_R0 = np.sqrt(A_cgl / R0_cgl)
+
+        αm = 1.3583e+00 * (S / (S + 400))**0.25 * S**-0.25 * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**0.125 * A**0.25 * R0**-0.375
+
+        return αm
+
     else:
-        sqrt_A_R0 = 1.0
+        αm = 1.3583e+00 * (S / (S + 400))**0.25 * S**-0.25 * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**0.125
 
-    αm = 1.3583e+00 * (S / (S + 400))**(1/4) * S**(-1/4) * A**(-1/8) * (1.0 / sqrt_A_R0)**(-3/4) * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**(1/8)
-    Xm = αm / sqrt_A_R0
-    Δm = 2 * (1 / Xm - Xm)
-
-    return αm, Δm
+        return αm

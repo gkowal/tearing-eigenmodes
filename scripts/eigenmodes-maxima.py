@@ -158,7 +158,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
         status = True
         if αbracket is None or len(αbracket) != 2:
             try:
-                αm, _ = estimate_max(params_base)
+                αm = estimate_max(params_base)
                 αlo = αm * (1 - wtol)
                 αup = αm * (1 + wtol)
             except DeltaError as ex:
