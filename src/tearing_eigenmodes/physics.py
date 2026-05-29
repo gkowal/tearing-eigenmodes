@@ -63,21 +63,26 @@ def estimate_max(params: SimulationParams) -> float:
     CGL          = params.CGL
     S            = params.S
     Pr           = params.Pr
-    β            = params.plasma_beta
-    Δβ           = params.plasma_beta_difference
     ɣpar         = params.parallel_index
     ɣper         = params.perpendicular_index
 
     if S is None or S <= 0:
         raise ValueError("Lundquist number S must be positive.")
-    if Pr < 0:
+    if Pr is None or Pr < 0:
         raise ValueError("Prandtl number Pr cannot be negative.")
     if ɣpar <= 0:
         raise ValueError("Parallel adiabatic index ɣpar must be positive.")
     if ɣper <= 0:
         raise ValueError("Perpendicular adiabatic index ɣper must be positive.")
 
+    αm = 1.3583e+00 * (S / (S + 400))**0.25 * S**-0.25 * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**0.125
+
     if CGL:
+        β            = params.plasma_beta
+        Δβ           = params.plasma_beta_difference
+        if β < 0:
+            raise ValueError("Plasma beta must be positive.")
+
         A, R0 = calculate_cgl_factors(
             beta=β,
             delta_beta=Δβ,
@@ -87,11 +92,6 @@ def estimate_max(params: SimulationParams) -> float:
             sigma=None,
         )
 
-        αm = 1.3583e+00 * (S / (S + 400))**0.25 * S**-0.25 * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**0.125 * A**0.25 * R0**-0.375
+        αm *= A**0.25 * R0**-0.375
 
-        return αm
-
-    else:
-        αm = 1.3583e+00 * (S / (S + 400))**0.25 * S**-0.25 * ((0.05*Pr**2+0.7*Pr+1)/(12*Pr+1))**0.125
-
-        return αm
+    return αm
