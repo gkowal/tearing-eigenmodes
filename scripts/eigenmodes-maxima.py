@@ -171,6 +171,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
             αlo, αup = αbracket
         if status:
             logging.debug(f"Initial bracket for {dependence}={value:+.3e}: α = {αlo:.4e} … {αup:.4e}")
+            logging.debug(f"Initial search range for {dependence}={value:+.3e}: σ_real = [{params_base.sigma_real_lower:.4e} … {params_base.sigma_real_upper:.4e}]")
             αu = (αup + 1.618 * αlo) / 2.618
 
             try:
@@ -359,6 +360,14 @@ def main() -> None:
                 # ── use previous step results as guesses if refinement is default ─
                 gn = gm if g[n] == params.sigma else g[n]
                 δn = δm if (deltas[n] == params.delta and δm is not None and δm > 0.0) else deltas[n]
+
+                # ── limit growth rate search range based on previous step's value ──
+                if n > 0 and gm is not None:
+                    gm_real = np.atleast_1d(gm)[0].real
+                    if params.step_lower_factor is not None:
+                        params.sigma_real_lower = gm_real * params.step_lower_factor
+                    if params.step_upper_factor is not None:
+                        params.sigma_real_upper = gm_real * params.step_upper_factor
 
                 km, gm, δm, N, status = task(v, kn, gn, δn, params)
 

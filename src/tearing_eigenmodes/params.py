@@ -66,6 +66,8 @@ class SimulationParams:
     step: Optional[float] = None
     extrap_deg: Optional[int] = None
     extrap_guard: Optional[float] = None
+    step_lower_factor: Optional[float] = None
+    step_upper_factor: Optional[float] = None
 
     # Optional plot arguments
     zmin: Optional[float] = None

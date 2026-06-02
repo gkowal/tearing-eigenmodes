@@ -362,6 +362,18 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
             default=0.01,
             help="maximum fractional deviation allowed for extrapolated bracket"
         )
+        parser.add_argument(
+            "--step-lower-factor",
+            type=float,
+            default=None,
+            help="Limit the minimum search range for the eigenvalue's real part relative to the previous step (e.g. 0.5 for 0.5 * σ_prev)."
+        )
+        parser.add_argument(
+            "--step-upper-factor",
+            type=float,
+            default=None,
+            help="Limit the maximum search range for the eigenvalue's real part relative to the previous step (e.g. 1.5 for 1.5 * σ_prev)."
+        )
     elif parser_type == 'plot':
         parser.add_argument(
             "--zmin",
@@ -579,6 +591,8 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         params['step']         = args.step
         params['extrap_deg']   = args.extrap_deg
         params['extrap_guard'] = args.extrap_guard
+        params['step_lower_factor'] = args.step_lower_factor
+        params['step_upper_factor'] = args.step_upper_factor
 
     if hasattr(args, 'zmin'):
         params['zmin']        = args.zmin
