@@ -403,76 +403,77 @@ class TearingGyrotropicMHD:
 
 		# Linearized equations for three cases: 1) ky = 0, 2) kx = 0, 3) kx != 0 and ky != 0
 		if np.isclose(ky, 0.0):
-			wy_lhs = "sigma*(dz(duz,2) -kx**2*duz)"
-			wz_lhs = "sigma*duy"
 			by_lhs = "sigma*dby"
 			bz_lhs = "sigma*dbz"
-			dp_lhs = "sigma*kx*ddp"
-
-			wy_rhs_adv = ""
-			wz_rhs_adv = ""
-			wy_rhs_pre = ""
-			wz_rhs_pre = ""
-			wy_rhs_lor = " +1j*kx*Bx*((dz(dbz,2) -kx**2*dbz) +2*By**2/δ**2*dbz)"
-			wz_rhs_lor = " +1j*kx*Bx*dby -Bx*By/δ*dbz"
-			wy_rhs_vis = ""
-			wz_rhs_vis = ""
-			wy_rhs_ani = ""
-			wz_rhs_ani = ""
-			if Pr > 0:
-				wy_rhs_vis += " +ν*(dz(duz,4) -2*kx**2*dz(duz,2) +kx**4*duz)"
-				wz_rhs_vis += " +ν*(dz(duy,2) -kx**2*duy)"
+			wz_lhs = "sigma*duy"
+			wy_lhs = "sigma*(dz(duz,2) -kx**2*duz)"
 			if not self.isothermal:
-				wy_rhs_ani += " -kx**2*Bx*(Bx*dz(ddp) +2*By**2/δ*ddp)"
-				wz_rhs_ani += " -1j*kx*Bx*By*ddp"
-			if not np.isclose(self.Δβh, 0.0):
-				wy_rhs_ani += " -Δβh*kx*Bx*(1j*(1 -2*Bx**2)*dz(dbz,2)" \
-							+ " -6j*Bx*By**2/δ*dz(dbz) +1j*(2*By**2/δ**2 -kx**2)*dbz" \
-							+ " -2*kx*By*(Bx*dz(dby) +(2*By**2 -Bx**2)/δ*dby))"
-				wz_rhs_ani += " -Δβh*(1j*kx*Bx*(1 -2*By**2)*dby -Bx*By/δ*dbz +2*Bx**2*By*dz(dbz))"
+				dp_lhs = "sigma*kx*ddp"
 
-			by_rhs_ind = " +1j*kx*Bx*duy +Bx*By/δ*duz"
-			bz_rhs_ind = " +1j*kx*Bx*duz"
+			by_rhs_ind = " -kx*Bx*duy +Bx*By/δ*duz"
+			bz_rhs_ind = " +kx*Bx*duz"
 			by_rhs_res = " +η*(dz(dby,2) -kx**2*dby)"
 			bz_rhs_res = " +η*(dz(dbz,2) -kx**2*dbz)"
 			by_rhs_hal = ""
 			bz_rhs_hal = ""
 			if self.Hall:
-				by_rhs_hal += " +ϵ*Bx*(dz(dbz,2) -kx**2*dbz +2*By**2/δ**2*dbz)"
-				bz_rhs_hal += " +ϵ*kx*Bx*(kx*dby +1j*By/δ*dbz)"
+				by_rhs_hal += " +1j*ϵ*Bx*(dz(dbz,2) -kx**2*dbz +2*By**2/δ**2*dbz)"
+				bz_rhs_hal += " -1j*ϵ*kx*Bx*(kx*dby -By/δ*dbz)"
+
+			wz_rhs_adv = ""
+			wy_rhs_adv = ""
+			wz_rhs_pre = ""
+			wy_rhs_pre = ""
+			wz_rhs_lor = " +kx*Bx*dby -Bx*By/δ*dbz"
+			wy_rhs_lor = " -kx*Bx*((dz(dbz,2) -kx**2*dbz) +2*By**2/δ**2*dbz)"
+			wz_rhs_vis = ""
+			wy_rhs_vis = ""
+			wz_rhs_ani = ""
+			wy_rhs_ani = ""
+			if not self.isothermal:
+				wz_rhs_ani += " -kx*Bx*By*ddp"
+				wy_rhs_ani += " -kx**2*Bx*(2*By**2/δ*ddp +Bx*dz(ddp))"
+			if not np.isclose(self.Δβh, 0.0):
+				wz_rhs_ani += " -Δβh*(kx*Bx*(1 -2*By**2)*dby -Bx*By/δ*dbz +2*Bx**2*By*dz(dbz))"
+				wy_rhs_ani += " +Δβh*kx*Bx*((1 -2*Bx**2)*dz(dbz,2)" \
+							+ " -6*Bx*By**2/δ*dz(dbz) +(2*By**2/δ**2 -kx**2)*dbz" \
+							+ " +2*kx*By*(Bx*dz(dby) +(2*By**2 -Bx**2)/δ*dby))"
+			if Pr > 0:
+				wz_rhs_vis += " +ν*(dz(duy,2) -kx**2*duy)"
+				wy_rhs_vis += " +ν*(dz(duz,4) -2*kx**2*dz(duz,2) +kx**4*duz)"
 
 			if not self.isothermal:
 				dp_rhs_adv = ""
-				dp_rhs_str = " +Γβ*kx*Bx*(Bx*dz(duz) -1j*kx*By*duy)"
-				dp_rhs_res = " +2*η*Γ2*By/δ*(1j*By*(dz(dbz,2) -kx**2*dbz) -kx*Bx*dz(dby))"
+				dp_rhs_str = " +Γβ*kx*Bx*(Bx*dz(duz) +kx*By*duy)"
+				dp_rhs_res = " -2*η*Γ2*By/δ*(kx*Bx*dz(dby) +By*(dz(dbz,2) -kx**2*dbz))"
 				dp_rhs_vis = ""
 
-			wy_eq = f"{wy_lhs} ={wy_rhs_adv}{wy_rhs_pre}{wy_rhs_lor}{wy_rhs_vis}{wy_rhs_ani}"
-			wz_eq = f"{wz_lhs} ={wz_rhs_adv}{wz_rhs_pre}{wz_rhs_lor}{wz_rhs_vis}{wz_rhs_ani}"
 			by_eq = f"{by_lhs} ={by_rhs_ind}{by_rhs_res}{by_rhs_hal}"
 			bz_eq = f"{bz_lhs} ={bz_rhs_ind}{bz_rhs_res}{bz_rhs_hal}"
-			if not self.isothermal:
-				dp_eq = f"{dp_lhs} ={dp_rhs_adv}{dp_rhs_str}{dp_rhs_res}{dp_rhs_vis}"
+			wz_eq = f"{wz_lhs} ={wz_rhs_adv}{wz_rhs_pre}{wz_rhs_lor}{wz_rhs_vis}{wz_rhs_ani}"
+			wy_eq = f"{wy_lhs} ={wy_rhs_adv}{wy_rhs_pre}{wy_rhs_lor}{wy_rhs_vis}{wy_rhs_ani}"
 
 			if self.isothermal:
-				self.variables = ["duy", "duz", "dby", "dbz"]
+				self.variables = [ "dby", "dbz", "duy", "duz" ]
 				self.labels = [
-					r"$\delta u_y$",
-					r"$\delta u_z$",
 					r"$\delta B_y$",
 					r"$\delta B_z$",
+					r"$\delta u_y$",
+					r"$\delta u_z$",
 				]
-				self.equations = [wz_eq, wy_eq, by_eq, bz_eq]
+				self.equations = [ by_eq, bz_eq, wz_eq, wy_eq ]
 			else:
-				self.variables = ["duz", "dbz", "duy", "dby", "ddp"]
+				dp_eq = f"{dp_lhs} ={dp_rhs_adv}{dp_rhs_str}{dp_rhs_res}{dp_rhs_vis}"
+
+				self.variables = [ "dby", "dbz", "duy", "duz", "ddp" ]
 				self.labels = [
-					r"$\delta u_z$",
+					r"$\delta B_y$",
 					r"$\delta B_z$",
 					r"$\delta u_y$",
-					r"$\delta B_y$",
+					r"$\delta u_z$",
 					r"$\delta \Delta p$",
 				]
-				self.equations = [wy_eq, bz_eq, wz_eq, by_eq, dp_eq]
+				self.equations = [ by_eq, bz_eq, wz_eq, wy_eq, dp_eq ]
 
 		elif np.isclose(kx, 0.0):
 			wx_lhs = "sigma*(dz(duz,2) -ky**2*duz)"
