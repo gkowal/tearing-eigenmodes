@@ -6,7 +6,8 @@ Utilities for analyzing tearing instability eigenmodes using the `psecas` pseudo
 
 The project is structured into several specialized modules:
 
-- **`solver.py`**: The central orchestrator. It integrates the grid setup, the `psecas` system definition (Classical or Gyrotropic MHD), and the iterative solver.
+- **`systems.py`**: Physical system definitions (`TearingClassicalMHD` and `TearingGyrotropicMHD`) representing the linearized equations for classical and gyrotropic MHD models.
+- **`solver.py`**: The central orchestrator. It integrates the grid setup, the physical system definitions from `systems.py`, and the iterative solver.
 - **`analysis.py`**: Contains diagnostic functions for post-processing eigenmodes, such as calculating the inner-layer thickness (`inner_layer_thickness`) and finding peak locations.
 - **`grid.py`**: Logic for automated resolution ($N$) and scaling ($C$) determination via `select_NC` to ensure the tearing layer is adequately resolved.
 - **`parser.py`**: CLI argument parsing and unified parameter dictionary (`params`) construction.

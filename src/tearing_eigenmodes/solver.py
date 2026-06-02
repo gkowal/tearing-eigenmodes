@@ -3,8 +3,8 @@ from .exceptions import DeltaError, ConvergenceError
 from .grid import select_NC
 from .analysis import inner_layer_thickness
 from psecas import Solver, ChebyshevRationalGrid
-from psecas.systems.tearing_instability import TearingClassicalMHD, TearingGyrotropicMHD
-from typing import Tuple, Dict, Any, Optional
+from .systems import TearingClassicalMHD, TearingGyrotropicMHD
+from typing import Tuple, Dict, Any, Optional, Union
 import numpy as np
 import logging
 
@@ -98,6 +98,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         im_range=[imσlo, imσup]
 
         grid = ChebyshevRationalGrid(N=Ns[0], C=C, max_derivative_order=4)
+        system: Union[TearingClassicalMHD, TearingGyrotropicMHD]
         if CGL:
             system  = TearingGyrotropicMHD(grid, periodic=False, kx=kx, \
                                             a=a, S=S, Pr=Pr, β=β, Δβ=Δβ, \

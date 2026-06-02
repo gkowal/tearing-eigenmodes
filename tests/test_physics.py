@@ -27,11 +27,11 @@ def test_estimate_max_invalid_inputs():
 
     # Parallel index <= 0
     with pytest.raises(ValueError, match="Parallel adiabatic index.*must be positive"):
-        estimate_max(SimulationParams(parallel_index=0.0))
+        estimate_max(SimulationParams(CGL=True, parallel_index=0.0))
 
     # Perpendicular index <= 0
     with pytest.raises(ValueError, match="Perpendicular adiabatic index.*must be positive"):
-        estimate_max(SimulationParams(perpendicular_index=0.0))
+        estimate_max(SimulationParams(CGL=True, perpendicular_index=0.0))
 
 def test_estimate_max_anisotropy_guards():
     # A <= 0 (requires Δβ < 2)

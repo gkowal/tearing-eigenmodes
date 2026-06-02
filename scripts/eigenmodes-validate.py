@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.13
 """
 CLI script to validate and repair/backfill .npz eigenmode files in a given path.
 """
