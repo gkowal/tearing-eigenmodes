@@ -94,6 +94,9 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
     import copy
     params_base = copy.copy(params)
 
+    # Initialize logging in worker processes (start methods like forkserver/spawn do not inherit log handlers)
+    setup_logging(verbose=bool(params_base.verbose), log_file=params_base.log_file)
+
     # Initialize variables to satisfy static analysis
     αm: float = 0.0
     σm: Optional[np.ndarray] = None

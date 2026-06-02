@@ -25,6 +25,9 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
     import copy
     params_base = copy.copy(params)
 
+    # Initialize logging in worker processes (start methods like forkserver/spawn do not inherit log handlers)
+    setup_logging(verbose=bool(params_base.verbose), log_file=params_base.log_file)
+
     ntasks   = params_base.ntasks
     verbose  = params_base.verbose
     force    = params_base.force
