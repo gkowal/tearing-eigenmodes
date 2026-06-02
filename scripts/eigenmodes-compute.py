@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.13
+#!/usr/bin/env python3
 #
 import os, sys, time, logging, signal
 from typing import Any, Dict, Optional
