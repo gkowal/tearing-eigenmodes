@@ -128,7 +128,7 @@ def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
         'S', 'Pr', 'plasma_beta', 'plasma_beta_difference', 'xi', 'Hall',
         'a', 'w', 'parallel_index', 'perpendicular_index', 'eos', 'CGL',
         'noshear', 'Nmin', 'Nmax', 'Ninc', 'atol', 'rtol', 'gtol', 'dtol',
-        'f_outer', 'mode'
+        'f_outer', 'mode', 'dynamic_C', 'n_anisotropy'
     ]
     metadata = {k: getattr(params, k) for k in metadata_keys}
     metadata['n_inner_req'] = params.n_inner
@@ -262,6 +262,8 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
         write_head("Inner-layer thickness tolerance", 'dtol')
         io.write(f"#   {'Number of inner collocation points':<36} =   {params.n_inner}\n")
         io.write(f"#   {'Resistive layer collocation points':<36} =   {params.n_resistivity}\n")
+        io.write(f"#   {'Anisotropy scale points':<36} =   {params.n_anisotropy}\n")
+        io.write(f"#   {'Dynamic C grid':<36} =   {'on' if params.dynamic_C else 'off'}\n")
         io.write(f"#   {'Amplitude fraction at zmax':<36} =   {params.f_outer}\n")
         io.write(f"#   {'Decay e-folds at zmax':<36} =  {params.decay_efolds:10.3e}\n")
 
