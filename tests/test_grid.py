@@ -195,3 +195,57 @@ def test_select_nc_resistive_scale():
 
     # With a small delta, C_inner is much smaller, so it should take a higher N (or smaller C) to satisfy Cout <= Cinn
     assert (N_with_res > N_no_res) or (C_with_res < C_no_res)
+
+
+def test_select_nc_anisotropy_scale():
+    from tearing_eigenmodes.grid import calculate_anisotropy_scale, select_C_for_N
+    
+    # 1. verify calculate_anisotropy_scale handles non-CGL or zero sigma
+    params_no_cgl = SimulationParams(CGL=False, alpha=0.1, a=1.0, sigma=0.05)
+    assert calculate_anisotropy_scale(params_no_cgl) == 0.0
+
+    # 2. verify with CGL and growth rate > 0
+    # beta_bar = 0.5 * ((3 + 2 - 2) * 1.0 + (3 - 1) * 0.1) = 0.5 * (3 * 1.0 + 2 * 0.1) = 0.5 * 3.2 = 1.6
+    # delta_aniso = gamma / (alpha * sqrt(beta_bar)) = 0.05 / (0.1 * sqrt(1.6))
+    params_cgl = SimulationParams(
+        CGL=True,
+        alpha=0.1,
+        a=1.0,
+        plasma_beta=1.0,
+        plasma_beta_difference=0.1,
+        parallel_index=3.0,
+        perpendicular_index=2.0,
+        sigma=0.05,
+    )
+    scale = calculate_anisotropy_scale(params_cgl)
+    expected = 0.05 / (0.1 * np.sqrt(1.6))
+    assert np.isclose(scale, expected)
+
+    # 3. verify that dynamic C selection shrinks when anisotropy scale is small
+    # Large scale -> large C
+    params_large = SimulationParams(
+        CGL=True,
+        alpha=0.1,
+        a=1.0,
+        plasma_beta=1.0,
+        plasma_beta_difference=0.1,
+        parallel_index=3.0,
+        perpendicular_index=2.0,
+        sigma=1.0,  # larger scale
+    )
+    _, _, C_large = select_C_for_N(64, params_large)
+
+    # Small scale -> smaller C to resolve the narrow layer
+    params_small = SimulationParams(
+        CGL=True,
+        alpha=0.1,
+        a=1.0,
+        plasma_beta=1.0,
+        plasma_beta_difference=0.1,
+        parallel_index=3.0,
+        perpendicular_index=2.0,
+        sigma=0.01,  # smaller scale
+    )
+    _, _, C_small = select_C_for_N(64, params_small)
+
+    assert C_small < C_large

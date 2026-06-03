@@ -95,3 +95,43 @@ def estimate_max(params: SimulationParams) -> float:
         αm *= A**0.25 * R0**-0.375
 
     return αm
+
+
+def calculate_anisotropy_scale(params: SimulationParams, current_sigma: Optional[Any] = None) -> float:
+    """
+    Calculate the anisotropy pressure scale width.
+    """
+    if not params.CGL:
+        return 0.0
+
+    sigma_val = current_sigma if current_sigma is not None else params.sigma
+    if sigma_val is None:
+        return 0.0
+
+    gamma = getattr(sigma_val, 'real', sigma_val)
+    if gamma is None:
+        return 0.0
+    if isinstance(gamma, np.ndarray):
+        gamma = np.atleast_1d(gamma)[0]
+    gamma = float(gamma)
+    if gamma <= 0.0:
+        return 0.0
+
+    beta = params.plasma_beta
+    delta_beta = params.plasma_beta_difference
+    gamma_par = params.parallel_index
+    gamma_per = params.perpendicular_index
+    alpha = params.alpha
+    a = params.a
+
+    if alpha is None or alpha <= 0.0 or a is None or a <= 0.0:
+        return 0.0
+
+    beta_bar = 0.5 * ((gamma_par + gamma_per - 2.0) * beta + (gamma_par - 1.0) * delta_beta)
+    if beta_bar <= 0.0:
+        return 0.0
+
+    # delta_aniso = gamma * tau_A / (k * a * sqrt(beta_bar))
+    # In our dimensionless equations, k * a = alpha.
+    delta_aniso = gamma / (alpha * np.sqrt(beta_bar))
+    return delta_aniso

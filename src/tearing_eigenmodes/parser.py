@@ -146,6 +146,14 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
               "the resistive layer thickness.")
     )
 
+    parser.add_argument(
+        "--n-anisotropy", "-naniso",
+        type=int,
+        default=5,
+        help=("Minimum number of collocation points required to resolve "
+              "the anisotropy pressure scale.")
+    )
+
 
 
     parser.add_argument(
@@ -170,6 +178,13 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
         choices=['geometric', 'harmonic', 'average', 'lower', 'outer', 'upper', 'inner'],
         default='geometric',
         help="the method to calculate the grid scaling factor C from inner and outer limits"
+    )
+
+    parser.add_argument(
+        "--dynamic-C", "-dynamic-c",
+        action='store_true',
+        default=False,
+        help="dynamically calculate the scaling factor C at each resolution step"
     )
 
     parser.add_argument(
@@ -512,12 +527,14 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         'Ninc'                  : args.resolution_range[2],
         'n_inner'               : args.n_inner,
         'n_resistivity'         : args.n_resistivity,
+        'n_anisotropy'          : args.n_anisotropy,
         'f_outer'               : args.amp_fraction_outer,
         'decay_efolds'          : -np.log(args.amp_fraction_outer),
         'CGL'                   : args.CGL,
         'C'                     : args.scaling_factor,
         'Cmean'                 : args.scaling_mean,
         'delta'                 : args.resistive_scale,
+        'dynamic_C'             : args.dynamic_C,
         'alpha'                 : None,
         'sigma'                 : args.sigma,
         'sigma_real_lower'      : args.real_part_range[0],
@@ -748,6 +765,10 @@ def validate_parameters(args: argparse.Namespace) -> None:
     if args.n_resistivity < 3:
         raise ParameterError(
             "Minimum number of resistivity layer collocation points (--n-resistivity / -nres) must be >= 3"
+        )
+    if args.n_anisotropy < 3:
+        raise ParameterError(
+            "Minimum number of anisotropy pressure scale collocation points (--n-anisotropy / -naniso) must be >= 3"
         )
 
 

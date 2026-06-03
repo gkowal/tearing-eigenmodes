@@ -25,10 +25,12 @@ class SimulationParams:
     Ninc: int = 32
     n_inner: int = 5
     n_resistivity: int = 5
+    n_anisotropy: int = 5
     f_outer: float = 0.01
     decay_efolds: float = 4.60517
     C: Optional[float] = None
     Cmean: str = 'geometric'
+    dynamic_C: bool = False
 
     # Iterative solver parameters
     alpha: Optional[float] = None
