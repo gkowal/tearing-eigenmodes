@@ -137,7 +137,8 @@ class TearingSolver(Solver):
             index = np.argsort(Σ_old.imag)[::-1]
         else:
             index = np.argsort(np.abs(Σ_old))[::-1]
-        _print_modes(Σ_old[index], self.grid.N)
+        if verbose:
+            _print_modes(Σ_old[index], self.grid.N)
 
         mode, modes = _select(Σ_old.size, maxmode, allmodes)
 
@@ -184,7 +185,8 @@ class TearingSolver(Solver):
             error = errors[mode]
             delta = deltas[mode]
 
-            _print_modes(Σ_new, self.grid.N, errors=errors, case=case, delta=delta, error=error)
+            if verbose:
+                _print_modes(Σ_new, self.grid.N, errors=errors, case=case, delta=delta, error=error)
 
             if error <= 1.0:
                 self.keep_result(Σ_new[mode], V_new[:,mode], mode)
