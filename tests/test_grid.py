@@ -407,3 +407,36 @@ def test_select_c_for_n_n_inner_scale_formula():
     assert np.isclose(Cinn, min(Cinn_eq, Cinn_in))
     assert np.isclose(Cinn, Cinn_in)
 
+
+def test_inner_scale_grid_boundary_roundoff():
+    """Verify that floating-point roundoff does not exclude boundary inner-scale nodes."""
+    from psecas import ChebyshevRationalGrid
+
+    params = SimulationParams(
+        alpha=1.0e-3,
+        a=1.0,
+        w=0.0,
+        S=1.0e5,
+        Pr=0.0,
+        CGL=False,
+        n_equilibrium=5,
+        n_inner_scale=5,
+        decay_efolds=-float(np.log(0.03)),
+    )
+
+    inner_scale = estimate_inner_scale(params, alpha=1.0e-3)
+    params.inner_scale = inner_scale
+
+    N, C = select_NC(params)
+    Cinn, Cout, _ = select_C_for_N(N, params)
+
+    assert N > 0 and C > 0
+    assert Cout <= Cinn
+
+    grid = ChebyshevRationalGrid(N=N, C=C)
+    nodes_in = int(np.sum(np.abs(grid.zg) <= inner_scale))
+    assert nodes_in >= params.n_inner_scale
+
+    m_inner = (params.n_inner_scale - 1) // 2
+    z_boundary_node = C * float(np.tan(np.pi * m_inner / (N + 1)))
+    assert z_boundary_node <= inner_scale

@@ -114,7 +114,10 @@ def select_C_for_N(
             resolved_inner_scale = None
 
     if resolved_inner_scale is not None and resolved_inner_scale > 0.0:
-        Cinn_inner = resolved_inner_scale / np.tan(np.pi * m_in / Np)
+        Cinn_inner = np.nextafter(
+            resolved_inner_scale / np.tan(np.pi * m_in / Np),
+            0.0,
+        )
         Cinn = min(Cinn, Cinn_inner)
 
     # 3. Anisotropy pressure scale constraint
