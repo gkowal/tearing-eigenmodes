@@ -140,6 +140,23 @@ def test_validate_parameters_inner_points():
     with pytest.raises(ParameterError, match="Minimum number of resistivity layer collocation points .* must be >= 3"):
         validate_parameters(args)
 
+    args = parser.parse_args([])
+    args.n_equilibrium = 2
+    with pytest.raises(ParameterError, match="Minimum number of inner collocation points .* must be >= 3"):
+        validate_parameters(args)
+
+    args = parser.parse_args([])
+    args.n_inner_scale = 2
+    with pytest.raises(ParameterError, match="Minimum number of resistivity layer collocation points .* must be >= 3"):
+        validate_parameters(args)
+
+
+def test_validate_parameters_safety_factor():
+    parser = parser_setup()
+    args = parser.parse_args([])
+    args.inner_resolution_safety = 0.5
+    with pytest.raises(ParameterError, match="Inner resolution safety factor .* must be >= 1.0"):
+        validate_parameters(args)
 
 
 def test_validate_parameters_conflicting_scaling():
@@ -147,14 +164,48 @@ def test_validate_parameters_conflicting_scaling():
     args = parser.parse_args([])
 
     args.scaling_factor = 1.0
-    args.resistive_scale = 0.1
+    args.inner_scale = 0.1
     with pytest.raises(ParameterError, match="Only one of these options may be set at a time"):
         validate_parameters(args)
 
     args = parser.parse_args([])
-    args.resistive_scale = -0.1
+    args.inner_scale = -0.1
     with pytest.raises(ParameterError, match="Resistive scale .* must be > 0"):
         validate_parameters(args)
+
+
+def test_build_params_inner_scale_aliases(monkeypatch):
+    # Test canonical options
+    monkeypatch.setattr("sys.argv", [
+        "eigenmodes-compute.py",
+        "--inner-scale", "0.025",
+        "--inner-resolution-safety", "1.5",
+        "--n-equilibrium", "7",
+        "--n-inner-scale", "9",
+    ])
+    params = build_params(parser_type="dispersion")
+    assert params.inner_scale == 0.025
+    assert params.delta == 0.025
+    assert params.inner_resolution_safety == 1.5
+    assert params.n_equilibrium == 7
+    assert params.n_inner == 7
+    assert params.n_inner_scale == 9
+    assert params.n_resistivity == 9
+
+    # Test legacy aliases
+    monkeypatch.setattr("sys.argv", [
+        "eigenmodes-compute.py",
+        "--resistive-scale", "0.035",
+        "--n-inner", "11",
+        "--n-resistivity", "13",
+    ])
+    params_legacy = build_params(parser_type="dispersion")
+    assert params_legacy.inner_scale == 0.035
+    assert params_legacy.delta == 0.035
+    assert params_legacy.n_equilibrium == 11
+    assert params_legacy.n_inner == 11
+    assert params_legacy.n_inner_scale == 13
+    assert params_legacy.n_resistivity == 13
 
 def test_build_params_dispersion(monkeypatch):
     # Simulate arguments passed to eigenmodes-compute.py

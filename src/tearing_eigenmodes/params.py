@@ -18,19 +18,61 @@ class SimulationParams:
     w: Optional[float] = 0.0
     zeta: float = 1.0
     delta: Optional[float] = None
+    inner_scale: Optional[float] = None
+    inner_resolution_safety: float = 1.0
 
     # Grid determination parameters
     Nmin: int = 64
     Nmax: int = 2048
     Ninc: int = 32
     n_inner: int = 5
+    n_equilibrium: int = 5
     n_resistivity: int = 5
+    n_inner_scale: int = 5
     n_anisotropy: int = 5
     f_outer: float = 0.01
     decay_efolds: float = 4.60517
     C: Optional[float] = None
     Cmean: str = 'geometric'
     dynamic_C: bool = False
+
+    _initialized: bool = field(default=False, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.inner_scale is not None and self.delta is None:
+            self.delta = self.inner_scale
+        elif self.delta is not None and self.inner_scale is None:
+            self.inner_scale = self.delta
+
+        if self.n_equilibrium != 5 and self.n_inner == 5:
+            self.n_inner = self.n_equilibrium
+        elif self.n_inner != 5 and self.n_equilibrium == 5:
+            self.n_equilibrium = self.n_inner
+
+        if self.n_inner_scale != 5 and self.n_resistivity == 5:
+            self.n_resistivity = self.n_inner_scale
+        elif self.n_resistivity != 5 and self.n_inner_scale == 5:
+            self.n_inner_scale = self.n_resistivity
+
+        self._initialized = True
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        super().__setattr__(key, value)
+        if not self.__dict__.get('_initialized', False):
+            return
+
+        if key == 'inner_scale' and self.__dict__.get('delta') != value:
+            super().__setattr__('delta', value)
+        elif key == 'delta' and self.__dict__.get('inner_scale') != value:
+            super().__setattr__('inner_scale', value)
+        elif key == 'n_equilibrium' and self.__dict__.get('n_inner') != value:
+            super().__setattr__('n_inner', value)
+        elif key == 'n_inner' and self.__dict__.get('n_equilibrium') != value:
+            super().__setattr__('n_equilibrium', value)
+        elif key == 'n_inner_scale' and self.__dict__.get('n_resistivity') != value:
+            super().__setattr__('n_resistivity', value)
+        elif key == 'n_resistivity' and self.__dict__.get('n_inner_scale') != value:
+            super().__setattr__('n_inner_scale', value)
 
     # Iterative solver parameters
     alpha: Optional[float] = None

@@ -117,10 +117,18 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     )
 
     parser.add_argument(
-        "--resistive-scale", "-δres",
+        "--inner-scale", "-δin", "--resistive-scale", "-δres",
+        dest="inner_scale",
         type=float,
         default=None,
-        help=("The initial resistive scale (thickness).")
+        help="the initial inner grid resolution scale"
+    )
+
+    parser.add_argument(
+        "--inner-resolution-safety",
+        type=float,
+        default=1.0,
+        help="safety factor applied to estimated inner scale (>= 1.0)"
     )
 
     parser.add_argument(
@@ -131,19 +139,21 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     )
 
     parser.add_argument(
-        "--n-inner", "-nin",
+        "--n-equilibrium", "-neq", "--n-inner", "-nin",
+        dest="n_equilibrium",
         type=int,
         default=5,
         help=("Minimum number of collocation points required to resolve "
-              "the smallest inner‑layer width.")
+              "the equilibrium current sheet scale (a + w).")
     )
 
     parser.add_argument(
-        "--n-resistivity", "-nres",
+        "--n-inner-scale", "-nscale", "--n-resistivity", "-nres",
+        dest="n_inner_scale",
         type=int,
         default=5,
         help=("Minimum number of collocation points required to resolve "
-              "the resistive layer thickness.")
+              "the inner layer resolution scale.")
     )
 
     parser.add_argument(
@@ -520,20 +530,29 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         perpendicular_index = args.gamma_perpendicular
 
     # 2. Map internal keys to args attributes
+    n_equilibrium = getattr(args, 'n_equilibrium', getattr(args, 'n_inner', 5))
+    n_inner_scale = getattr(args, 'n_inner_scale', getattr(args, 'n_resistivity', 5))
+    inner_scale = getattr(args, 'inner_scale', getattr(args, 'resistive_scale', None))
+    safety = getattr(args, 'inner_resolution_safety', 1.0)
+
     params: Dict[str, Any] = {
         'data_path'             : None,
         'Nmin'                  : args.resolution_range[0],
         'Nmax'                  : args.resolution_range[1],
         'Ninc'                  : args.resolution_range[2],
-        'n_inner'               : args.n_inner,
-        'n_resistivity'         : args.n_resistivity,
+        'n_inner'               : n_equilibrium,
+        'n_equilibrium'         : n_equilibrium,
+        'n_resistivity'         : n_inner_scale,
+        'n_inner_scale'         : n_inner_scale,
         'n_anisotropy'          : args.n_anisotropy,
         'f_outer'               : args.amp_fraction_outer,
         'decay_efolds'          : -np.log(args.amp_fraction_outer),
         'CGL'                   : args.CGL,
         'C'                     : args.scaling_factor,
         'Cmean'                 : args.scaling_mean,
-        'delta'                 : args.resistive_scale,
+        'delta'                 : inner_scale,
+        'inner_scale'           : inner_scale,
+        'inner_resolution_safety': safety,
         'dynamic_C'             : args.dynamic_C,
         'alpha'                 : None,
         'sigma'                 : args.sigma,
@@ -758,30 +777,55 @@ def validate_parameters(args: argparse.Namespace) -> None:
     # ------------------------------------------------------------------
     # 6) Inner collocation points with corresponding width
     # ------------------------------------------------------------------
-    if args.n_inner < 3:
+    n_eq = getattr(args, 'n_equilibrium', 5)
+    if hasattr(args, 'n_inner') and args.n_inner != 5:
+        n_eq = args.n_inner
+    elif hasattr(args, 'n_equilibrium') and args.n_equilibrium != 5:
+        n_eq = args.n_equilibrium
+    args.n_equilibrium = n_eq
+    args.n_inner = n_eq
+
+    n_in_scale = getattr(args, 'n_inner_scale', 5)
+    if hasattr(args, 'n_resistivity') and args.n_resistivity != 5:
+        n_in_scale = args.n_resistivity
+    elif hasattr(args, 'n_inner_scale') and args.n_inner_scale != 5:
+        n_in_scale = args.n_inner_scale
+    args.n_inner_scale = n_in_scale
+    args.n_resistivity = n_in_scale
+
+    inner_scale = getattr(args, 'inner_scale', None)
+    if inner_scale is None and hasattr(args, 'resistive_scale'):
+        inner_scale = args.resistive_scale
+    args.inner_scale = inner_scale
+    args.resistive_scale = inner_scale
+
+    safety = getattr(args, 'inner_resolution_safety', 1.0)
+    if safety < 1.0:
+        raise ParameterError("Inner resolution safety factor (--inner-resolution-safety) must be >= 1.0")
+
+    if args.n_equilibrium < 3:
         raise ParameterError(
-            "Minimum number of inner collocation points (--n-inner / -nin) must be >= 3"
+            "Minimum number of inner collocation points (--n-equilibrium / --n-inner / -nin) must be >= 3"
         )
-    if args.n_resistivity < 3:
+    if args.n_inner_scale < 3:
         raise ParameterError(
-            "Minimum number of resistivity layer collocation points (--n-resistivity / -nres) must be >= 3"
+            "Minimum number of resistivity layer collocation points (--n-inner-scale / --n-resistivity / -nres) must be >= 3"
         )
     if args.n_anisotropy < 3:
         raise ParameterError(
             "Minimum number of anisotropy pressure scale collocation points (--n-anisotropy / -naniso) must be >= 3"
         )
 
-
     # ------------------------------------------------------------------
     # 7) Optional limits
     # ------------------------------------------------------------------
-    if args.scaling_factor is not None and args.resistive_scale is not None:
+    if args.scaling_factor is not None and args.inner_scale is not None:
         raise ParameterError(
-            "Both '--scaling_factor / -C' and '--resistive-scale / -δres' were provided. "
+            "Both '--scaling_factor / -C' and '--inner-scale / --resistive-scale / -δres' were provided. "
             "Only one of these options may be set at a time."
         )
-    if args.resistive_scale is not None and args.resistive_scale <= 0:
-        raise ParameterError("Resistive scale (--resistive-scale / -δres) must be > 0")
+    if args.inner_scale is not None and args.inner_scale <= 0:
+        raise ParameterError("Resistive scale (--inner-scale / --resistive-scale / -δres) must be > 0")
 
     if hasattr(args, 'nx') and args.nx is not None:
         if args.nx <= 0:

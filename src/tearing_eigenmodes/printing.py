@@ -62,13 +62,14 @@ def print_info(params: SimulationParams) -> None:
     logger.info(f"  {'Real part range':<34} =  [{params.sigma_real_lower}, {params.sigma_real_upper}]")
     logger.info(f"  {'Imaginary part range':<34} =  [{params.sigma_imag_lower}, {params.sigma_imag_upper}]")
 
-    logger.info(f"  {'Number of inner collocation points':<34} =  {params.n_inner}")
-    logger.info(f"  {'Amplitude fraction at zmax':<34} =  {params.f_outer}")
-    logger.info(f"  {'Resistive layer collocation points':<34} =  {params.n_resistivity}")
+    logger.info(f"  {'Equilibrium collocation points':<34} =  {params.n_equilibrium}")
+    logger.info(f"  {'Inner scale collocation points':<34} =  {params.n_inner_scale}")
     logger.info(f"  {'Anisotropy scale points':<34} =  {params.n_anisotropy}")
+    logger.info(f"  {'Inner resolution safety factor':<34} =  {params.inner_resolution_safety}")
+    logger.info(f"  {'Amplitude fraction at zmax':<34} =  {params.f_outer}")
     logger.info(f"  {'Dynamic C grid':<34} =  {'on' if params.dynamic_C else 'off'}")
 
-    log_head("Resistive scale (δres)", 'delta')
+    log_head("Inner scale (δin)", 'inner_scale')
     log_head("Inner-layer thickness tolerance", 'dtol')
 
     logger.info("Miscellaneous/Runtime:")

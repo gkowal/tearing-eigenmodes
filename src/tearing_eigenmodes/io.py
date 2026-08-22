@@ -128,10 +128,12 @@ def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
         'S', 'Pr', 'plasma_beta', 'plasma_beta_difference', 'xi', 'Hall',
         'a', 'w', 'parallel_index', 'perpendicular_index', 'eos', 'CGL',
         'noshear', 'Nmin', 'Nmax', 'Ninc', 'atol', 'rtol', 'gtol', 'dtol',
-        'f_outer', 'mode', 'dynamic_C', 'n_anisotropy'
+        'f_outer', 'mode', 'dynamic_C', 'n_anisotropy', 'inner_scale',
+        'inner_resolution_safety', 'n_equilibrium', 'n_inner_scale'
     ]
     metadata = {k: getattr(params, k) for k in metadata_keys}
-    metadata['n_inner_req'] = params.n_inner
+    metadata['n_inner_req'] = params.n_equilibrium
+    metadata['n_resistivity_req'] = params.n_inner_scale
 
     # Optional dependence parameter
     dep_key = params.scan_parameter or params.dependence
@@ -258,10 +260,11 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
 
         io.write(f"#   {'Selection order':<36} =   {params.orderby}\n")
         io.write(f"#   {'Converge the mode':<36} =   {params.mode}\n")
-        write_head("Resistive scale (δres)", 'delta')
+        write_head("Inner scale (δin)", 'inner_scale')
+        write_head("Inner resolution safety", 'inner_resolution_safety')
         write_head("Inner-layer thickness tolerance", 'dtol')
-        io.write(f"#   {'Number of inner collocation points':<36} =   {params.n_inner}\n")
-        io.write(f"#   {'Resistive layer collocation points':<36} =   {params.n_resistivity}\n")
+        io.write(f"#   {'Equilibrium collocation points':<36} =   {params.n_equilibrium}\n")
+        io.write(f"#   {'Inner scale collocation points':<36} =   {params.n_inner_scale}\n")
         io.write(f"#   {'Anisotropy scale points':<36} =   {params.n_anisotropy}\n")
         io.write(f"#   {'Dynamic C grid':<36} =   {'on' if params.dynamic_C else 'off'}\n")
         io.write(f"#   {'Amplitude fraction at zmax':<36} =   {params.f_outer}\n")
