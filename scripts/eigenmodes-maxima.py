@@ -9,7 +9,7 @@ from collections import deque
 from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
-                             refine_eigenvalues, refine_resistive_scale, \
+                             refine_eigenvalues, refine_inner_scale, refine_resistive_scale, \
                              eigenmodes, write_results, DeltaError, \
                              estimate_max, save_eigenmode, setup_logging, \
                              check_state, compile_metadata, SimulationParams
@@ -319,7 +319,7 @@ def main() -> None:
 
     k = refine_wavenumber_bracket(vs, params)
     g = refine_eigenvalues(vs, params)
-    deltas = refine_resistive_scale(vs, params)
+    deltas = refine_inner_scale(vs, params)
 
     plural = 'es' if nprocs > 1 else ''
     logging.info(f'\nCalculation initiated with {nprocs} process{plural}'

@@ -164,50 +164,101 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: SimulationParams) -> List[
     return kbracket
 
 
-def refine_resistive_scale(vs: np.ndarray, params: SimulationParams) -> List[Optional[float]]:
-    """Update resistive scale (delta) using cached eigenmodes if available."""
-    deltas: List[Optional[float]] = [params.delta] * vs.size
+from .physics import estimate_inner_scale
+
+
+def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optional[float]]:
+    """
+    Update inner scale using cached eigenmodes and physics-based estimator.
+
+    Parameters
+    ----------
+    vs : np.ndarray
+        Array of sweep values (wavenumbers for dispersion runs or parameter values for maxima runs).
+    params : SimulationParams
+        Simulation parameters object.
+
+    Returns
+    -------
+    List[Optional[float]]
+        List of resolved inner scales for each value in vs.
+    """
+    explicit_scale = params.inner_scale if params.inner_scale is not None else params.delta
+    if explicit_scale is not None and explicit_scale > 0.0:
+        return [float(explicit_scale)] * vs.size
+
+    # Initialize with physics-based estimator for all values
+    inner_scales: List[Optional[float]] = [None] * vs.size
+    for i, x in enumerate(vs):
+        try:
+            if params.dependence is None:
+                # Dispersion run: vs are k values, alpha = k * a
+                a = params.a if params.a is not None else 1.0
+                alpha_val = float(x * a)
+                inner_scales[i] = estimate_inner_scale(params, alpha=alpha_val)
+            else:
+                # Maxima sweep run
+                import copy
+                p_temp = copy.copy(params)
+                dep_map = {
+                    'a': 'a', 'w': 'w', 'S': 'S', 'Pr': 'Pr',
+                    'ξ': 'xi', 'ϵ': 'Hall', 'β': 'plasma_beta',
+                    'Δβ': 'plasma_beta_difference'
+                }
+                field = dep_map.get(params.dependence)
+                if field:
+                    setattr(p_temp, field, float(x))
+                inner_scales[i] = estimate_inner_scale(p_temp)
+        except Exception as ex:
+            logger.debug(f"Analytic inner scale fallback for v={x:+.3e}: {ex}")
+            inner_scales[i] = None
 
     try:
         if params.data_path is None:
-            return deltas
+            return inner_scales
         v, _, _, _, δ, _, _, _, _ = _cached_load_eigenmodes(params.data_path)
     except Exception:
-        return deltas
+        return inner_scales
 
     if v.size < 2:
-        return deltas
+        return inner_scales
 
-    # Filter out invalid / zero / None delta values
-    valid_indices = np.where((δ != 0.0) & (δ is not None) & (~np.isnan(δ)))[0]
+    # Filter out invalid / zero / negative / NaN delta values
+    valid_indices = np.where((δ is not None) & (δ > 0.0) & (~np.isnan(δ)))[0]
     if valid_indices.size < 2:
-        return deltas
+        return inner_scales
 
     v_valid = v[valid_indices]
     δ_valid = δ[valid_indices]
 
+    # Interpolate in logarithmic scale coordinates
     try:
+        log_δ = np.log(δ_valid)
         degree = min(3, v_valid.size - 1)
-        spline = make_interp_spline(v_valid, δ_valid, k=degree)
-        δ_interp = spline(vs)
+        spline = make_interp_spline(v_valid, log_δ, k=degree)
+        δ_interp = np.exp(spline(vs))
 
         # Fallback to nearest neighbor (k=0) if any interpolated value is <= 0 or nan
         if np.any(δ_interp <= 0.0) or np.any(np.isnan(δ_interp)):
-            spline = make_interp_spline(v_valid, δ_valid, k=0)
-            δ_interp = spline(vs)
+            spline = make_interp_spline(v_valid, log_δ, k=0)
+            δ_interp = np.exp(spline(vs))
     except Exception:
         try:
-            spline = make_interp_spline(v_valid, δ_valid, k=0)
-            δ_interp = spline(vs)
+            log_δ = np.log(δ_valid)
+            spline = make_interp_spline(v_valid, log_δ, k=0)
+            δ_interp = np.exp(spline(vs))
         except Exception:
-            return deltas
+            return inner_scales
 
     vmn, vmx = v_valid.min(), v_valid.max()
     for i, x in enumerate(vs):
         within_bounds = (vmn <= x <= vmx) or np.isclose(x, vmn) or np.isclose(x, vmx)
         if within_bounds:
             val = float(δ_interp[i])
-            if val > 0.0:
-                deltas[i] = val
+            if val > 0.0 and not np.isnan(val):
+                inner_scales[i] = val
 
-    return deltas
+    return inner_scales
+
+
+refine_resistive_scale = refine_inner_scale

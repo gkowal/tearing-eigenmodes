@@ -6,7 +6,7 @@ import multiprocessing as mp
 import numpy as np
 
 from tearing_eigenmodes import build_params, build_dpath, print_info, \
-                             refine_eigenvalues, refine_resistive_scale, \
+                             refine_eigenvalues, refine_inner_scale, \
                              eigenmodes, write_results, save_eigenmode, setup_logging, \
                              check_state, compile_metadata, SimulationParams
 
@@ -65,9 +65,10 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
 
     if not status:
         try:
-            params_base.sigma   = sigma
-            params_base.delta   = delta
-            params_base.alpha   = α
+            params_base.sigma       = sigma
+            params_base.inner_scale = delta
+            params_base.delta       = delta
+            params_base.alpha       = α
 
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
 
@@ -178,7 +179,7 @@ def main() -> None:
     shared_counter = mp.Value('i', 0)
 
     sigmas = refine_eigenvalues(ks, params)
-    deltas = refine_resistive_scale(ks, params)
+    deltas = refine_inner_scale(ks, params)
 
     try:
         with mp.Pool(
