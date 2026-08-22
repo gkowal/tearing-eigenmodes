@@ -77,7 +77,7 @@ def test_eigenmodes_viscous_scale_limiting():
     assert nin is not None and nin > 0
 
 
-def test_eigenmodes_verbose_scale_logging(caplog):
+def test_eigenmodes_verbose_scale_logging(caplog: pytest.LogCaptureFixture):
     import logging
     params = SimulationParams(
         alpha=0.15,
@@ -94,12 +94,64 @@ def test_eigenmodes_verbose_scale_logging(caplog):
     with caplog.at_level(logging.INFO):
         sigma, s, e, delta_in, nin, nwa, C, N, z, success = eigenmodes(params)
     assert success
-    # Check that "mode scales:" appears in logs with deterministic keys
+    # Check that "mode scales:" appears in logs EXACTLY ONCE
     scale_logs = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
-    assert len(scale_logs) >= 1
+    assert len(scale_logs) == 1
     msg = scale_logs[0]
     assert "classical.bz_induction.eta_vs_ideal=" in msg or "classical.bz_induction.eta_vs_f=" in msg
     assert "nan" not in msg
+
+
+def test_eigenmodes_suppress_scale_summary(caplog: pytest.LogCaptureFixture):
+    """When emit_scale_summary=False, scale summary logging must be suppressed."""
+    import logging
+    params = SimulationParams(
+        alpha=0.15,
+        a=1.0,
+        w=0.0,
+        S=1e3,
+        Pr=0.0,
+        Nmin=64,
+        Nmax=512,
+        Ninc=32,
+        verbose=True,
+        emit_scale_summary=False,
+        dynamic_C=False,
+    )
+    with caplog.at_level(logging.INFO):
+        sigma, s, e, delta_in, nin, nwa, C, N, z, success = eigenmodes(params)
+    assert success
+    scale_logs = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
+    assert len(scale_logs) == 0
+
+
+def test_maxima_objective_suppresses_scale_summary(caplog: pytest.LogCaptureFixture):
+    """make_objective from eigenmodes-maxima must not emit scale lines during optimizer trials."""
+    import logging
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("maxima_mod", "scripts/eigenmodes-maxima.py")
+    assert spec is not None and spec.loader is not None
+    maxima_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(maxima_mod)
+
+    params = SimulationParams(
+        alpha=0.15,
+        a=1.0,
+        w=0.0,
+        S=1e3,
+        Pr=0.0,
+        Nmin=64,
+        Nmax=512,
+        Ninc=32,
+        verbose=True,
+        dynamic_C=False,
+    )
+    f = maxima_mod.make_objective(params)
+    with caplog.at_level(logging.INFO):
+        val = f(0.15)
+    assert val != 0.0
+    scale_logs = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
+    assert len(scale_logs) == 0
 
 
 def test_eigenmodes_all_invalid_scales_behavior(monkeypatch: pytest.MonkeyPatch):

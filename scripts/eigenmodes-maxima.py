@@ -64,6 +64,7 @@ def make_objective(params_base: SimulationParams) -> Callable[[float], float]:
     import copy
     # capture a shallow copy once; treat as immutable thereafter
     params_fixed = copy.copy(params_base)
+    params_fixed.emit_scale_summary = False
 
     @lru_cache(maxsize=1024)
     def objective(αq: float) -> float:

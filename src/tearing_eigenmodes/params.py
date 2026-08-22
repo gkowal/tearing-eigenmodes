@@ -93,6 +93,7 @@ class SimulationParams:
     noshear: bool = False
     force: bool = False
     verbose: bool = False
+    emit_scale_summary: bool = True
     log_file: Optional[str] = None
     mode: Optional[Any] = None
     dependence: Optional[str] = None
