@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from tearing_eigenmodes import select_NC, SimulationParams
+from tearing_eigenmodes import select_NC, SimulationParams, estimate_inner_scale
 from tearing_eigenmodes.grid import select_C_for_N
 from tearing_eigenmodes.exceptions import DeltaError, ConvergenceError
 
@@ -223,11 +223,12 @@ def test_select_nc_anisotropy_scale():
     assert np.isclose(scale, expected)
 
     # 3. verify that dynamic C selection shrinks when anisotropy scale is small
-    # Large scale -> large C
+    # Large scale -> large C (set inner_scale=2.0 so anisotropy scale controls C)
     params_large = SimulationParams(
         CGL=True,
         alpha=0.1,
         a=1.0,
+        inner_scale=2.0,
         plasma_beta=1.0,
         plasma_beta_difference=0.1,
         parallel_index=3.0,
@@ -241,6 +242,7 @@ def test_select_nc_anisotropy_scale():
         CGL=True,
         alpha=0.1,
         a=1.0,
+        inner_scale=2.0,
         plasma_beta=1.0,
         plasma_beta_difference=0.1,
         parallel_index=3.0,
@@ -253,23 +255,28 @@ def test_select_nc_anisotropy_scale():
 
 
 def test_select_c_for_n_exact_formulas():
-    """Document existing exact formula evaluation in select_C_for_N."""
+    """Document exact formula evaluation in select_C_for_N."""
     params = SimulationParams(
         alpha=0.2,
         a=1.5,
         w=0.5,
-        n_inner=5,
+        n_equilibrium=5,
+        n_inner_scale=5,
         decay_efolds=4.0,
         CGL=False,
-        delta=None,
     )
     N = 128
     Cinn, Cout, C = select_C_for_N(N, params)
 
-    zmin = 1.5 + 0.5  # a + w = 2.0
-    m = (5 - 1) / 2   # 2
-    Np = N + 1        # 129
-    expected_Cinn = zmin / np.tan(np.pi * m / Np)
+    zmin_eq = 1.5 + 0.5  # a + w = 2.0
+    m_eq = (5 - 1) / 2   # 2
+    Np = N + 1           # 129
+    expected_Cinn_eq = zmin_eq / np.tan(np.pi * m_eq / Np)
+
+    L_inner = estimate_inner_scale(params, alpha=0.2)
+    expected_Cinn_in = L_inner / np.tan(np.pi * 2 / Np)
+
+    expected_Cinn = min(expected_Cinn_eq, expected_Cinn_in)
 
     zmax = 4.0 / 0.2  # decay_efolds / alpha = 20.0
     expected_Cout = zmax * np.tan((np.pi / 2) / Np)
@@ -280,14 +287,14 @@ def test_select_c_for_n_exact_formulas():
 
 
 def test_select_c_for_n_explicit_resistive_override():
-    """Document existing explicit delta override in select_C_for_N."""
+    """Document explicit inner_scale override in select_C_for_N."""
     params = SimulationParams(
         alpha=0.2,
         a=1.0,
         w=0.0,
-        n_inner=5,
-        n_resistivity=7,
-        delta=0.05,
+        n_equilibrium=5,
+        n_inner_scale=7,
+        inner_scale=0.05,
         decay_efolds=4.0,
         CGL=False,
     )
@@ -304,34 +311,34 @@ def test_select_c_for_n_explicit_resistive_override():
 
 
 def test_select_nc_resolves_equilibrium_and_resistive_constraints():
-    """Document select_NC resolution selection with equilibrium width vs explicit delta."""
+    """Document select_NC resolution selection with equilibrium width vs explicit scale."""
     params_base = SimulationParams(
         alpha=0.2,
         a=1.0,
         w=0.0,
-        delta=None,
+        inner_scale=1.0,
     )
     N_base, C_base = select_NC(params_base)
 
-    # Wider current sheet increases zmin, loosening inner limit Cinn
+    # Wider current sheet increases zmin_eq
     params_w = SimulationParams(
         alpha=0.2,
         a=1.0,
         w=2.0,
-        delta=None,
+        inner_scale=2.0,
     )
     N_w, C_w = select_NC(params_w)
     Cinn_base, _, _ = select_C_for_N(N_base, params_base)
     Cinn_w, _, _ = select_C_for_N(N_base, params_w)
     assert Cinn_w > Cinn_base
 
-    # Explicit small delta tightens inner limit Cinn, forcing higher N or lower C
+    # Explicit small inner_scale tightens inner limit Cinn, forcing higher N or lower C
     params_res = SimulationParams(
         alpha=0.2,
         a=1.0,
         w=0.0,
-        delta=0.005,
-        n_resistivity=5,
+        inner_scale=0.005,
+        n_inner_scale=5,
     )
     N_res, C_res = select_NC(params_res)
     assert N_res > N_base
@@ -340,4 +347,63 @@ def test_select_nc_resolves_equilibrium_and_resistive_constraints():
     # Verify C_out(N) <= C_in(N) at chosen N
     Cinn_chosen, Cout_chosen, _ = select_C_for_N(N_res, params_res)
     assert Cout_chosen <= Cinn_chosen
+
+
+def test_select_nc_estimator_integration():
+    """Verify that the physics estimator automatically sets inner scale and changes N and C."""
+    params_low_S = SimulationParams(alpha=0.1, a=1.0, w=0.0, S=1e3, Pr=0.0, CGL=False)
+    params_high_S = SimulationParams(alpha=0.1, a=1.0, w=0.0, S=1e6, Pr=0.0, CGL=False)
+
+    N_low, C_low = select_NC(params_low_S)
+    N_high, C_high = select_NC(params_high_S)
+
+    # Higher S means narrower inner scale, leading to higher resolution or smaller C
+    assert (N_high > N_low) or (C_high < C_low)
+
+
+def test_select_nc_explicit_inner_scale_override():
+    """Verify that explicit inner_scale overrides the analytic estimator."""
+    params_auto = SimulationParams(alpha=0.1, a=1.0, w=0.0, S=1e6, Pr=0.0, CGL=False)
+    N_auto, C_auto = select_NC(params_auto)
+
+    # Large explicit inner scale override should relax resolution requirement
+    params_override_large = SimulationParams(
+        alpha=0.1, a=1.0, w=0.0, S=1e6, Pr=0.0, CGL=False,
+        inner_scale=0.5
+    )
+    N_ov, C_ov = select_NC(params_override_large)
+    assert (N_ov < N_auto) or (C_ov > C_auto)
+
+
+def test_select_nc_safety_factor():
+    """Verify that inner_resolution_safety > 1 produces a finer grid."""
+    params_base = SimulationParams(alpha=0.1, a=1.0, w=0.0, S=1e5, Pr=0.0, CGL=False, inner_resolution_safety=1.0)
+    params_safe = SimulationParams(alpha=0.1, a=1.0, w=0.0, S=1e5, Pr=0.0, CGL=False, inner_resolution_safety=2.0)
+
+    N_base, C_base = select_NC(params_base)
+    N_safe, C_safe = select_NC(params_safe)
+
+    assert (N_safe > N_base) or (C_safe < C_base)
+
+
+def test_select_c_for_n_n_inner_scale_formula():
+    """Verify that n_inner_scale correctly enters the C_in formula."""
+    params = SimulationParams(
+        alpha=0.2, a=1.0, w=0.0,
+        inner_scale=0.05,
+        n_equilibrium=5,
+        n_inner_scale=7,
+        decay_efolds=4.0,
+        CGL=False,
+    )
+    N = 128
+    Np = N + 1
+    Cinn, Cout, C = select_C_for_N(N, params)
+
+    # m_eq = (5 - 1)/2 = 2
+    # m_in = (7 - 1)/2 = 3
+    Cinn_eq = 1.0 / np.tan(np.pi * 2 / Np)
+    Cinn_in = 0.05 / np.tan(np.pi * 3 / Np)
+    assert np.isclose(Cinn, min(Cinn_eq, Cinn_in))
+    assert np.isclose(Cinn, Cinn_in)
 
