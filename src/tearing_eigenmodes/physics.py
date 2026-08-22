@@ -1,7 +1,10 @@
+import logging
 from .exceptions import DeltaError
 from .params import SimulationParams
 import numpy as np
 from typing import Tuple, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 def eos_indices(eos: str) -> Tuple[float, float]:
     """
@@ -54,6 +57,205 @@ def calculate_cgl_factors(
             raise DeltaError(f"Decaying factor purely imaginary for (β, Δβ) = ({beta:.3e}, {delta_beta:+.3e}) => stable eigenmode for α = {alpha:.3e}.")
 
     return A, R0
+
+
+def calculate_inner_factors(
+    beta: float = 0.0,
+    delta_beta: float = 0.0,
+    gamma_par: float = 3.0,
+    gamma_per: float = 2.0,
+    CGL: bool = False,
+) -> Tuple[float, float, float]:
+    """
+    Compute quasistatic Classical and Gyrotropic inner-layer coefficients A, R0, and q.
+
+    Parameters
+    ----------
+    beta : float
+        Perpendicular plasma beta.
+    delta_beta : float
+        Difference between parallel and perpendicular plasma beta (Δβ).
+    gamma_par : float
+        Parallel adiabatic index.
+    gamma_per : float
+        Perpendicular adiabatic index.
+    CGL : bool
+        Whether Gyrotropic (CGL) MHD is enabled.
+
+    Returns
+    -------
+    Tuple[float, float, float]
+        (A, R0, q) where q = sqrt(A / R0).
+    """
+    if not CGL:
+        return 1.0, 1.0, 1.0
+
+    A = 1.0 - delta_beta / 2.0
+    R0 = 1.0 + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
+
+    if A <= 0.0 or R0 <= 0.0:
+        raise DeltaError(
+            f"Gyrotropic inner factors require A > 0 and R0 > 0 for analytic inner-scale estimation "
+            f"(got A = {A:+.3e}, R0 = {R0:+.3e})."
+        )
+
+    q = float(np.sqrt(A / R0))
+    return A, R0, q
+
+
+def model_delta_prime(alpha: float, q: float = 1.0) -> float:
+    """
+    Compute the approximate outer tearing stability index Δ'_model.
+
+    Parameters
+    ----------
+    alpha : float
+        Normalized wavenumber k * a.
+    q : float
+        Quasistatic anisotropy ratio sqrt(A / R0) (q = 1 for Classical MHD).
+
+    Returns
+    -------
+    float
+        Δ'_model = 2 * (q / alpha - alpha / q).
+    """
+    if alpha <= 0.0:
+        raise ValueError("Wavenumber alpha must be strictly positive.")
+    if q <= 0.0:
+        raise ValueError("Parameter q must be strictly positive.")
+    return 2.0 * (q / alpha - alpha / q)
+
+
+def legacy_fS(S: float) -> float:
+    """Legacy empirical Lundquist-number prefactor for Coppi branch."""
+    return 0.038288 / (0.047443 + S**(-0.46355)) + 0.079649
+
+
+def legacy_gS(S: float) -> float:
+    """Legacy empirical Lundquist-number prefactor for FKR branch."""
+    return 0.91451 - 2.0654 / (S**0.37651 + 0.88448)
+
+
+def legacy_fPr(Pr: float) -> float:
+    """Legacy empirical Prandtl-number prefactor for Coppi branch."""
+    return (1.0777 + (0.71554 * Pr) * (5.765 + Pr))**0.079176
+
+
+def legacy_gPr(Pr: float) -> float:
+    """Legacy empirical Prandtl-number prefactor for FKR branch."""
+    return 2.4379 * (Pr + 0.0045991)**0.16186
+
+
+def estimate_growth_rate(params: SimulationParams, alpha: Optional[float] = None) -> float:
+    """
+    Estimate the tearing instability growth rate gamma * tau_A using smooth asymptotic formulas.
+
+    Notes
+    -----
+    The theoretical derivation assumes inviscid (Pr = 0) tearing with w = 0, xi = 0.
+    """
+    a = params.a if params.a is not None else 1.0
+    alpha_val = alpha if alpha is not None else params.alpha
+    if alpha_val is None or alpha_val <= 0.0:
+        raise ValueError("Wavenumber alpha must be positive.")
+    S = params.S if params.S is not None else 1e4
+    if S <= 0.0:
+        raise ValueError("Lundquist number S must be positive.")
+
+    A, R0, q = calculate_inner_factors(
+        beta=params.plasma_beta,
+        delta_beta=params.plasma_beta_difference,
+        gamma_par=params.parallel_index,
+        gamma_per=params.perpendicular_index,
+        CGL=params.CGL,
+    )
+
+    delta_prime = model_delta_prime(alpha_val, q=q)
+    gamma_hat_Coppi = (A**(1.0 / 3.0)) * (alpha_val**(2.0 / 3.0)) * (S**(-1.0 / 3.0))
+
+    if delta_prime <= 0.0:
+        return float(gamma_hat_Coppi)
+
+    gamma_hat_FKR = (A**(1.0 / 5.0)) * (alpha_val**(2.0 / 5.0)) * (delta_prime**(4.0 / 5.0)) * (S**(-3.0 / 5.0))
+    p = 8
+    gamma_hat = (gamma_hat_Coppi * gamma_hat_FKR) / ((gamma_hat_Coppi**p + gamma_hat_FKR**p)**(1.0 / p))
+    return float(gamma_hat)
+
+
+def estimate_inner_scale(params: SimulationParams, alpha: Optional[float] = None) -> float:
+    """
+    Calculate the physics-based initial grid inner scale for the tearing layer.
+
+    Parameters
+    ----------
+    params : SimulationParams
+        Simulation parameters object.
+    alpha : float, optional
+        Normalized wavenumber k * a. If None, uses params.alpha.
+
+    Returns
+    -------
+    float
+        Dimensional inner scale (inner_scale = a * delta_hat_grid).
+
+    Notes
+    -----
+    - The underlying FKR and Coppi asymptotic derivations are inviscid (Pr = 0) and
+      derived for standard Harris sheet equilibria (w = 0, xi = 0).
+    - Factors for Pr > 0 and finite S are legacy empirical order-unity prefactors.
+    - An inner_resolution_safety factor >= 1 scales the target grid scale finer than the model.
+    """
+    alpha_val = alpha if alpha is not None else params.alpha
+    if alpha_val is None or alpha_val <= 0.0:
+        raise ValueError("Wavenumber alpha must be positive for inner scale estimation.")
+
+    a = params.a if params.a is not None else 1.0
+    if a <= 0.0:
+        raise ValueError("Current sheet thickness a must be positive.")
+
+    S = params.S if params.S is not None else 1e4
+    if S <= 0.0:
+        raise ValueError("Lundquist number S must be positive.")
+
+    Pr = params.Pr if params.Pr is not None else 0.0
+    if Pr < 0.0:
+        raise ValueError("Prandtl number Pr cannot be negative.")
+
+    A, R0, q = calculate_inner_factors(
+        beta=params.plasma_beta,
+        delta_beta=params.plasma_beta_difference,
+        gamma_par=params.parallel_index,
+        gamma_per=params.perpendicular_index,
+        CGL=params.CGL,
+    )
+
+    Delta_prime_model = model_delta_prime(alpha_val, q=q)
+
+    fS = legacy_fS(S)
+    gS = legacy_gS(S)
+    fPr = legacy_fPr(Pr)
+    gPr = legacy_gPr(Pr)
+
+    delta_hat_Coppi = fS * fPr * (A**(-1.0 / 6.0)) * ((alpha_val * S)**(-1.0 / 3.0))
+
+    if Delta_prime_model <= 0.0:
+        logger.debug(
+            f"Delta_prime_model = {Delta_prime_model:.3e} <= 0 for alpha = {alpha_val:.3e} "
+            f"(outside positive-FKR range); using Coppi branch fallback."
+        )
+        delta_hat_model = delta_hat_Coppi
+    else:
+        delta_hat_FKR = gS * gPr * (A**(-1.0 / 5.0)) * (((alpha_val * S)**(-2.0) * Delta_prime_model)**(1.0 / 5.0))
+        p = 8
+        delta_hat_model = (delta_hat_Coppi * delta_hat_FKR) / ((delta_hat_Coppi**p + delta_hat_FKR**p)**(1.0 / p))
+
+    safety = getattr(params, 'inner_resolution_safety', 1.0)
+    if safety is None or safety < 1.0:
+        safety = 1.0
+
+    delta_hat_grid = delta_hat_model / safety
+    inner_scale = a * delta_hat_grid
+    return float(inner_scale)
 
 
 def estimate_max(params: SimulationParams) -> float:

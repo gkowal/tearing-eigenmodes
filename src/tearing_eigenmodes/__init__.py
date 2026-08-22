@@ -1,7 +1,7 @@
 from .exceptions import DeltaError, ConvergenceError, ParameterError
 from .grid import select_NC
 from .analysis import inner_layer_thickness, find_peak_location
-from .physics import eos_indices, estimate_max
+from .physics import eos_indices, estimate_max, calculate_inner_factors, model_delta_prime, estimate_inner_scale
 from .refinement import refine_eigenvalues, refine_wavenumber_bracket, refine_resistive_scale
 from .io import build_dpath, load_config, load_eigenmodes, write_results, save_eigenmode, check_state, compile_metadata
 from .parser import parser_setup, build_parser, build_params, validate_parameters
@@ -20,6 +20,9 @@ __all__ = [
     "find_peak_location",
     "eos_indices",
     "estimate_max",
+    "calculate_inner_factors",
+    "model_delta_prime",
+    "estimate_inner_scale",
     "refine_eigenvalues",
     "refine_wavenumber_bracket",
     "refine_resistive_scale",

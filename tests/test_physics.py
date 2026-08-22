@@ -53,3 +53,121 @@ def test_estimate_max_anisotropy_guards():
             parallel_index=3.0,
             perpendicular_index=2.0,
         ))
+
+
+def test_calculate_inner_factors_classical():
+    from tearing_eigenmodes import calculate_inner_factors
+    A, R0, q = calculate_inner_factors(beta=1.0, delta_beta=0.5, CGL=False)
+    assert A == 1.0
+    assert R0 == 1.0
+    assert q == 1.0
+
+
+def test_calculate_inner_factors_gyrotropic():
+    import numpy as np
+    from tearing_eigenmodes import calculate_inner_factors
+
+    # Classical limit under CGL (zero beta and delta_beta)
+    A, R0, q = calculate_inner_factors(beta=0.0, delta_beta=0.0, CGL=True)
+    assert A == 1.0
+    assert R0 == 1.0
+    assert q == 1.0
+
+    # Non-trivial Gyrotropic parameters
+    # A = 1 - 0.4 / 2 = 0.8
+    # R0 = 1 + 0.5 * ((3 + 2 - 2) * 1.0 + 3 * 0.4) = 1 + 0.5 * (3.0 + 1.2) = 3.1
+    # q = sqrt(0.8 / 3.1)
+    A, R0, q = calculate_inner_factors(
+        beta=1.0,
+        delta_beta=0.4,
+        gamma_par=3.0,
+        gamma_per=2.0,
+        CGL=True,
+    )
+    assert np.isclose(A, 0.8)
+    assert np.isclose(R0, 3.1)
+    assert np.isclose(q, np.sqrt(0.8 / 3.1))
+
+    # A <= 0 guard (delta_beta >= 2.0)
+    with pytest.raises(DeltaError, match="Gyrotropic inner factors require A > 0"):
+        calculate_inner_factors(delta_beta=2.0, CGL=True)
+
+    # R0 <= 0 guard
+    # R0 = 1 + 0.5 * (3 * 0.0 + 3 * (-1.0)) = 1 - 1.5 = -0.5
+    with pytest.raises(DeltaError, match="Gyrotropic inner factors require A > 0 and R0 > 0"):
+        calculate_inner_factors(beta=0.0, delta_beta=-1.0, gamma_par=3.0, gamma_per=2.0, CGL=True)
+
+
+def test_model_delta_prime():
+    import numpy as np
+    from tearing_eigenmodes import model_delta_prime
+
+    # Classical limit (q = 1)
+    # Delta' = 2 * (1 / 0.2 - 0.2) = 2 * (5.0 - 0.2) = 9.6
+    dp = model_delta_prime(0.2, q=1.0)
+    assert np.isclose(dp, 9.6)
+
+    # Marginal cutoff at alpha = q => Delta' = 0
+    assert np.isclose(model_delta_prime(1.5, q=1.5), 0.0)
+
+    # Beyond marginal cutoff alpha > q => Delta' < 0
+    assert model_delta_prime(2.0, q=1.0) < 0.0
+
+    # Invalid input guards
+    with pytest.raises(ValueError, match="Wavenumber alpha must be strictly positive"):
+        model_delta_prime(0.0)
+
+    with pytest.raises(ValueError, match="Parameter q must be strictly positive"):
+        model_delta_prime(0.1, q=0.0)
+
+
+def test_estimate_inner_scale_classical_and_gyrotropic():
+    import numpy as np
+    from tearing_eigenmodes import estimate_inner_scale
+
+    params_classical = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        S=1e4,
+        Pr=0.0,
+        CGL=False,
+    )
+    scale_classical = estimate_inner_scale(params_classical)
+    assert scale_classical > 0.0
+    assert isinstance(scale_classical, float)
+
+    # Classical limit under Gyrotropic model gives identical scale
+    params_gyrotropic_limit = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        S=1e4,
+        Pr=0.0,
+        CGL=True,
+        plasma_beta=0.0,
+        plasma_beta_difference=0.0,
+        parallel_index=3.0,
+        perpendicular_index=2.0,
+    )
+    scale_gyro_lim = estimate_inner_scale(params_gyrotropic_limit)
+    assert np.isclose(scale_classical, scale_gyro_lim)
+
+    # Higher S reduces inner scale
+    params_high_S = SimulationParams(alpha=0.1, a=1.0, S=1e6, Pr=0.0, CGL=False)
+    scale_high_S = estimate_inner_scale(params_high_S)
+    assert scale_high_S < scale_classical
+
+    # Safety factor scales grid scale inversely
+    params_safe = SimulationParams(alpha=0.1, a=1.0, S=1e4, Pr=0.0, CGL=False)
+    setattr(params_safe, 'inner_resolution_safety', 2.0)
+    scale_safe = estimate_inner_scale(params_safe)
+    assert np.isclose(scale_safe, scale_classical / 2.0)
+
+    # Dimensional scaling with a
+    params_a2 = SimulationParams(alpha=0.1, a=2.0, S=1e4, Pr=0.0, CGL=False)
+    scale_a2 = estimate_inner_scale(params_a2)
+    assert np.isclose(scale_a2, 2.0 * scale_classical)
+
+    # Beyond marginal cutoff alpha > 1.0 (Delta' <= 0) falls back to Coppi branch safely
+    scale_cutoff = estimate_inner_scale(params_classical, alpha=1.5)
+    assert scale_cutoff > 0.0
+
