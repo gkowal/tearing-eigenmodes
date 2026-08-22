@@ -301,39 +301,66 @@ def estimate_max(params: SimulationParams) -> float:
 
 def calculate_anisotropy_scale(params: SimulationParams, current_sigma: Optional[Any] = None) -> float:
     """
-    Calculate the anisotropy pressure scale width.
+    Calculate the Gyrotropic anisotropy pressure scale width delta_q.
+
+    Parameters
+    ----------
+    params : SimulationParams
+        Simulation parameters.
+    current_sigma : complex, optional
+        Current eigenvalue estimate. If None, uses analytic FKR/Coppi growth-rate estimator.
+
+    Returns
+    -------
+    float
+        Dimensional anisotropy pressure scale delta_q = a * delta_hat_q.
+
+    Notes
+    -----
+    - For beta_bar > 0, delta_hat_q = gamma_hat / (alpha * sqrt(beta_bar)).
+    - For beta_bar < 0, central delta_q does not cover off-center structures and is logged.
     """
     if not params.CGL:
         return 0.0
 
-    sigma_val = current_sigma if current_sigma is not None else params.sigma
-    if sigma_val is None:
-        return 0.0
-
-    gamma = getattr(sigma_val, 'real', sigma_val)
-    if gamma is None:
-        return 0.0
-    if isinstance(gamma, np.ndarray):
-        gamma = np.atleast_1d(gamma)[0]
-    gamma = float(gamma)
-    if gamma <= 0.0:
+    alpha = params.alpha
+    a = params.a if params.a is not None else 1.0
+    if alpha is None or alpha <= 0.0 or a <= 0.0:
         return 0.0
 
     beta = params.plasma_beta
     delta_beta = params.plasma_beta_difference
     gamma_par = params.parallel_index
     gamma_per = params.perpendicular_index
-    alpha = params.alpha
-    a = params.a
-
-    if alpha is None or alpha <= 0.0 or a is None or a <= 0.0:
-        return 0.0
 
     beta_bar = 0.5 * ((gamma_par + gamma_per - 2.0) * beta + (gamma_par - 1.0) * delta_beta)
-    if beta_bar <= 0.0:
+    if beta_bar < 0.0:
+        logger.debug(
+            f"beta_bar = {beta_bar:+.3e} < 0: central delta_q estimate does not cover off-center pressure structures."
+        )
+        return 0.0
+    elif np.isclose(beta_bar, 0.0):
         return 0.0
 
-    # delta_aniso = gamma * tau_A / (k * a * sqrt(beta_bar))
-    # In our dimensionless equations, k * a = alpha.
-    delta_aniso = gamma / (alpha * np.sqrt(beta_bar))
-    return delta_aniso
+    gamma: Optional[float] = None
+    sigma_val = current_sigma if current_sigma is not None else params.sigma
+    if sigma_val is not None:
+        g = getattr(sigma_val, 'real', sigma_val)
+        if isinstance(g, np.ndarray):
+            g = np.atleast_1d(g)[0]
+        if g is not None and float(g) > 0.0:
+            gamma = float(g)
+
+    if gamma is None or gamma <= 0.0:
+        try:
+            gamma = estimate_growth_rate(params, alpha=alpha)
+        except Exception as ex:
+            logger.debug(f"Could not estimate growth rate for delta_q: {ex}")
+            return 0.0
+
+    if gamma is None or gamma <= 0.0:
+        return 0.0
+
+    delta_hat_q = gamma / (alpha * np.sqrt(beta_bar))
+    delta_q = a * delta_hat_q
+    return float(delta_q)

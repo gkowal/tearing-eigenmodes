@@ -171,3 +171,52 @@ def test_estimate_inner_scale_classical_and_gyrotropic():
     scale_cutoff = estimate_inner_scale(params_classical, alpha=1.5)
     assert scale_cutoff > 0.0
 
+
+def test_calculate_anisotropy_scale_growth_estimate():
+    import numpy as np
+    from tearing_eigenmodes import calculate_anisotropy_scale, SimulationParams
+    from tearing_eigenmodes.physics import estimate_growth_rate
+
+    # Positive beta_bar with NO initial sigma supplied -> uses estimate_growth_rate
+    params = SimulationParams(
+        CGL=True,
+        alpha=0.1,
+        a=1.0,
+        plasma_beta=1.0,
+        plasma_beta_difference=0.1,
+        parallel_index=3.0,
+        perpendicular_index=2.0,
+        S=1e4,
+        sigma=None,
+    )
+    scale = calculate_anisotropy_scale(params)
+    assert scale > 0.0
+
+    gamma_hat = estimate_growth_rate(params, alpha=0.1)
+    beta_bar = 0.5 * ((3.0 + 2.0 - 2.0) * 1.0 + (3.0 - 1.0) * 0.1)  # 1.6
+    expected_scale = gamma_hat / (0.1 * np.sqrt(beta_bar))
+    assert np.isclose(scale, expected_scale)
+
+
+def test_calculate_anisotropy_scale_negative_beta_bar(caplog):
+    import logging
+    from tearing_eigenmodes import calculate_anisotropy_scale, SimulationParams
+
+    # Negative beta_bar branch: beta = 0.1, delta_beta = -0.5
+    # beta_bar = 0.5 * (3 * 0.1 + 2 * (-0.5)) = 0.5 * (0.3 - 1.0) = -0.35 < 0
+    params = SimulationParams(
+        CGL=True,
+        alpha=0.1,
+        a=1.0,
+        plasma_beta=0.1,
+        plasma_beta_difference=-0.5,
+        parallel_index=3.0,
+        perpendicular_index=2.0,
+        S=1e4,
+    )
+    with caplog.at_level(logging.DEBUG):
+        scale = calculate_anisotropy_scale(params)
+
+    assert scale == 0.0
+    assert "central delta_q estimate does not cover off-center pressure structures" in caplog.text
+
