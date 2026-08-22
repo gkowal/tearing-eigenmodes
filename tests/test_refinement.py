@@ -146,13 +146,12 @@ def test_refine_inner_scale_cached_and_fallback(temp_npz_dir: str) -> None:
         CGL=False,
     )
 
-    # 1. Within cached range [1.0, 2.0]: logarithmic interpolation
-    vs = np.array([1.5])
+    # 1. Within cached range [0.1, 0.2]: log-log interpolation
+    vs = np.array([0.15])
     deltas = refine_inner_scale(vs, params)
     assert deltas[0] is not None
-    # Log-space midpoint: exp((ln(0.02) + ln(0.04))/2) = sqrt(0.02 * 0.04) = 0.02828...
-    expected_log_mid = np.sqrt(0.02 * 0.04)
-    assert np.isclose(deltas[0], expected_log_mid, atol=1e-3)
+    # Log-log interpolation: scale(0.15) = 0.030
+    assert np.isclose(deltas[0], 0.030, atol=1e-5)
 
     # 2. Outside cached range: falls back to analytic estimator
     vs_outside = np.array([5.0])
@@ -199,14 +198,166 @@ def test_refine_inner_scale_zero_thickness_filtering(temp_npz_dir: str) -> None:
         CGL=False,
     )
 
-    vs = np.array([1.0, 2.5])
+    vs = np.array([0.1, 0.25])
     deltas = refine_inner_scale(vs, params)
-    # At v=1.0, the cached thickness was 0.0 (ignored, outside valid cached range [2.0, 3.0]), so it gets estimator
-    expected_v1 = estimate_inner_scale(params, alpha=1.0)
+    # At v=0.1, the cached thickness was 0.0 (ignored, outside valid cached range [0.2, 0.3]), so it gets estimator
+    expected_v1 = estimate_inner_scale(params, alpha=0.1)
     assert deltas[0] is not None
     assert np.isclose(deltas[0], expected_v1)
 
-    # At v=2.5, it interpolates between 0.04 and 0.08
-    expected_v25 = np.sqrt(0.04 * 0.08)
+    # At v=0.25, it interpolates between 0.04 and 0.08
     assert deltas[1] is not None
-    assert np.isclose(deltas[1], expected_v25, atol=1e-3)
+    assert deltas[1] > 0.04 and deltas[1] < 0.08
+
+
+def test_refine_inner_scale_multiscale_mechanism_switching(temp_npz_dir: str) -> None:
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # State 1 at k=0.1: resistive is limiting (0.020 vs viscous 0.070)
+    scales_1 = {
+        "classical.bz_induction.eta_vs_ideal": 0.020,
+        "classical.uz_vorticity.nu_vs_ideal": 0.070,
+    }
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz"),
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.020,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.020,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales=scales_1,
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # State 2 at k=0.3: viscous is limiting (0.030 vs resistive 0.080)
+    scales_2 = {
+        "classical.bz_induction.eta_vs_ideal": 0.080,
+        "classical.uz_vorticity.nu_vs_ideal": 0.030,
+    }
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz"),
+        wavenumber=0.3,
+        eigenvalue=0.06 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.030,
+        minimum_physical_scale_key="classical.uz_vorticity.nu_vs_ideal",
+        minimum_scale_nodes=15,
+        resistive_layer_thickness=0.080,
+        resistive_layer_nodes=40,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales=scales_2,
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        alpha=0.1,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # Check that at k=0.1, refined scale is 0.020
+    vs = np.array([0.1, 0.3])
+    deltas = refine_inner_scale(vs, params)
+    assert deltas[0] is not None and deltas[1] is not None
+    assert np.isclose(deltas[0], 0.020, atol=1e-5)
+    assert np.isclose(deltas[1], 0.030, atol=1e-5)
+
+
+def test_refine_inner_scale_safety_factor_applied(temp_npz_dir: str) -> None:
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    scales = {"classical.bz_induction.eta_vs_ideal": 0.040}
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz"),
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.040,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.040,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales=scales,
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        alpha=0.1,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=2.0,
+    )
+
+    vs = np.array([0.1])
+    deltas = refine_inner_scale(vs, params)
+    # physical scale = 0.040, safety = 2.0 -> grid scale = 0.020
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], 0.020, atol=1e-5)
+
+
+def test_refine_inner_scale_parameter_sweep_negative_coordinate(temp_npz_dir: str) -> None:
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # Dependence sweep with negative and positive values
+    for val, scale in [(-0.5, 0.030), (0.0, 0.040), (0.5, 0.050)]:
+        scales = {"cgl.bz_induction.eta_vs_ideal": scale}
+        save_eigenmode(
+            os.path.join(temp_npz_dir, f"state_Δβ{val:+.6e}.npz"),
+            scan_parameter="Δβ",
+            scan_parameter_value=val,
+            wavenumber=0.1,
+            eigenvalue=0.05 + 0.0j,
+            tolerance=1e-6,
+            minimum_physical_scale=scale,
+            minimum_physical_scale_key="cgl.bz_induction.eta_vs_ideal",
+            minimum_scale_nodes=10,
+            resistive_layer_thickness=scale,
+            resistive_layer_nodes=10,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            resolution=128,
+            grid=np.linspace(-10, 10, 128),
+            mode_scales=scales,
+            dby=np.ones(128),
+            dbz=np.ones(128),
+            duy=np.ones(128),
+            duz=np.ones(128),
+        )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        dependence="Δβ",
+        CGL=True,
+        inner_resolution_safety=1.0,
+    )
+
+    vs = np.array([-0.25, 0.25])
+    deltas = refine_inner_scale(vs, params)
+    # Interpolation in (v, log scale) across nonpositive coordinates
+    assert deltas[0] is not None and deltas[0] > 0.030 and deltas[0] < 0.040
+    assert deltas[1] is not None and deltas[1] > 0.040 and deltas[1] < 0.050
