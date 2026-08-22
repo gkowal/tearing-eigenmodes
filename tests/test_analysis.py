@@ -14,6 +14,7 @@ from tearing_eigenmodes.analysis import (
 
 class MockSystem:
     def __init__(self, grid, a=1.0, w=0.0, S=1.0, kx=1.0, Bx=None, Ux=None, shear=False, xi=0.0, Pr=0.0):
+        self.model = "classical"
         self.grid = grid
         self.a = a
         self.w = w
@@ -267,3 +268,54 @@ def test_minimum_eigenmode_scale_selection():
     s_tie, k_tie = minimum_eigenmode_scale(tie_scales, model="classical")
     assert s_tie == 0.05
     assert k_tie == "classical.bz_induction.eta_vs_ideal"
+
+
+def test_extract_central_dominance_normalization_invariance():
+    """Dominance crossing must remain invariant under very small and large complex scalings."""
+    z = np.linspace(-2.0, 2.0, 401)
+    # Known profile crossing reference at |z| = 0.4 where T_num(0.4) = 0.5 = T_ref
+    T_num = 0.5**((z / 0.4)**2)
+    T_ref = 0.5 * np.ones_like(z)
+    L_lhs = np.ones_like(z)
+
+    # 1. Base crossing
+    scale_base = extract_central_dominance_scale(z, T_num, T_ref, z_max=2.0, L_lhs=L_lhs)
+    assert np.isclose(scale_base, 0.4, atol=1e-3)
+
+    # 2. Very small scaling (1e-20)
+    scale_tiny = extract_central_dominance_scale(
+        z, 1e-20 * T_num, 1e-20 * T_ref, z_max=2.0, L_lhs=1e-20 * L_lhs
+    )
+    assert np.isclose(scale_tiny, 0.4, atol=1e-3)
+
+    # 3. Large complex scaling factor ((3-4j)*1e15)
+    c_factor = (3.0 - 4.0j) * 1e15
+    scale_large = extract_central_dominance_scale(
+        z, c_factor * T_num, c_factor * T_ref, z_max=2.0, L_lhs=c_factor * L_lhs
+    )
+    assert np.isclose(scale_large, 0.4, atol=1e-3)
+
+
+def test_extract_central_dominance_equation_local_floor():
+    """Profiles entirely below equation-local activity floor must return nan."""
+    z = np.linspace(-1.0, 1.0, 101)
+    L_lhs = np.ones_like(z) * 1.0
+    # num and ref are order 1e-18, while LHS is 1.0 -> eps_q ~ 100 * eps_mach * 1.0 ~ 2e-14
+    T_num = np.ones_like(z) * 1e-18
+    T_ref = np.ones_like(z) * 1e-18
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isnan(scale)
+
+
+def test_measure_eigenmode_scales_unsupported_model_rejection():
+    """measure_eigenmode_scales must raise NotImplementedError for unknown equation systems."""
+    class UnknownSystem:
+        def __init__(self):
+            self.result = {"duz": np.zeros(10), "dbz": np.zeros(10), "sigma": 1.0}
+
+    sys = UnknownSystem()
+    with pytest.raises(NotImplementedError, match="Unsupported system"):
+        measure_eigenmode_scales(sys)
+
+    with pytest.raises(NotImplementedError, match="Unsupported model"):
+        measure_eigenmode_scales(sys, model="relativistic_mhd")

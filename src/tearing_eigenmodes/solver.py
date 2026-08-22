@@ -1,7 +1,13 @@
 from .params import SimulationParams
 from .exceptions import DeltaError, ConvergenceError
 from .grid import select_NC, select_C_for_N
-from .analysis import inner_layer_thickness, measure_eigenmode_scales, minimum_eigenmode_scale
+from .analysis import (
+    inner_layer_thickness,
+    measure_eigenmode_scales,
+    minimum_eigenmode_scale,
+    CLASSICAL_GRID_SCALE_KEYS,
+    CGL_GRID_SCALE_KEYS,
+)
 from psecas import Solver, ChebyshevRationalGrid
 
 class TearingChebyshevRationalGrid(ChebyshevRationalGrid):
@@ -332,41 +338,58 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         C = solver.grid.C
 
         system_result = getattr(system, 'result')
-
-        # Multi-scale eigenmode analysis
-        scales = measure_eigenmode_scales(system)
-        model_name = "cgl" if CGL else "classical"
-        min_scale, min_key = minimum_eigenmode_scale(scales, model=model_name)
-
-        if min_scale is not None and np.isfinite(min_scale) and min_scale > 0.0:
-            δin = min_scale
-            I = np.where(np.abs(system.grid.zg) <= δin)
-            nin = max(1, I[0].size)
-        else:
-            δin = float("nan")
-            nin = None
+        is_converged = bool(system_result.get("converged", True) and float(np.atleast_1d(e)[0]) <= 1.0)
 
         I_wa = np.where(np.abs(system.grid.zg) <= (w + a))
         nwa = I_wa[0].size
 
-        # Resistive diagnostic scale
-        res_key = "cgl.bz_induction.eta_vs_ideal" if CGL else "classical.bz_induction.eta_vs_ideal"
-        res_scale = scales.get(res_key, float("nan"))
-        if res_scale is not None and np.isfinite(res_scale) and res_scale > 0.0:
-            res_nodes = max(1, np.where(np.abs(system.grid.zg) <= res_scale)[0].size)
+        if is_converged:
+            # Multi-scale eigenmode analysis for converged mode
+            scales = measure_eigenmode_scales(system)
+            model_name = "cgl" if CGL else "classical"
+            min_scale, min_key = minimum_eigenmode_scale(scales, model=model_name)
+
+            if min_scale is not None and np.isfinite(min_scale) and min_scale > 0.0:
+                δin = min_scale
+                I = np.where(np.abs(system.grid.zg) <= δin)
+                nin = max(1, I[0].size)
+                min_scale_val = min_scale
+                min_key_str = min_key if min_key is not None else ""
+            else:
+                δin = float("nan")
+                nin = 0
+                min_scale_val = float("nan")
+                min_key_str = ""
+
+            # Resistive diagnostic scale
+            res_key = "cgl.bz_induction.eta_vs_ideal" if CGL else "classical.bz_induction.eta_vs_ideal"
+            res_scale = scales.get(res_key, float("nan"))
+            if res_scale is not None and np.isfinite(res_scale) and res_scale > 0.0:
+                res_nodes = max(1, np.where(np.abs(system.grid.zg) <= res_scale)[0].size)
+            else:
+                res_scale = float("nan")
+                res_nodes = 0
         else:
+            # Solve did not converge: populate all-nan/zero invalid dictionaries
+            candidate_keys = CGL_GRID_SCALE_KEYS if CGL else CLASSICAL_GRID_SCALE_KEYS
+            scales = {k: float("nan") for k in candidate_keys}
+            δin = float("nan")
+            nin = 0
+            min_scale_val = float("nan")
+            min_key_str = ""
             res_scale = float("nan")
             res_nodes = 0
 
         system_result["mode_scales"] = scales
-        system_result["minimum_physical_scale"] = min_scale if min_scale is not None else float("nan")
-        system_result["minimum_physical_scale_key"] = min_key if min_key is not None else ""
-        system_result["minimum_scale_nodes"] = nin if nin is not None else 0
+        system_result["minimum_physical_scale"] = min_scale_val
+        system_result["minimum_physical_scale_key"] = min_key_str
+        system_result["minimum_scale_nodes"] = nin
         system_result["resistive_layer_thickness"] = res_scale
         system_result["resistive_layer_nodes"] = res_nodes
 
-        # Print verbose deterministic mode scales line once for final mode
-        if verbose:
+        # Print verbose deterministic mode scales line once for final mode if converged
+        emit_scale = getattr(params, "emit_scale_summary", True)
+        if verbose and is_converged and emit_scale:
             scale_entries = []
             for k in sorted(scales.keys()):
                 v = scales[k]
@@ -408,7 +431,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         s["resistive_layer_thickness"] = system_result["resistive_layer_thickness"]
         s["resistive_layer_nodes"] = system_result["resistive_layer_nodes"]
 
-        limiting_str = f" [limiting: {min_key}]" if min_key else ""
+        limiting_str = f" [limiting: {min_key_str}]" if min_key_str else ""
         logger.debug(
             f'Calculation done for α = {α:.4e} with C = {C:.3e} '
             f'({nin} points over interval |z| < δin={δin:.3e}{limiting_str}, {nwa} points over |z| < w+a):'

@@ -3,6 +3,8 @@ from typing import Callable, Union, Tuple, Any, Optional, Dict, List
 import numpy as np
 from scipy.optimize import minimize_scalar
 
+from .systems import TearingClassicalMHD, TearingGyrotropicMHD
+
 logger = logging.getLogger(__name__)
 
 MODE_SCALE_SCHEMA_VERSION: int = 1
@@ -31,11 +33,16 @@ def extract_central_dominance_scale(
     T_num: np.ndarray,
     T_ref: np.ndarray,
     z_max: Optional[float] = None,
+    L_lhs: Optional[np.ndarray] = None,
     floor_eps: Optional[float] = None,
 ) -> float:
     """
     Extract the positive outer boundary of the connected central dominance
     interval where |T_num| >= |T_ref|.
+
+    Uses an equation-local activity floor:
+        eps_q = c_eps * eps_mach * max_{|z| <= z_max} |L_q(z)|
+    ensuring scale-invariance under arbitrary complex eigenvector normalizations.
 
     Returns:
         - finite float > 0: positive outer boundary of central connected dominance.
@@ -53,18 +60,37 @@ def extract_central_dominance_scale(
     if not (np.all(np.isfinite(z_arr)) and np.all(np.isfinite(num_arr)) and np.all(np.isfinite(ref_arr))):
         return float("nan")
 
-    # Activity floor check: if both profiles are entirely negligible
-    max_activity = max(float(np.max(num_arr)), float(np.max(ref_arr)))
-    if max_activity < 1e-15:
-        return float("nan")
-
-    # Proportional log floor preserves scale invariance under eigenvector normalization
-    eps_val = floor_eps if floor_eps is not None else 1e-15 * max_activity
-
     if z_max is None or z_max <= 0.0:
         z_max_val = float(np.max(np.abs(z_arr)))
     else:
         z_max_val = z_max
+
+    eps_mach = np.finfo(float).eps
+    max_terms = max(float(np.max(num_arr)), float(np.max(ref_arr)))
+    if max_terms <= 0.0 or np.isnan(max_terms):
+        return float("nan")
+
+    if L_lhs is not None:
+        L_arr = np.abs(np.asarray(L_lhs))
+        if L_arr.size > 0:
+            mask_lhs = np.abs(z_arr) <= z_max_val
+            if np.any(mask_lhs):
+                max_lhs = float(np.max(L_arr[mask_lhs]))
+            else:
+                max_lhs = float(np.max(L_arr))
+        else:
+            max_lhs = 0.0
+        if max_lhs > 0.0 and not np.isnan(max_lhs):
+            eps_q = 100.0 * eps_mach * max_lhs
+        else:
+            eps_q = 100.0 * eps_mach * max_terms
+    else:
+        eps_q = 100.0 * eps_mach * max_terms
+
+    if max_terms < eps_q:
+        return float("nan")
+
+    eps_val = floor_eps if floor_eps is not None else eps_q
 
     def _dominance_boundary_1d(z_side: np.ndarray, num_side: np.ndarray, ref_side: np.ndarray) -> float:
         if z_side.size < 2:
@@ -341,10 +367,10 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
     # Induction scales
     if profiles.T_eta_b is not None:
         scales["classical.bz_induction.eta_vs_ideal"] = extract_central_dominance_scale(
-            z, profiles.T_eta_b, profiles.E_b, z_max=z_max
+            z, profiles.T_eta_b, profiles.E_b, z_max=z_max, L_lhs=profiles.L_b
         )
         scales["classical.bz_induction.eta_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_eta_b, profiles.T_F_b, z_max=z_max
+            z, profiles.T_eta_b, profiles.T_F_b, z_max=z_max, L_lhs=profiles.L_b
         )
     else:
         scales["classical.bz_induction.eta_vs_ideal"] = float("nan")
@@ -352,14 +378,14 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
 
     if profiles.T_G_b is not None:
         scales["classical.bz_induction.g_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_G_b, profiles.T_F_b, z_max=z_max
+            z, profiles.T_G_b, profiles.T_F_b, z_max=z_max, L_lhs=profiles.L_b
         )
     else:
         scales["classical.bz_induction.g_vs_f"] = float("nan")
 
     if profiles.T_xi_b is not None:
         scales["classical.bz_induction.xi_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_xi_b, profiles.T_F_b, z_max=z_max
+            z, profiles.T_xi_b, profiles.T_F_b, z_max=z_max, L_lhs=profiles.L_b
         )
     else:
         scales["classical.bz_induction.xi_vs_f"] = float("nan")
@@ -367,10 +393,10 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
     # Vorticity scales
     if profiles.T_nu_omega is not None:
         scales["classical.uz_vorticity.nu_vs_ideal"] = extract_central_dominance_scale(
-            z, profiles.T_nu_omega, profiles.E_omega, z_max=z_max
+            z, profiles.T_nu_omega, profiles.E_omega, z_max=z_max, L_lhs=profiles.L_omega
         )
         scales["classical.uz_vorticity.nu_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_nu_omega, profiles.T_F_omega, z_max=z_max
+            z, profiles.T_nu_omega, profiles.T_F_omega, z_max=z_max, L_lhs=profiles.L_omega
         )
     else:
         scales["classical.uz_vorticity.nu_vs_ideal"] = float("nan")
@@ -378,14 +404,14 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
 
     if profiles.T_G_omega is not None:
         scales["classical.uz_vorticity.g_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_G_omega, profiles.T_F_omega, z_max=z_max
+            z, profiles.T_G_omega, profiles.T_F_omega, z_max=z_max, L_lhs=profiles.L_omega
         )
     else:
         scales["classical.uz_vorticity.g_vs_f"] = float("nan")
 
     if profiles.T_xi_omega is not None:
         scales["classical.uz_vorticity.xi_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_xi_omega, profiles.T_F_omega, z_max=z_max
+            z, profiles.T_xi_omega, profiles.T_F_omega, z_max=z_max, L_lhs=profiles.L_omega
         )
     else:
         scales["classical.uz_vorticity.xi_vs_f"] = float("nan")
@@ -482,10 +508,10 @@ def measure_cgl_scales(system: Any) -> Dict[str, float]:
 
     if profiles.T_eta_by is not None:
         scales["cgl.by_induction.eta_vs_ideal"] = extract_central_dominance_scale(
-            z, profiles.T_eta_by, profiles.E_by, z_max=z_max
+            z, profiles.T_eta_by, profiles.E_by, z_max=z_max, L_lhs=profiles.L_by
         )
         scales["cgl.by_induction.eta_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_eta_by, profiles.T_F_by, z_max=z_max
+            z, profiles.T_eta_by, profiles.T_F_by, z_max=z_max, L_lhs=profiles.L_by
         )
     else:
         scales["cgl.by_induction.eta_vs_ideal"] = float("nan")
@@ -493,10 +519,10 @@ def measure_cgl_scales(system: Any) -> Dict[str, float]:
 
     if profiles.T_eta_bz is not None:
         scales["cgl.bz_induction.eta_vs_ideal"] = extract_central_dominance_scale(
-            z, profiles.T_eta_bz, profiles.E_bz, z_max=z_max
+            z, profiles.T_eta_bz, profiles.E_bz, z_max=z_max, L_lhs=profiles.L_bz
         )
         scales["cgl.bz_induction.eta_vs_f"] = extract_central_dominance_scale(
-            z, profiles.T_eta_bz, profiles.T_F_bz, z_max=z_max
+            z, profiles.T_eta_bz, profiles.T_F_bz, z_max=z_max, L_lhs=profiles.L_bz
         )
     else:
         scales["cgl.bz_induction.eta_vs_ideal"] = float("nan")
@@ -505,19 +531,39 @@ def measure_cgl_scales(system: Any) -> Dict[str, float]:
     return scales
 
 
-def measure_eigenmode_scales(system: Any) -> Dict[str, float]:
+def measure_eigenmode_scales(system: Any, model: Optional[str] = None) -> Dict[str, float]:
     """
     Evaluate equation terms and measure standardized physical dominance scales.
 
     Dispatches to model-specific term evaluators (Classical MHD vs CGL).
+    Raises NotImplementedError for unrecognized equation systems.
     """
+    if model is not None:
+        m = model.lower()
+        if "classical" in m:
+            return measure_classical_scales(system)
+        elif "cgl" in m or "gyrotropic" in m:
+            return measure_cgl_scales(system)
+        else:
+            raise NotImplementedError(f"Unsupported model: {model}")
+
+    model_hint = getattr(system, "model", None)
+    if model_hint is not None:
+        m = str(model_hint).lower()
+        if "classical" in m:
+            return measure_classical_scales(system)
+        elif "cgl" in m or "gyrotropic" in m:
+            return measure_cgl_scales(system)
+        else:
+            raise NotImplementedError(f"Unsupported system model: {model_hint}")
+
     model_name = system.__class__.__name__
-    if "Classical" in model_name:
+    if "Classical" in model_name or isinstance(system, TearingClassicalMHD):
         return measure_classical_scales(system)
-    elif "Gyrotropic" in model_name or "CGL" in model_name or (hasattr(system, "By") and not hasattr(system, "Ux")):
+    elif "Gyrotropic" in model_name or "CGL" in model_name or isinstance(system, TearingGyrotropicMHD):
         return measure_cgl_scales(system)
     else:
-        return measure_classical_scales(system)
+        raise NotImplementedError(f"Unsupported system class: {model_name}. Must be Classical or Gyrotropic MHD.")
 
 
 def make_fast_interpolator(grid: Any) -> Callable[[float, np.ndarray], float]:

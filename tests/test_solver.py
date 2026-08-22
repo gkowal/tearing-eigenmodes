@@ -100,3 +100,60 @@ def test_eigenmodes_verbose_scale_logging(caplog):
     msg = scale_logs[0]
     assert "classical.bz_induction.eta_vs_ideal=" in msg or "classical.bz_induction.eta_vs_f=" in msg
     assert "nan" not in msg
+
+
+def test_eigenmodes_all_invalid_scales_behavior(monkeypatch: pytest.MonkeyPatch):
+    """When all candidate scales are invalid, delta_in must be nan and nin must be 0."""
+    from tearing_eigenmodes.analysis import CLASSICAL_GRID_SCALE_KEYS
+    def mock_measure(sys):
+        return {k: float("nan") for k in CLASSICAL_GRID_SCALE_KEYS}
+
+    monkeypatch.setattr("tearing_eigenmodes.solver.measure_eigenmode_scales", mock_measure)
+
+    params = SimulationParams(
+        alpha=0.15,
+        a=1.0,
+        w=0.0,
+        S=1e3,
+        Pr=0.0,
+        Nmin=64,
+        Nmax=512,
+        Ninc=32,
+        dynamic_C=False,
+    )
+    sigma, s, e, delta_in, nin, nwa, C, N, z, success = eigenmodes(params)
+    assert success
+    assert delta_in is not None and np.isnan(delta_in)
+    assert nin == 0
+    assert isinstance(nin, int)
+    assert np.isnan(s["minimum_physical_scale"])
+    assert s["minimum_physical_scale_key"] == ""
+    assert s["minimum_scale_nodes"] == 0
+
+
+def test_eigenmodes_unconverged_solve_behavior():
+    """Unconverged solves (tolerance > 1.0) must produce all-nan scale dictionary and nin=0."""
+    params = SimulationParams(
+        alpha=0.15,
+        a=1.0,
+        w=0.0,
+        S=1e3,
+        Pr=0.0,
+        Nmin=64,
+        Nmax=288,  # select_NC finds Nmin=224; solver exhausts 288 without reaching atol=1e-30
+        Ninc=32,
+        atol=1e-30,
+        rtol=1e-30,
+        dynamic_C=False,
+    )
+    sigma, s, e, delta_in, nin, nwa, C, N, z, success = eigenmodes(params)
+    assert success
+    assert float(np.atleast_1d(e)[0]) > 1.0
+    assert delta_in is not None and np.isnan(delta_in)
+    assert nin == 0
+    assert isinstance(nin, int)
+    assert np.isnan(s["minimum_physical_scale"])
+    assert s["minimum_physical_scale_key"] == ""
+    assert s["minimum_scale_nodes"] == 0
+    for k, val in s["mode_scales"].items():
+        assert np.isnan(val)

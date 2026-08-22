@@ -222,7 +222,7 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
         "--thickness-tolerance", "-δtol",
         type=float,
         default=1e-3,
-        help="inner‑layer thickness estimation tolerance"
+        help="(deprecated) Legacy inner‑layer thickness tolerance; local bracket interpolation on the Chebyshev grid is directly grid-resolved."
     )
 
     parser.add_argument(
