@@ -38,7 +38,7 @@ Grid resolution ($N$) and rational Chebyshev scaling factor ($C$) are automatica
 * **`--inner-scale`** (`-δin`): Explicit target inner scale to resolve. If specified, overrides automatic estimation directly without applying safety factor. If omitted, it is automatically computed using per-term eigenmode scale crossings or analytic FKR/Coppi asymptotic inner-scale formulas across Classical and Gyrotropic regimes.
 * **`--resistive-scale`** (`-δres`): *(Deprecated)* Legacy alias for `--inner-scale`.
 * **`--thickness-tolerance`** (`-δtol`): *(Deprecated)* Legacy tolerance parameter; local-bracket interpolation on the Chebyshev grid is directly grid-resolved.
-* **`--inner-resolution-safety`** (`-s`): Numerical safety factor ($\ge 1.0$, default: 1.0) scaling the target grid inner scale finer than the physical prediction ($L_{\mathrm{inner}} = \ell_{\min} / s$).
+* **`--inner-resolution-safety`**: Numerical safety factor ($\ge 1.0$, default: 1.01) scaling the target grid inner scale finer than the physical prediction ($L_{\mathrm{inner}} = \ell_{\min} / s$). Safety 1.0 is valid but provides no margin against solve-to-solve physical-scale drift.
 * **`--n-inner-scale`** (`-nin`): Number of collocation points allocated to resolve the inner scale (default: 5).
 * **`--n-equilibrium`** (`-neq`): Number of collocation points allocated to resolve the equilibrium current sheet $a + w$ (default: 5).
 * **`--n-anisotropy`** (`-naniso`): Number of collocation points allocated to resolve the Gyrotropic pressure-anisotropy scale $\delta_q$ (default: 5).
@@ -48,7 +48,7 @@ The solver evaluates equation-level balance diagnostics across resistive, viscou
 * **Classical MHD**: Computes 8 standardized dominance scales across induction and vorticity equations using equation-local activity floors ($\epsilon_q$).
 * **CGL Gyrotropic MHD**: Computes 4 standardized induction dominance scales ($\epsilon = 0$).
 * **Persistence**: Stores complete versioned physical-scale dictionaries in `.npz` files alongside the canonical minimum physical scale ($\delta_{\mathrm{in}}$).
-* **Refinement**: Interpolates active candidate physical scales independently within contiguous valid segments, rejecting unconverged cached records and preventing unconstrained interpolation across invalidity gaps.
+* **Refinement**: Interpolates active candidate physical scales independently within contiguous valid segments. Unconverged readable records act as barriers and split interpolation segments. Fallback precedence (`explicit --inner-scale -> per-term minimum / safety -> scalar minimum / safety -> legacy resistive / safety -> analytic estimator`) is evaluated independently at every requested coordinate. Mixed legacy and new caches remain fully supported.
 
 ## License
 
