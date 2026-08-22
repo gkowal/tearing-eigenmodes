@@ -1,6 +1,15 @@
 from .exceptions import DeltaError, ConvergenceError, ParameterError
 from .grid import select_NC
-from .analysis import inner_layer_thickness, find_peak_location
+from .analysis import (
+    inner_layer_thickness,
+    find_peak_location,
+    extract_central_dominance_scale,
+    minimum_eigenmode_scale,
+    measure_eigenmode_scales,
+    MODE_SCALE_SCHEMA_VERSION,
+    CLASSICAL_GRID_SCALE_KEYS,
+    CGL_GRID_SCALE_KEYS,
+)
 from .physics import (
     eos_indices,
     estimate_max,
@@ -28,6 +37,12 @@ __all__ = [
     "select_NC",
     "inner_layer_thickness",
     "find_peak_location",
+    "extract_central_dominance_scale",
+    "minimum_eigenmode_scale",
+    "measure_eigenmode_scales",
+    "MODE_SCALE_SCHEMA_VERSION",
+    "CLASSICAL_GRID_SCALE_KEYS",
+    "CGL_GRID_SCALE_KEYS",
     "eos_indices",
     "estimate_max",
     "calculate_inner_factors",

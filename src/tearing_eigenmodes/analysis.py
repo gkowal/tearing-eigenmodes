@@ -31,7 +31,7 @@ def extract_central_dominance_scale(
     T_num: np.ndarray,
     T_ref: np.ndarray,
     z_max: Optional[float] = None,
-    floor_eps: float = 1e-30,
+    floor_eps: Optional[float] = None,
 ) -> float:
     """
     Extract the positive outer boundary of the connected central dominance
@@ -58,6 +58,9 @@ def extract_central_dominance_scale(
     if max_activity < 1e-15:
         return float("nan")
 
+    # Proportional log floor preserves scale invariance under eigenvector normalization
+    eps_val = floor_eps if floor_eps is not None else 1e-15 * max_activity
+
     if z_max is None or z_max <= 0.0:
         z_max_val = float(np.max(np.abs(z_arr)))
     else:
@@ -76,8 +79,8 @@ def extract_central_dominance_scale(
         for i in range(z_side.size - 1):
             if num_side[i] >= ref_side[i] and num_side[i + 1] < ref_side[i + 1]:
                 z_l, z_r = z_side[i], z_side[i + 1]
-                q_l = np.log(num_side[i] + floor_eps) - np.log(ref_side[i] + floor_eps)
-                q_r = np.log(num_side[i + 1] + floor_eps) - np.log(ref_side[i + 1] + floor_eps)
+                q_l = np.log(num_side[i] + eps_val) - np.log(ref_side[i] + eps_val)
+                q_r = np.log(num_side[i + 1] + eps_val) - np.log(ref_side[i + 1] + eps_val)
 
                 denom = q_l - q_r
                 if abs(denom) > 1e-30:
@@ -187,6 +190,222 @@ def minimum_eigenmode_scale(
                 min_key = key
 
     return min_scale, min_key
+
+
+from dataclasses import dataclass
+
+@dataclass
+class ClassicalTermProfiles:
+    z: np.ndarray
+    L_b: np.ndarray
+    T_F_b: np.ndarray
+    T_G_b: Optional[np.ndarray]
+    T_xi_b: Optional[np.ndarray]
+    T_eta_b: Optional[np.ndarray]
+    E_b: np.ndarray
+    L_omega: np.ndarray
+    T_F_omega: np.ndarray
+    T_G_omega: Optional[np.ndarray]
+    T_xi_omega: Optional[np.ndarray]
+    T_nu_omega: Optional[np.ndarray]
+    E_omega: np.ndarray
+
+
+def evaluate_classical_terms(system: Any) -> ClassicalTermProfiles:
+    """
+    Evaluate exact equation-local signed complex term profiles for Classical MHD.
+    """
+    grid = system.grid
+    z = grid.zg
+    kx = system.kx
+    a = getattr(system, "a", 1.0)
+    w = getattr(system, "w", 0.0)
+    shear = getattr(system, "shear", False)
+    xi = getattr(system, "ξ", 0.0)
+    eta = getattr(system, "η", None)
+    nu = getattr(system, "ν", 0.0)
+    epsilon = getattr(system, "ϵ", getattr(system, "\u03b5", getattr(system, "Hall", getattr(system, "epsilon", 0.0))))
+    ky = getattr(system, "ky", 0.0)
+
+    if (isinstance(epsilon, bool) and epsilon) or (not isinstance(epsilon, bool) and float(epsilon) > 0):
+        raise NotImplementedError("Classical Hall branch (ϵ > 0) is not supported in schema version 1.")
+    if not np.isclose(ky, 0.0):
+        raise NotImplementedError("Classical 3D modes (ky != 0) are not supported in schema version 1.")
+
+    sol = system.result
+    u = sol["duz"]
+    b = sol["dbz"]
+    sigma = sol["sigma"]
+
+    F = system.Bx
+    G = getattr(system, "Ux", 0.0)
+
+    # Grid derivatives
+    u_z1 = grid.derivative(u, 1)
+    u_z2 = grid.derivative(u, 2)
+    u_z4 = grid.derivative(u, 4)
+
+    b_z1 = grid.derivative(b, 1)
+    b_z2 = grid.derivative(b, 2)
+    b_z3 = grid.derivative(b, 3)
+
+    Dk_b = b_z2 - kx**2 * b
+    Dk_u = u_z2 - kx**2 * u
+
+    d2F = getattr(system, "d2Bxdz", None)
+    if d2F is None:
+        d2F = grid.derivative(F, 2)
+
+    flow_active = bool(w > 0 and shear)
+    if flow_active:
+        d2G = getattr(system, "d2Uxdz", None)
+        if d2G is None:
+            d2G = grid.derivative(G, 2)
+    else:
+        d2G = None
+
+    # Induction equation terms
+    L_b = sigma * b
+    T_F_b = 1j * kx * F * u
+    T_G_b = (-1j * kx * G * b) if flow_active else None
+
+    xi_active = (abs(xi) > 0.0)
+    T_xi_b = (xi * u_z1) if xi_active else None
+
+    eta_active = (eta is not None and eta > 0.0)
+    T_eta_b = (eta * Dk_b) if eta_active else None
+
+    # Ideal envelope for induction
+    ideal_b_list = [np.abs(T_F_b)]
+    if flow_active and T_G_b is not None:
+        ideal_b_list.append(np.abs(T_G_b))
+    if xi_active and T_xi_b is not None:
+        ideal_b_list.append(np.abs(T_xi_b))
+    E_b = np.maximum.reduce(ideal_b_list)
+
+    # Vorticity equation terms
+    L_omega = sigma * Dk_u
+    T_F_omega = 1j * kx * (F * Dk_b - d2F * b)
+
+    if flow_active and d2G is not None:
+        T_G_omega = -1j * kx * (G * Dk_u - d2G * u)
+    else:
+        T_G_omega = None
+
+    T_xi_omega = (xi * (b_z3 - kx**2 * b_z1)) if xi_active else None
+
+    nu_active = (nu is not None and nu > 0.0)
+    if nu_active:
+        Dk2_u = u_z4 - 2.0 * kx**2 * u_z2 + kx**4 * u
+        T_nu_omega = nu * Dk2_u
+    else:
+        T_nu_omega = None
+
+    # Ideal envelope for vorticity
+    ideal_omega_list = [np.abs(T_F_omega)]
+    if flow_active and T_G_omega is not None:
+        ideal_omega_list.append(np.abs(T_G_omega))
+    if xi_active and T_xi_omega is not None:
+        ideal_omega_list.append(np.abs(T_xi_omega))
+    E_omega = np.maximum.reduce(ideal_omega_list)
+
+    return ClassicalTermProfiles(
+        z=z,
+        L_b=L_b,
+        T_F_b=T_F_b,
+        T_G_b=T_G_b,
+        T_xi_b=T_xi_b,
+        T_eta_b=T_eta_b,
+        E_b=E_b,
+        L_omega=L_omega,
+        T_F_omega=T_F_omega,
+        T_G_omega=T_G_omega,
+        T_xi_omega=T_xi_omega,
+        T_nu_omega=T_nu_omega,
+        E_omega=E_omega,
+    )
+
+
+def measure_classical_scales(system: Any) -> Dict[str, float]:
+    """
+    Measure standardized dominance scales for Classical MHD.
+    """
+    profiles = evaluate_classical_terms(system)
+    z = profiles.z
+    a = getattr(system, "a", 1.0)
+    w = getattr(system, "w", 0.0)
+    z_max = w + a
+
+    scales: Dict[str, float] = {}
+
+    # Induction scales
+    if profiles.T_eta_b is not None:
+        scales["classical.bz_induction.eta_vs_ideal"] = extract_central_dominance_scale(
+            z, profiles.T_eta_b, profiles.E_b, z_max=z_max
+        )
+        scales["classical.bz_induction.eta_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_eta_b, profiles.T_F_b, z_max=z_max
+        )
+    else:
+        scales["classical.bz_induction.eta_vs_ideal"] = float("nan")
+        scales["classical.bz_induction.eta_vs_f"] = float("nan")
+
+    if profiles.T_G_b is not None:
+        scales["classical.bz_induction.g_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_G_b, profiles.T_F_b, z_max=z_max
+        )
+    else:
+        scales["classical.bz_induction.g_vs_f"] = float("nan")
+
+    if profiles.T_xi_b is not None:
+        scales["classical.bz_induction.xi_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_xi_b, profiles.T_F_b, z_max=z_max
+        )
+    else:
+        scales["classical.bz_induction.xi_vs_f"] = float("nan")
+
+    # Vorticity scales
+    if profiles.T_nu_omega is not None:
+        scales["classical.uz_vorticity.nu_vs_ideal"] = extract_central_dominance_scale(
+            z, profiles.T_nu_omega, profiles.E_omega, z_max=z_max
+        )
+        scales["classical.uz_vorticity.nu_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_nu_omega, profiles.T_F_omega, z_max=z_max
+        )
+    else:
+        scales["classical.uz_vorticity.nu_vs_ideal"] = float("nan")
+        scales["classical.uz_vorticity.nu_vs_f"] = float("nan")
+
+    if profiles.T_G_omega is not None:
+        scales["classical.uz_vorticity.g_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_G_omega, profiles.T_F_omega, z_max=z_max
+        )
+    else:
+        scales["classical.uz_vorticity.g_vs_f"] = float("nan")
+
+    if profiles.T_xi_omega is not None:
+        scales["classical.uz_vorticity.xi_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_xi_omega, profiles.T_F_omega, z_max=z_max
+        )
+    else:
+        scales["classical.uz_vorticity.xi_vs_f"] = float("nan")
+
+    return scales
+
+
+def measure_eigenmode_scales(system: Any) -> Dict[str, float]:
+    """
+    Evaluate equation terms and measure standardized physical dominance scales.
+
+    Dispatches to model-specific term evaluators (Classical MHD vs CGL).
+    """
+    model_name = system.__class__.__name__
+    if "Classical" in model_name:
+        return measure_classical_scales(system)
+    elif "Gyrotropic" in model_name or "CGL" in model_name or (hasattr(system, "By") and not hasattr(system, "Ux")):
+        raise NotImplementedError("CGL mode scale measurement is not yet implemented.")
+    else:
+        return measure_classical_scales(system)
 
 
 def make_fast_interpolator(grid: Any) -> Callable[[float, np.ndarray], float]:
