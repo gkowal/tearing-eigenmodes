@@ -1,6 +1,193 @@
-from typing import Callable, Union, Tuple, Any
+import logging
+from typing import Callable, Union, Tuple, Any, Optional, Dict, List
 import numpy as np
 from scipy.optimize import minimize_scalar
+
+logger = logging.getLogger(__name__)
+
+MODE_SCALE_SCHEMA_VERSION: int = 1
+
+CLASSICAL_GRID_SCALE_KEYS: Tuple[str, ...] = (
+    "classical.bz_induction.eta_vs_ideal",
+    "classical.bz_induction.eta_vs_f",
+    "classical.bz_induction.g_vs_f",
+    "classical.bz_induction.xi_vs_f",
+    "classical.uz_vorticity.nu_vs_ideal",
+    "classical.uz_vorticity.nu_vs_f",
+    "classical.uz_vorticity.g_vs_f",
+    "classical.uz_vorticity.xi_vs_f",
+)
+
+CGL_GRID_SCALE_KEYS: Tuple[str, ...] = (
+    "cgl.by_induction.eta_vs_ideal",
+    "cgl.by_induction.eta_vs_f",
+    "cgl.bz_induction.eta_vs_ideal",
+    "cgl.bz_induction.eta_vs_f",
+)
+
+
+def extract_central_dominance_scale(
+    z: np.ndarray,
+    T_num: np.ndarray,
+    T_ref: np.ndarray,
+    z_max: Optional[float] = None,
+    floor_eps: float = 1e-30,
+) -> float:
+    """
+    Extract the positive outer boundary of the connected central dominance
+    interval where |T_num| >= |T_ref|.
+
+    Returns:
+        - finite float > 0: positive outer boundary of central connected dominance.
+        - np.inf: term is active but has no finite central crossing in |z| <= z_max
+                  (e.g., dominates the whole interval, or never dominates at center).
+        - np.nan: term is inactive, invalid, empty, or all inputs are below activity floor.
+    """
+    z_arr = np.asarray(z, dtype=float)
+    num_arr = np.abs(np.asarray(T_num))
+    ref_arr = np.abs(np.asarray(T_ref))
+
+    if z_arr.size == 0 or num_arr.size == 0 or ref_arr.size == 0:
+        return float("nan")
+
+    if not (np.all(np.isfinite(z_arr)) and np.all(np.isfinite(num_arr)) and np.all(np.isfinite(ref_arr))):
+        return float("nan")
+
+    # Activity floor check: if both profiles are entirely negligible
+    max_activity = max(float(np.max(num_arr)), float(np.max(ref_arr)))
+    if max_activity < 1e-15:
+        return float("nan")
+
+    if z_max is None or z_max <= 0.0:
+        z_max_val = float(np.max(np.abs(z_arr)))
+    else:
+        z_max_val = z_max
+
+    def _dominance_boundary_1d(z_side: np.ndarray, num_side: np.ndarray, ref_side: np.ndarray) -> float:
+        if z_side.size < 2:
+            return float("inf")
+
+        # Centre node check:
+        # If numerator does not dominate at the resonant center, no central dominance region exists
+        if num_side[0] < ref_side[0]:
+            return float("inf")
+
+        # Walk outward from resonant center
+        for i in range(z_side.size - 1):
+            if num_side[i] >= ref_side[i] and num_side[i + 1] < ref_side[i + 1]:
+                z_l, z_r = z_side[i], z_side[i + 1]
+                q_l = np.log(num_side[i] + floor_eps) - np.log(ref_side[i] + floor_eps)
+                q_r = np.log(num_side[i + 1] + floor_eps) - np.log(ref_side[i + 1] + floor_eps)
+
+                denom = q_l - q_r
+                if abs(denom) > 1e-30:
+                    zc = z_l + (z_r - z_l) * (q_l / denom)
+                else:
+                    zc = 0.5 * (z_l + z_r)
+                return float(zc)
+
+        # Reached outer boundary of the analysis window while remaining dominant
+        return float("inf")
+
+    # Positive side (z >= 0, within z_max)
+    pos_mask = (z_arr >= 0.0)
+    pos_indices = np.where(pos_mask)[0]
+    if pos_indices.size > 0:
+        sort_order = np.argsort(z_arr[pos_indices])
+        sorted_pos_idx = pos_indices[sort_order]
+
+        z_pos = z_arr[sorted_pos_idx]
+        num_pos = num_arr[sorted_pos_idx]
+        ref_pos = ref_arr[sorted_pos_idx]
+
+        in_window = np.where(z_pos <= z_max_val)[0]
+        if in_window.size > 0:
+            last_idx = min(z_pos.size, in_window[-1] + 2)
+            z_pos_win = z_pos[:last_idx]
+            num_pos_win = num_pos[:last_idx]
+            ref_pos_win = ref_pos[:last_idx]
+            scale_pos = _dominance_boundary_1d(z_pos_win, num_pos_win, ref_pos_win)
+            if np.isfinite(scale_pos) and scale_pos > z_max_val:
+                scale_pos = float("inf")
+        else:
+            scale_pos = float("inf")
+    else:
+        scale_pos = float("nan")
+
+    # Negative side (z <= 0, within z_max)
+    neg_mask = (z_arr <= 0.0)
+    neg_indices = np.where(neg_mask)[0]
+    if neg_indices.size > 0:
+        dist_neg = np.abs(z_arr[neg_indices])
+        sort_order = np.argsort(dist_neg)
+        sorted_neg_idx = neg_indices[sort_order]
+
+        z_neg = dist_neg[sort_order]
+        num_neg = num_arr[sorted_neg_idx]
+        ref_neg = ref_arr[sorted_neg_idx]
+
+        in_window = np.where(z_neg <= z_max_val)[0]
+        if in_window.size > 0:
+            last_idx = min(z_neg.size, in_window[-1] + 2)
+            z_neg_win = z_neg[:last_idx]
+            num_neg_win = num_neg[:last_idx]
+            ref_neg_win = ref_neg[:last_idx]
+            scale_neg = _dominance_boundary_1d(z_neg_win, num_neg_win, ref_neg_win)
+            if np.isfinite(scale_neg) and scale_neg > z_max_val:
+                scale_neg = float("inf")
+        else:
+            scale_neg = float("inf")
+    else:
+        scale_neg = float("nan")
+
+    # Combine sides
+    finite_pos = np.isfinite(scale_pos) and scale_pos > 0.0
+    finite_neg = np.isfinite(scale_neg) and scale_neg > 0.0
+
+    if finite_pos and finite_neg:
+        max_s = max(scale_pos, scale_neg)
+        min_s = min(scale_pos, scale_neg)
+        if max_s > 0 and (max_s - min_s) / max_s > 0.2:
+            logger.debug(f"Asymmetric dominance crossing: pos={scale_pos:.4e}, neg={scale_neg:.4e}")
+        return min_s
+    elif finite_pos:
+        return scale_pos
+    elif finite_neg:
+        return scale_neg
+    elif np.isinf(scale_pos) or np.isinf(scale_neg):
+        return float("inf")
+    else:
+        return float("nan")
+
+
+def minimum_eigenmode_scale(
+    scales: Dict[str, float],
+    model: str = "classical",
+) -> Tuple[Optional[float], Optional[str]]:
+    """
+    Select the minimum valid physical scale and its standardized key.
+
+    Filters candidates against the model's key whitelist and retains only
+    finite values > 0.0. Deterministic key order resolves exact ties.
+    Returns (None, None) if no valid candidate exists.
+    """
+    if model.lower().startswith("cgl") or model.lower() == "gyrotropic":
+        candidate_keys = CGL_GRID_SCALE_KEYS
+    else:
+        candidate_keys = CLASSICAL_GRID_SCALE_KEYS
+
+    min_scale: Optional[float] = None
+    min_key: Optional[str] = None
+
+    for key in candidate_keys:
+        val = scales.get(key)
+        if val is not None and np.isfinite(val) and val > 0.0:
+            if min_scale is None or val < min_scale:
+                min_scale = val
+                min_key = key
+
+    return min_scale, min_key
+
 
 def make_fast_interpolator(grid: Any) -> Callable[[float, np.ndarray], float]:
     """
