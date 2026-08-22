@@ -144,7 +144,7 @@ def find_peak_location(u0: np.ndarray, b0: np.ndarray, grid: Any, a: float = 1.0
     # Refine using one neighboring grid point on each side of the coarse peak.
     if field_idx is not None and peak_idx is not None and 0 < peak_idx < (grid.zg.size - 1):
         zl = max(0.0, float(grid.zg[peak_idx - 1]))
-        zh = min(float(a), float(grid.zg[peak_idx + 1]))
+        zh = min(a, float(grid.zg[peak_idx + 1]))
 
         if zl < z_peak < zh:
             def objective(zz):

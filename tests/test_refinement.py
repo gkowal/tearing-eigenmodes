@@ -42,16 +42,16 @@ def create_mock_npz(
     filepath = os.path.join(directory, filename)
     np.savez(
         filepath,
-        wavenumber=float(wavenumber),
+        wavenumber=wavenumber,
         scan_parameter="S",
-        scan_parameter_value=float(val),
+        scan_parameter_value=val,
         eigenvalue=complex(growth),
-        resistive_layer_thickness=float(thickness),
-        tolerance=float(tolerance),
-        grid_scaling_factor=float(scaling),
-        resolution=int(resolution),
-        resistive_layer_nodes=int(nin),
-        current_sheet_nodes=int(nwa),
+        resistive_layer_thickness=thickness,
+        tolerance=tolerance,
+        grid_scaling_factor=scaling,
+        resolution=resolution,
+        resistive_layer_nodes=nin,
+        current_sheet_nodes=nwa,
     )
     return filepath
 

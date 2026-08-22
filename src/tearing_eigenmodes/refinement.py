@@ -185,7 +185,7 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     """
     explicit_scale = params.inner_scale if params.inner_scale is not None else params.delta
     if explicit_scale is not None and explicit_scale > 0.0:
-        return [float(explicit_scale)] * vs.size
+        return [explicit_scale] * vs.size
 
     # Initialize with physics-based estimator for all values
     inner_scales: List[Optional[float]] = [None] * vs.size

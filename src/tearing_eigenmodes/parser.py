@@ -308,17 +308,21 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
     argparse.Namespace
         The validated arguments object.
     """
+    description: str = ""
     if parser_type == 'dispersion':
-        description = "Computes the tearing‑instability dispersion relation for a given set of parameters."
-    elif parser_type == 'maximum':
-        description = "Computes the tearing-instability maximum eigenmodes for a given set of parameters."
+        description = "Calculates the dispersion relation for tearing instability."
+    elif parser_type == 'maxima':
+        description = "Calculates the maximum growth rate for tearing instability."
+    elif parser_type == 'profiles':
+        description = "Plots eigenfunctions for tearing instability."
+    elif parser_type == 'maps':
+        description = "Plots 2D maps of eigenfunctions for tearing instability."
     elif parser_type == 'plot':
         description = "Plots eigenmode solutions from a .npz file."
 
     # ------------------------------------------------------------------
     # 1️⃣  Create a basic ArgumentParser instance (your helper handles
     #     formatting, defaults, etc.).
-    # pyrefly: ignore [unbound-name]
     parser = parser_setup(description=description)
 
     # ------------------------------------------------------------------

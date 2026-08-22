@@ -294,9 +294,9 @@ def modified_case_scale_broadening(
     if inner_scale_base <= 0.0:
         return inner_scale_base
 
-    w_val = max(0.0, float(w))
-    xi_val = max(0.0, float(xi))
-    a_val = max(1e-12, float(a))
+    w_val = max(0.0, w)
+    xi_val = max(0.0, xi)
+    a_val = max(1e-12, a)
 
     w_hat = w_val / a_val
     xi_hat = xi_val / a_val
