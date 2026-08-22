@@ -7,6 +7,8 @@ from .physics import (
     calculate_inner_factors,
     model_delta_prime,
     estimate_inner_scale,
+    estimate_modified_inner_scale,
+    modified_case_scale_broadening,
     estimate_growth_rate,
     calculate_anisotropy_scale,
 )
@@ -31,6 +33,8 @@ __all__ = [
     "calculate_inner_factors",
     "model_delta_prime",
     "estimate_inner_scale",
+    "estimate_modified_inner_scale",
+    "modified_case_scale_broadening",
     "estimate_growth_rate",
     "calculate_anisotropy_scale",
     "refine_eigenvalues",

@@ -220,3 +220,38 @@ def test_calculate_anisotropy_scale_negative_beta_bar(caplog):
     assert scale == 0.0
     assert "central delta_q estimate does not cover off-center pressure structures" in caplog.text
 
+
+def test_modified_case_scale_broadening():
+    import numpy as np
+    from tearing_eigenmodes import (
+        modified_case_scale_broadening,
+        estimate_modified_inner_scale,
+        SimulationParams,
+    )
+
+    base = 0.05
+    # w=0, xi=0 returns exact base theoretical scale
+    assert np.isclose(modified_case_scale_broadening(base, w=0.0, xi=0.0, a=1.0), base)
+
+    # Monotone non-decreasing in w
+    scale_w1 = modified_case_scale_broadening(base, w=0.5, xi=0.0, a=1.0)
+    scale_w2 = modified_case_scale_broadening(base, w=1.0, xi=0.0, a=1.0)
+    assert scale_w1 > base
+    assert scale_w2 > scale_w1
+
+    # Monotone non-decreasing in xi
+    scale_xi1 = modified_case_scale_broadening(base, w=0.0, xi=0.5, a=1.0)
+    scale_xi2 = modified_case_scale_broadening(base, w=0.0, xi=1.0, a=1.0)
+    assert scale_xi1 > base
+    assert scale_xi2 > scale_xi1
+
+    # Combined parameters
+    scale_comb = modified_case_scale_broadening(base, w=0.5, xi=0.5, a=1.0)
+    assert scale_comb > scale_w1
+    assert scale_comb > scale_xi1
+
+    # Integrated modified inner scale helper
+    params = SimulationParams(alpha=0.1, a=1.0, S=1e4, Pr=0.0, CGL=False, w=0.5, xi=0.2)
+    mod_scale = estimate_modified_inner_scale(params)
+    assert mod_scale > base
+
