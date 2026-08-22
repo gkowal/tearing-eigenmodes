@@ -805,3 +805,122 @@ def test_refine_malformed_tolerance_acts_as_barrier(temp_npz_dir: str) -> None:
     expected_analytic = estimate_inner_scale(params, alpha=0.15)
     assert deltas[0] is not None
     assert np.isclose(deltas[0], expected_analytic)
+
+
+def test_refine_mixed_cache_batching_and_order_invariance(temp_npz_dir: str) -> None:
+    """Fallback resolution must be independent of batching, order, and per-term availability on other points."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # State 1 at k=0.1: new schema with per-term scale = 0.02, minimum_physical_scale = 0.02
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.02,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.02,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.02},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # State 2 at k=0.3: legacy schema with resistive_layer_thickness = 0.08 (no mode_scales)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz"),
+        wavenumber=0.3,
+        a=1.0,
+        eigenvalue=0.06 + 0.0j,
+        tolerance=1e-6,
+        resistive_layer_thickness=0.08,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    expected_scalar_k02 = 0.04796092578242428
+
+    # 1. Requested [0.2] alone
+    res_single = refine_inner_scale(np.array([0.2]), params)
+    assert res_single[0] is not None
+    assert np.isclose(res_single[0], expected_scalar_k02, rtol=1e-5)
+
+    # 2. Requested [0.1, 0.2] together: k=0.1 has per-term data, k=0.2 must use scalar fallback
+    res_pair1 = refine_inner_scale(np.array([0.1, 0.2]), params)
+    assert res_pair1[0] is not None and res_pair1[1] is not None
+    assert np.isclose(res_pair1[0], 0.02, rtol=1e-5)
+    assert np.isclose(res_pair1[1], expected_scalar_k02, rtol=1e-5)
+
+    # 3. Requested [0.2, 0.1] reversed order
+    res_pair2 = refine_inner_scale(np.array([0.2, 0.1]), params)
+    assert res_pair2[0] is not None and res_pair2[1] is not None
+    assert np.isclose(res_pair2[0], expected_scalar_k02, rtol=1e-5)
+    assert np.isclose(res_pair2[1], 0.02, rtol=1e-5)
+
+    # 4. Requested [0.1, 0.2, 0.3] triplet
+    res_triplet = refine_inner_scale(np.array([0.1, 0.2, 0.3]), params)
+    assert res_triplet[0] is not None and res_triplet[1] is not None and res_triplet[2] is not None
+    assert np.isclose(res_triplet[0], 0.02, rtol=1e-5)
+    assert np.isclose(res_triplet[1], expected_scalar_k02, rtol=1e-5)
+    assert np.isclose(res_triplet[2], 0.08, rtol=1e-5)
+
+
+def test_refine_per_term_precedence_over_scalar(temp_npz_dir: str) -> None:
+    """Valid per-term scale must take precedence over differing scalar values at the same target."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # State where mode_scales says 0.03, but scalar resistive_layer_thickness says 0.09
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.09,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.09,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.03},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    deltas = refine_inner_scale(np.array([0.1]), params)
+    assert deltas[0] is not None
+    # Must select per-term value 0.03, not scalar 0.09
+    assert np.isclose(deltas[0], 0.03)
+    assert not np.isclose(deltas[0], 0.09)

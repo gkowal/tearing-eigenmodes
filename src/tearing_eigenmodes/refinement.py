@@ -343,8 +343,8 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
                         break
             interpolated_terms[k][i] = val_x
 
+    resolved_per_term: List[bool] = [False] * vs.size
     if has_any_per_term_data:
-        any_point_updated = False
         for i, x in enumerate(vs):
             active_vals: List[Tuple[str, float]] = []
             for k in candidate_keys:
@@ -354,13 +354,11 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
             if active_vals:
                 min_key, min_scale = min(active_vals, key=lambda item: item[1])
                 inner_scales[i] = min_scale / safety
-                any_point_updated = True
+                resolved_per_term[i] = True
                 logger.debug(
                     f"Refined grid scale at v={x:+.3e}: {inner_scales[i]:.4e} "
                     f"(limiting: {min_key}, safety: {safety})"
                 )
-        if any_point_updated:
-            return inner_scales
 
     # 3. Fallback to scalar minimum_physical_scale or legacy resistive_layer_thickness in contiguous segments
     scalar_segments: List[Tuple[np.ndarray, np.ndarray]] = []
@@ -370,12 +368,23 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     for r in records:
         tol = float(r.get("tolerance", 0.0))
         is_conv = tol <= 1.0
-        val = r.get("minimum_physical_scale")
-        if val is None or np.isnan(val) or np.isinf(val) or float(val) <= 0.0:
-            val = r.get("resistive_layer_thickness")
-        if is_conv and val is not None and np.isfinite(val) and not np.isinf(val) and float(val) > 0.0:
+        val = None
+        if is_conv:
+            raw_min = r.get("minimum_physical_scale")
+            raw_res = r.get("resistive_layer_thickness")
+            for candidate in (raw_min, raw_res):
+                if candidate is not None:
+                    try:
+                        c_float = float(candidate)
+                        if np.isfinite(c_float) and not np.isinf(c_float) and c_float > 0.0:
+                            val = c_float
+                            break
+                    except (ValueError, TypeError):
+                        pass
+
+        if val is not None:
             current_v_sc.append(r["v"])
-            current_scale_sc.append(float(val))
+            current_scale_sc.append(val)
         else:
             if current_v_sc:
                 scalar_segments.append((np.array(current_v_sc), np.array(current_scale_sc)))
@@ -385,6 +394,8 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
         scalar_segments.append((np.array(current_v_sc), np.array(current_scale_sc)))
 
     for i, x in enumerate(vs):
+        if resolved_per_term[i]:
+            continue
         val_x_sc: Optional[float] = None
         for v_seg, s_seg in scalar_segments:
             vmn, vmx = float(v_seg.min()), float(v_seg.max())
