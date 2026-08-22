@@ -31,16 +31,22 @@ The package includes CLI scripts for performing calculations and visualizing res
 
 All scripts accept `--help` or `-h` to show the list of available command-line arguments.
 
-### Grid Resolution and Inner Scale Configuration
+### Grid Resolution and Multi-Scale Analysis Configuration
 
-Grid resolution ($N$) and rational Chebyshev scaling factor ($C$) are automatically determined via physics-based estimators balancing inner-layer resolution against outer-domain asymptotic decay:
+Grid resolution ($N$) and rational Chebyshev scaling factor ($C$) are automatically determined via physics-based multi-scale analysis balancing inner-layer resolution against outer-domain asymptotic decay:
 
-* **`--inner-scale`** (`-δin`): Explicit target inner scale to resolve. If omitted, it is automatically computed using analytic FKR/Coppi asymptotic inner-scale formulas across Classical and Gyrotropic regimes.
+* **`--inner-scale`** (`-δin`): Explicit target inner scale to resolve. If omitted, it is automatically computed using per-term eigenmode scale crossings or analytic FKR/Coppi asymptotic inner-scale formulas across Classical and Gyrotropic regimes.
 * **`--resistive-scale`** (`-δres`): *(Deprecated)* Legacy alias for `--inner-scale`.
-* **`--inner-resolution-safety`** (`-s`): Numerical safety factor ($\ge 1.0$, default: 1.0) scaling the target grid inner scale finer than the physical prediction ($L_{\mathrm{inner}} = \delta_{\mathrm{model}} / s$).
+* **`--inner-resolution-safety`** (`-s`): Numerical safety factor ($\ge 1.0$, default: 1.0) scaling the target grid inner scale finer than the physical prediction ($L_{\mathrm{inner}} = \ell_{\min} / s$).
 * **`--n-inner-scale`** (`-nin`): Number of collocation points allocated to resolve the inner scale (default: 5).
 * **`--n-equilibrium`** (`-neq`): Number of collocation points allocated to resolve the equilibrium current sheet $a + w$ (default: 5).
 * **`--n-anisotropy`** (`-naniso`): Number of collocation points allocated to resolve the Gyrotropic pressure-anisotropy scale $\delta_q$ (default: 5).
+
+### Multi-Scale Diagnostics
+The solver evaluates equation-level balance diagnostics across resistive, viscous, shear, and guide-field terms post-convergence:
+* **Classical MHD**: Computes 8 standardized dominance scales across induction and vorticity equations.
+* **CGL Gyrotropic MHD**: Computes 4 standardized induction dominance scales ($\epsilon = 0$).
+* **Persistence**: Stores complete versioned physical-scale dictionaries in `.npz` files alongside the canonical minimum physical scale ($\delta_{\mathrm{in}}$).
 
 ## License
 
