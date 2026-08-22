@@ -90,8 +90,7 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
                 metadata = compile_metadata(params_base)
 
                 save_eigenmode(sname, wavenumber=α, eigenvalue=σ, tolerance=e, \
-                                    minimum_physical_scale=δin, grid_scaling_factor=C, \
-                                    minimum_scale_nodes=nin, current_sheet_nodes=nwa, \
+                                    grid_scaling_factor=C, current_sheet_nodes=nwa, \
                                     resolution=N, grid=z, **metadata, **s)
 
         except Exception as ex:
@@ -115,6 +114,18 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
         assert e is not None
         assert C is not None
         assert N is not None
+        if verbose and state_data and 'mode_scales' in state_data:
+            scales = state_data['mode_scales']
+            scale_entries = []
+            for k in sorted(scales.keys()):
+                v = scales[k]
+                if v != 0.0 and not np.isnan(v):
+                    if np.isinf(v):
+                        scale_entries.append(f"{k}=inf")
+                    else:
+                        scale_entries.append(f"{k}={v:.4e}")
+            if scale_entries:
+                logging.info(f"mode scales: {', '.join(scale_entries)}")
         σ_arr = np.atleast_1d(σ)
         σ_val = σ_arr[0]
         e_arr = np.atleast_1d(e)

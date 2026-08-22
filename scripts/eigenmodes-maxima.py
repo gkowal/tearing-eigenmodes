@@ -233,8 +233,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
 
                     save_eigenmode(sname, scan_parameter_value=value, wavenumber=αm, wavenumber_error=Δα, \
                                     eigenvalue=σm, eigenvalue_error=Δσ, tolerance=e, \
-                                    minimum_physical_scale=δin, grid_scaling_factor=C, \
-                                    minimum_scale_nodes=nin, current_sheet_nodes=nwa, \
+                                    grid_scaling_factor=C, current_sheet_nodes=nwa, \
                                     niter=nit, resolution=N, grid=z, **metadata, **s)
 
             except DeltaError as ex:
@@ -269,6 +268,18 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
         assert nin is not None
         assert nwa is not None
         assert N is not None
+        if verbose and state_data and 'mode_scales' in state_data:
+            scales = state_data['mode_scales']
+            scale_entries = []
+            for k in sorted(scales.keys()):
+                v = scales[k]
+                if v != 0.0 and not np.isnan(v):
+                    if np.isinf(v):
+                        scale_entries.append(f"{k}=inf")
+                    else:
+                        scale_entries.append(f"{k}={v:.4e}")
+            if scale_entries:
+                logging.info(f"mode scales: {', '.join(scale_entries)}")
         σm_val = σm[0]
         Δσ_val = np.atleast_1d(Δσ)[0]
         result_line = info + f"α={αm:.4e}±{Δα:.1e}  σ={σm_val.real:.4e}±{Δσ_val:.1e}  δin={δin:.3e}  nin={nin}  nwa={nwa}  C={C:.3e}  N={N} after {nit} function calls" + ' '*6
