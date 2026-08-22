@@ -122,7 +122,7 @@ def main() -> None:
     params = build_params(parser_type='plot')
 
     # Configure logging
-    setup_logging(verbose=bool(params.verbose), log_file=params.log_file)
+    setup_logging(verbose=params.verbose, log_file=params.log_file)
 
     # Build data path
     dpath = build_dpath(params)

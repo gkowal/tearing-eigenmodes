@@ -31,7 +31,7 @@ class Extrapolator:
         self.ys: Deque[Any] = deque(maxlen=maxhistory)
 
     def add(self, x: float, y: Any) -> None:
-        self.xs.append(float(x))
+        self.xs.append(x)
         self.ys.append(y)
 
     def predict(self, x_new: float) -> Optional[float]:
@@ -95,7 +95,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
     params_base = copy.copy(params)
 
     # Initialize logging in worker processes (start methods like forkserver/spawn do not inherit log handlers)
-    setup_logging(verbose=bool(params_base.verbose), log_file=params_base.log_file)
+    setup_logging(verbose=params_base.verbose, log_file=params_base.log_file)
 
     # Initialize variables to satisfy static analysis
     αm: float = 0.0
@@ -138,7 +138,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
         'β':  'plasma_beta',
         'Δβ': 'plasma_beta_difference'
     }
-    setattr(params_base, dep_map[dependence], float(value))
+    setattr(params_base, dep_map[dependence], value)
 
     sname = os.path.join(params_base.data_path if params_base.data_path is not None else './', f'state_{dependence}{value:+.6e}.npz')
 
@@ -284,7 +284,7 @@ def main() -> None:
     params = build_params(parser_type='maximum')
 
     # Configure logging
-    setup_logging(verbose=bool(params.verbose), log_file=params.log_file)
+    setup_logging(verbose=params.verbose, log_file=params.log_file)
 
     dpath = build_dpath(params)
 
