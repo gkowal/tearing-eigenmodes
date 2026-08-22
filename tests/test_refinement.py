@@ -144,6 +144,7 @@ def test_refine_inner_scale_cached_and_fallback(temp_npz_dir: str) -> None:
         a=1.0,
         S=1e4,
         CGL=False,
+        inner_resolution_safety=1.0,
     )
 
     # 1. Within cached range [0.1, 0.2]: log-log interpolation
@@ -924,3 +925,85 @@ def test_refine_per_term_precedence_over_scalar(temp_npz_dir: str) -> None:
     # Must select per-term value 0.03, not scalar 0.09
     assert np.isclose(deltas[0], 0.03)
     assert not np.isclose(deltas[0], 0.09)
+
+
+def test_safety_default_margin_and_drift_protection(temp_npz_dir: str) -> None:
+    """Default safety margin (1.01) protects against node count dropping under scale drift."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+    from tearing_eigenmodes.grid import select_NC
+    from psecas import ChebyshevRationalGrid
+
+    # 1. State with cached physical scale = 0.04
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.040,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.040,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.040},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # 2. Refine with default safety = 1.01
+    params_default = SimulationParams(
+        data_path=temp_npz_dir,
+        alpha=0.1,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+    )
+    assert params_default.inner_resolution_safety == 1.01
+    res_default = refine_inner_scale(np.array([0.1]), params_default)
+    assert res_default[0] is not None
+    # Grid scale target must be 0.040 / 1.01
+    assert np.isclose(res_default[0], 0.040 / 1.01, rtol=1e-6)
+
+    # 3. Explicit override preserves exact supplied target
+    params_explicit = SimulationParams(
+        data_path=temp_npz_dir,
+        alpha=0.1,
+        inner_scale=0.099,
+    )
+    res_explicit = refine_inner_scale(np.array([0.1]), params_explicit)
+    assert res_explicit[0] is not None
+    assert np.isclose(res_explicit[0], 0.099)
+
+    # 4. Analytic estimate with default safety has exactly one factor of 1 / 1.01
+    params_empty_default = SimulationParams(alpha=0.1, a=1.0, S=1e4, CGL=False)
+    params_empty_10 = SimulationParams(alpha=0.1, a=1.0, S=1e4, CGL=False, inner_resolution_safety=1.0)
+    est_default = estimate_inner_scale(params_empty_default)
+    est_10 = estimate_inner_scale(params_empty_10)
+    assert np.isclose(est_default, est_10 / 1.01, rtol=1e-6)
+
+    # 5. Grid node count verification under 0.32% physical scale drift
+    # With safety = 1.01, grid target is L_target = 0.040 / 1.01
+    params_grid = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        w=0.0,
+        inner_scale=0.040 / 1.01,
+        n_equilibrium=5,
+        n_inner_scale=5,
+        f_outer=0.2,
+        Nmin=64,
+        Nmax=1024,
+        Ninc=32,
+    )
+    N_opt, C_opt = select_NC(params_grid)
+    grid = ChebyshevRationalGrid(N=N_opt, C=C_opt)
+    # Remeasured physical scale drifts down by 0.32% to 0.040 * (1 - 0.0032) = 0.039872
+    drifted_physical_scale = 0.040 * (1.0 - 0.0032)
+    nodes_inside = int(np.sum(np.abs(grid.zg) <= drifted_physical_scale))
+    # Nodes inside the remeasured physical scale remain >= 5 with the 1.01 margin
+    assert nodes_inside >= 5

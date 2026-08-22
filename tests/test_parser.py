@@ -286,3 +286,31 @@ def test_validate_parameters_plot_2d():
         validate_parameters(args)
 
 
+def test_inner_resolution_safety_default_and_parsing():
+    """Inner resolution safety factor must default to 1.01 and parse explicit values correctly."""
+    from tearing_eigenmodes import SimulationParams
+    from tearing_eigenmodes.parser import parser_setup, build_params
+
+    # 1. SimulationParams dataclass default
+    p = SimulationParams()
+    assert p.inner_resolution_safety == 1.01
+
+    # 2. CLI parser default
+    parser = parser_setup()
+    args_default = parser.parse_args([])
+    assert args_default.inner_resolution_safety == 1.01
+
+    # 3. Explicit 1.0 (no margin)
+    args_10 = parser.parse_args(["--inner-resolution-safety", "1.0"])
+    assert args_10.inner_resolution_safety == 1.0
+
+    # 4. Explicit 1.5
+    args_15 = parser.parse_args(["--inner-resolution-safety", "1.5"])
+    assert args_15.inner_resolution_safety == 1.5
+
+    # 5. Invalid safety factor < 1.0
+    args_invalid = parser.parse_args(["--inner-resolution-safety", "0.9"])
+    with pytest.raises(ParameterError, match="Inner resolution safety factor .* must be >= 1.0"):
+        validate_parameters(args_invalid)
+
+

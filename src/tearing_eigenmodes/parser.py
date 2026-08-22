@@ -127,8 +127,8 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     parser.add_argument(
         "--inner-resolution-safety",
         type=float,
-        default=1.0,
-        help="safety factor applied to estimated inner scale (>= 1.0)"
+        default=1.01,
+        help="safety factor applied to estimated inner scale (>= 1.0, default: 1.01)"
     )
 
     parser.add_argument(
@@ -537,7 +537,7 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
     n_equilibrium = getattr(args, 'n_equilibrium', getattr(args, 'n_inner', 5))
     n_inner_scale = getattr(args, 'n_inner_scale', getattr(args, 'n_resistivity', 5))
     inner_scale = getattr(args, 'inner_scale', getattr(args, 'resistive_scale', None))
-    safety = getattr(args, 'inner_resolution_safety', 1.0)
+    safety = getattr(args, 'inner_resolution_safety', 1.01)
 
     params: Dict[str, Any] = {
         'data_path'             : None,
@@ -803,7 +803,7 @@ def validate_parameters(args: argparse.Namespace) -> None:
     args.inner_scale = inner_scale
     args.resistive_scale = inner_scale
 
-    safety = getattr(args, 'inner_resolution_safety', 1.0)
+    safety = getattr(args, 'inner_resolution_safety', 1.01)
     if safety < 1.0:
         raise ParameterError("Inner resolution safety factor (--inner-resolution-safety) must be >= 1.0")
 

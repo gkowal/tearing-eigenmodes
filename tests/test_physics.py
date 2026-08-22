@@ -131,6 +131,7 @@ def test_estimate_inner_scale_classical_and_gyrotropic():
         S=1e4,
         Pr=0.0,
         CGL=False,
+        inner_resolution_safety=1.0,
     )
     scale_classical = estimate_inner_scale(params_classical)
     assert scale_classical > 0.0
@@ -147,23 +148,23 @@ def test_estimate_inner_scale_classical_and_gyrotropic():
         plasma_beta_difference=0.0,
         parallel_index=3.0,
         perpendicular_index=2.0,
+        inner_resolution_safety=1.0,
     )
     scale_gyro_lim = estimate_inner_scale(params_gyrotropic_limit)
     assert np.isclose(scale_classical, scale_gyro_lim)
 
     # Higher S reduces inner scale
-    params_high_S = SimulationParams(alpha=0.1, a=1.0, S=1e6, Pr=0.0, CGL=False)
+    params_high_S = SimulationParams(alpha=0.1, a=1.0, S=1e6, Pr=0.0, CGL=False, inner_resolution_safety=1.0)
     scale_high_S = estimate_inner_scale(params_high_S)
     assert scale_high_S < scale_classical
 
     # Safety factor scales grid scale inversely
-    params_safe = SimulationParams(alpha=0.1, a=1.0, S=1e4, Pr=0.0, CGL=False)
-    setattr(params_safe, 'inner_resolution_safety', 2.0)
+    params_safe = SimulationParams(alpha=0.1, a=1.0, S=1e4, Pr=0.0, CGL=False, inner_resolution_safety=2.0)
     scale_safe = estimate_inner_scale(params_safe)
     assert np.isclose(scale_safe, scale_classical / 2.0)
 
     # Dimensional scaling with a
-    params_a2 = SimulationParams(alpha=0.1, a=2.0, S=1e4, Pr=0.0, CGL=False)
+    params_a2 = SimulationParams(alpha=0.1, a=2.0, S=1e4, Pr=0.0, CGL=False, inner_resolution_safety=1.0)
     scale_a2 = estimate_inner_scale(params_a2)
     assert np.isclose(scale_a2, 2.0 * scale_classical)
 

@@ -19,7 +19,7 @@ class SimulationParams:
     zeta: float = 1.0
     delta: Optional[float] = None
     inner_scale: Optional[float] = None
-    inner_resolution_safety: float = 1.0
+    inner_resolution_safety: float = 1.01
 
     # Grid determination parameters
     Nmin: int = 64
