@@ -55,17 +55,40 @@ def load_config(file_path: str) -> Dict[str, Any]:
     return config
 
 
+from .analysis import MODE_SCALE_SCHEMA_VERSION
+
+
 def save_eigenmode(file_path: str, **kwargs: Any) -> None:
     """
-    Save eigenmode data to a .npz file atomically.
+    Save eigenmode data to a .npz file atomically without pickle or object arrays.
     """
     import tempfile
     dir_name = os.path.dirname(file_path)
-    # Ensure directory exists
-    if not os.path.exists(dir_name):
+    if dir_name and not os.path.exists(dir_name):
         os.makedirs(dir_name)
 
-    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".npz")
+    # Encode mode_scales dictionary as parallel NumPy arrays if passed
+    if "mode_scales" in kwargs:
+        mode_scales = kwargs.pop("mode_scales")
+        if isinstance(mode_scales, dict):
+            sorted_keys = sorted(mode_scales.keys())
+            kwargs["mode_scale_schema_version"] = np.int32(MODE_SCALE_SCHEMA_VERSION)
+            kwargs["mode_scale_keys"] = np.array(sorted_keys, dtype=str)
+            kwargs["mode_scale_values"] = np.array([float(mode_scales[k]) for k in sorted_keys], dtype=np.float64)
+
+    # Ensure scalar fields have proper numpy types avoiding object serialization
+    if "minimum_physical_scale" in kwargs and kwargs["minimum_physical_scale"] is not None:
+        kwargs["minimum_physical_scale"] = np.float64(kwargs["minimum_physical_scale"])
+    if "minimum_physical_scale_key" in kwargs and kwargs["minimum_physical_scale_key"] is not None:
+        kwargs["minimum_physical_scale_key"] = np.str_(kwargs["minimum_physical_scale_key"])
+    if "minimum_scale_nodes" in kwargs and kwargs["minimum_scale_nodes"] is not None:
+        kwargs["minimum_scale_nodes"] = np.int32(kwargs["minimum_scale_nodes"])
+    if "resistive_layer_thickness" in kwargs and kwargs["resistive_layer_thickness"] is not None:
+        kwargs["resistive_layer_thickness"] = np.float64(kwargs["resistive_layer_thickness"])
+    if "resistive_layer_nodes" in kwargs and kwargs["resistive_layer_nodes"] is not None:
+        kwargs["resistive_layer_nodes"] = np.int32(kwargs["resistive_layer_nodes"])
+
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name if dir_name else ".", suffix=".npz")
     os.close(fd)
     try:
         np.savez_compressed(tmp_path, **kwargs)
@@ -107,6 +130,38 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
                     data[key] = val.item()
                 else:
                     data[key] = val
+
+            # Reconstruct standardized mode_scales dictionary if present
+            if 'mode_scale_keys' in data and 'mode_scale_values' in data:
+                keys = data['mode_scale_keys']
+                values = data['mode_scale_values']
+                if len(keys) != len(values):
+                    logger.warning(f"Malformed scale data in {file_path}: mismatched key/value lengths.")
+                else:
+                    schema_ver = int(data.get('mode_scale_schema_version', 1))
+                    if schema_ver > MODE_SCALE_SCHEMA_VERSION:
+                        logger.warning(f"State file {file_path} uses newer schema version {schema_ver}.")
+                    data['mode_scales'] = {str(k): float(v) for k, v in zip(keys, values)}
+
+            # Fallback for minimum physical scale and node counts on old states
+            if 'minimum_physical_scale' not in data:
+                if 'resistive_layer_thickness' in data:
+                    data['minimum_physical_scale'] = float(data['resistive_layer_thickness'])
+                elif 'inner_scale' in data:
+                    data['minimum_physical_scale'] = float(data['inner_scale'])
+                else:
+                    data['minimum_physical_scale'] = float("nan")
+
+            if 'minimum_physical_scale_key' not in data:
+                data['minimum_physical_scale_key'] = ""
+
+            if 'minimum_scale_nodes' not in data:
+                if 'resistive_layer_nodes' in data:
+                    data['minimum_scale_nodes'] = int(data['resistive_layer_nodes'])
+                elif 'n_inner' in data:
+                    data['minimum_scale_nodes'] = int(data['n_inner'])
+                else:
+                    data['minimum_scale_nodes'] = 0
 
             e = data.get('tolerance')
             N = data.get('resolution')
@@ -168,11 +223,25 @@ def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.n
                 growth = growth[0]
 
             wavenumber = float(state['wavenumber'])
-            dlt = float(state['resistive_layer_thickness']) if 'resistive_layer_thickness' in state else float(state['inner_scale'])
+
+            if 'minimum_physical_scale' in state:
+                dlt = float(state['minimum_physical_scale'])
+            elif 'resistive_layer_thickness' in state:
+                dlt = float(state['resistive_layer_thickness'])
+            else:
+                dlt = float(state['inner_scale'])
+
             tol = float(state['tolerance'])
             scaling = float(state['grid_scaling_factor']) if 'grid_scaling_factor' in state else float(state['scaling_factor'])
             res = int(state['resolution'])
-            nin_val = int(state['resistive_layer_nodes']) if 'resistive_layer_nodes' in state else int(state['n_inner'])
+
+            if 'minimum_scale_nodes' in state:
+                nin_val = int(state['minimum_scale_nodes'])
+            elif 'resistive_layer_nodes' in state:
+                nin_val = int(state['resistive_layer_nodes'])
+            else:
+                nin_val = int(state['n_inner'])
+
             nwa_val = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
 
             rows.append([

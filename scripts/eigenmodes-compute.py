@@ -57,8 +57,20 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
         α   = float(state_data['wavenumber'])
         σ   = state_data['eigenvalue']
         e   = float(state_data['tolerance'])
-        δin = float(state_data['resistive_layer_thickness'])
-        nin = int(state_data['resistive_layer_nodes'])
+        if 'minimum_physical_scale' in state_data:
+            δin = float(state_data['minimum_physical_scale'])
+        elif 'resistive_layer_thickness' in state_data:
+            δin = float(state_data['resistive_layer_thickness'])
+        else:
+            δin = float(state_data.get('inner_scale', np.nan))
+
+        if 'minimum_scale_nodes' in state_data:
+            nin = int(state_data['minimum_scale_nodes'])
+        elif 'resistive_layer_nodes' in state_data:
+            nin = int(state_data['resistive_layer_nodes'])
+        else:
+            nin = int(state_data.get('n_inner', 0))
+
         nwa = int(state_data['current_sheet_nodes'])
         N   = int(state_data['resolution'])
         C   = float(state_data['grid_scaling_factor'])
@@ -78,8 +90,8 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
                 metadata = compile_metadata(params_base)
 
                 save_eigenmode(sname, wavenumber=α, eigenvalue=σ, tolerance=e, \
-                                    resistive_layer_thickness=δin, grid_scaling_factor=C, \
-                                    resistive_layer_nodes=nin, current_sheet_nodes=nwa, \
+                                    minimum_physical_scale=δin, grid_scaling_factor=C, \
+                                    minimum_scale_nodes=nin, current_sheet_nodes=nwa, \
                                     resolution=N, grid=z, **metadata, **s)
 
         except Exception as ex:

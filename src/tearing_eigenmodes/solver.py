@@ -400,6 +400,14 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         for key in system_variables:
             s[key] = system_result[key]
 
+        # Populate multiscale diagnostics for serialization
+        s["mode_scales"] = system_result["mode_scales"]
+        s["minimum_physical_scale"] = system_result["minimum_physical_scale"]
+        s["minimum_physical_scale_key"] = system_result["minimum_physical_scale_key"]
+        s["minimum_scale_nodes"] = system_result["minimum_scale_nodes"]
+        s["resistive_layer_thickness"] = system_result["resistive_layer_thickness"]
+        s["resistive_layer_nodes"] = system_result["resistive_layer_nodes"]
+
         limiting_str = f" [limiting: {min_key}]" if min_key else ""
         logger.debug(
             f'Calculation done for α = {α:.4e} with C = {C:.3e} '
