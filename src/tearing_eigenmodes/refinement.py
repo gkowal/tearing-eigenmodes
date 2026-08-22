@@ -188,12 +188,19 @@ def _load_cached_state_records(path: str, params: SimulationParams, pattern: str
                     v = float(data['value'])
                 else:
                     v = float(data.get('wavenumber', 0.0))
+                raw_alpha = float(data.get('wavenumber', v))
             else:
-                v = float(data['wavenumber'])
+                raw_alpha = float(data['wavenumber'])
+                state_a = float(data.get('a', getattr(params, 'a', 1.0) or 1.0))
+                if state_a <= 0.0 or np.isnan(state_a):
+                    state_a = float(getattr(params, 'a', 1.0) or 1.0)
+                v = raw_alpha / state_a
 
             records.append({
                 "v": v,
-                "wavenumber": float(data.get("wavenumber", v)),
+                "wavenumber": raw_alpha,
+                "alpha": raw_alpha,
+                "tolerance": float(data.get("tolerance", 0.0)),
                 "mode_scales": data.get("mode_scales"),
                 "minimum_physical_scale": data.get("minimum_physical_scale"),
                 "resistive_layer_thickness": data.get("resistive_layer_thickness"),
@@ -216,12 +223,13 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     Returns
     -------
     List[Optional[float]]
-        List of resolved inner grid scales (with safety factor applied) for each value in vs.
+        List of resolved inner grid scales for each value in vs.
     """
-    safety = float(getattr(params, "inner_resolution_safety", 1.0) or 1.0)
     explicit_scale = params.inner_scale if params.inner_scale is not None else params.delta
     if explicit_scale is not None and explicit_scale > 0.0:
-        return [explicit_scale / safety] * vs.size
+        return [explicit_scale] * vs.size
+
+    safety = float(getattr(params, "inner_resolution_safety", 1.0) or 1.0)
 
     # 1. Default baseline: physics-based estimator for all values (estimate_inner_scale already divides by safety)
     inner_scales: List[Optional[float]] = [None] * vs.size
@@ -264,47 +272,58 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     candidate_keys = CGL_GRID_SCALE_KEYS if params.CGL else CLASSICAL_GRID_SCALE_KEYS
     is_positive_dispersion = (params.dependence is None) and np.all(vs > 0)
 
-    # 2. Try per-term physical-scale interpolation
+    # 2. Try per-term physical-scale interpolation within contiguous valid runs
     interpolated_terms: Dict[str, List[Optional[float]]] = {k: [None] * vs.size for k in candidate_keys}
     has_any_per_term_data = False
 
     for k in candidate_keys:
-        pts = [
-            (r["v"], float(r["mode_scales"][k]))
-            for r in records
-            if r.get("mode_scales") is not None
-            and k in r["mode_scales"]
-            and r["mode_scales"][k] is not None
-            and not np.isnan(r["mode_scales"][k])
-            and not np.isinf(r["mode_scales"][k])
-            and float(r["mode_scales"][k]) > 0.0
-        ]
-        if not pts:
+        segments: List[Tuple[np.ndarray, np.ndarray]] = []
+        current_v: List[float] = []
+        current_scale: List[float] = []
+
+        for r in records:
+            tol = float(r.get("tolerance", 0.0))
+            is_conv = tol <= 1.0
+            scales_dict = r.get("mode_scales")
+            val = scales_dict.get(k) if (scales_dict is not None and is_conv) else None
+            if val is not None and np.isfinite(val) and not np.isinf(val) and float(val) > 0.0:
+                current_v.append(r["v"])
+                current_scale.append(float(val))
+            else:
+                if current_v:
+                    segments.append((np.array(current_v), np.array(current_scale)))
+                    current_v = []
+                    current_scale = []
+        if current_v:
+            segments.append((np.array(current_v), np.array(current_scale)))
+
+        if not segments:
             continue
 
         has_any_per_term_data = True
-        v_pts = np.array([p[0] for p in pts])
-        scale_pts = np.array([p[1] for p in pts])
-        vmn, vmx = v_pts.min(), v_pts.max()
-
-        if v_pts.size == 1:
-            for i, x in enumerate(vs):
-                if np.isclose(x, vmn) or (vmn <= x <= vmx):
-                    interpolated_terms[k][i] = float(scale_pts[0])
-        else:
-            if is_positive_dispersion and np.all(v_pts > 0):
-                log_v = np.log(v_pts)
-                log_s = np.log(scale_pts)
-                for i, x in enumerate(vs):
-                    if (vmn <= x <= vmx) or np.isclose(x, vmn) or np.isclose(x, vmx):
-                        interpolated_terms[k][i] = float(np.exp(np.interp(np.log(x), log_v, log_s)))
-            else:
-                log_s = np.log(scale_pts)
-                for i, x in enumerate(vs):
-                    if (vmn <= x <= vmx) or np.isclose(x, vmn) or np.isclose(x, vmx):
-                        interpolated_terms[k][i] = float(np.exp(np.interp(x, v_pts, log_s)))
+        for i, x in enumerate(vs):
+            val_x: Optional[float] = None
+            for v_seg, s_seg in segments:
+                vmn, vmx = float(v_seg.min()), float(v_seg.max())
+                if v_seg.size == 1:
+                    if np.isclose(x, vmn, atol=1e-12, rtol=1e-8):
+                        val_x = float(s_seg[0])
+                        break
+                else:
+                    within = (vmn <= x <= vmx) or np.isclose(x, vmn, atol=1e-12, rtol=1e-8) or np.isclose(x, vmx, atol=1e-12, rtol=1e-8)
+                    if within:
+                        if is_positive_dispersion and np.all(v_seg > 0) and x > 0:
+                            log_v = np.log(v_seg)
+                            log_s = np.log(s_seg)
+                            val_x = float(np.exp(np.interp(np.log(x), log_v, log_s)))
+                        else:
+                            log_s = np.log(s_seg)
+                            val_x = float(np.exp(np.interp(x, v_seg, log_s)))
+                        break
+            interpolated_terms[k][i] = val_x
 
     if has_any_per_term_data:
+        any_point_updated = False
         for i, x in enumerate(vs):
             active_vals: List[Tuple[str, float]] = []
             for k in candidate_keys:
@@ -314,46 +333,57 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
             if active_vals:
                 min_key, min_scale = min(active_vals, key=lambda item: item[1])
                 inner_scales[i] = min_scale / safety
+                any_point_updated = True
                 logger.debug(
                     f"Refined grid scale at v={x:+.3e}: {inner_scales[i]:.4e} "
                     f"(limiting: {min_key}, safety: {safety})"
                 )
-        return inner_scales
+        if any_point_updated:
+            return inner_scales
 
-    # 3. Fallback to scalar minimum_physical_scale or legacy resistive_layer_thickness
-    scalar_pts = []
+    # 3. Fallback to scalar minimum_physical_scale or legacy resistive_layer_thickness in contiguous segments
+    scalar_segments: List[Tuple[np.ndarray, np.ndarray]] = []
+    current_v_sc: List[float] = []
+    current_scale_sc: List[float] = []
+
     for r in records:
+        tol = float(r.get("tolerance", 0.0))
+        is_conv = tol <= 1.0
         val = r.get("minimum_physical_scale")
-        if val is None or np.isnan(val) or np.isinf(val) or val <= 0.0:
+        if val is None or np.isnan(val) or np.isinf(val) or float(val) <= 0.0:
             val = r.get("resistive_layer_thickness")
-        if val is not None and not np.isnan(val) and not np.isinf(val) and float(val) > 0.0:
-            scalar_pts.append((r["v"], float(val)))
-
-    if not scalar_pts:
-        return inner_scales
-
-    v_pts = np.array([p[0] for p in scalar_pts])
-    scale_pts = np.array([p[1] for p in scalar_pts])
-    vmn, vmx = v_pts.min(), v_pts.max()
-
-    if v_pts.size == 1:
-        for i, x in enumerate(vs):
-            if np.isclose(x, vmn) or (vmn <= x <= vmx):
-                inner_scales[i] = float(scale_pts[0]) / safety
-    else:
-        if is_positive_dispersion and np.all(v_pts > 0):
-            log_v = np.log(v_pts)
-            log_s = np.log(scale_pts)
-            for i, x in enumerate(vs):
-                if (vmn <= x <= vmx) or np.isclose(x, vmn) or np.isclose(x, vmx):
-                    interp_val = float(np.exp(np.interp(np.log(x), log_v, log_s)))
-                    inner_scales[i] = interp_val / safety
+        if is_conv and val is not None and np.isfinite(val) and not np.isinf(val) and float(val) > 0.0:
+            current_v_sc.append(r["v"])
+            current_scale_sc.append(float(val))
         else:
-            log_s = np.log(scale_pts)
-            for i, x in enumerate(vs):
-                if (vmn <= x <= vmx) or np.isclose(x, vmn) or np.isclose(x, vmx):
-                    interp_val = float(np.exp(np.interp(x, v_pts, log_s)))
-                    inner_scales[i] = interp_val / safety
+            if current_v_sc:
+                scalar_segments.append((np.array(current_v_sc), np.array(current_scale_sc)))
+                current_v_sc = []
+                current_scale_sc = []
+    if current_v_sc:
+        scalar_segments.append((np.array(current_v_sc), np.array(current_scale_sc)))
+
+    for i, x in enumerate(vs):
+        val_x_sc: Optional[float] = None
+        for v_seg, s_seg in scalar_segments:
+            vmn, vmx = float(v_seg.min()), float(v_seg.max())
+            if v_seg.size == 1:
+                if np.isclose(x, vmn, atol=1e-12, rtol=1e-8):
+                    val_x_sc = float(s_seg[0])
+                    break
+            else:
+                within = (vmn <= x <= vmx) or np.isclose(x, vmn, atol=1e-12, rtol=1e-8) or np.isclose(x, vmx, atol=1e-12, rtol=1e-8)
+                if within:
+                    if is_positive_dispersion and np.all(v_seg > 0) and x > 0:
+                        log_v = np.log(v_seg)
+                        log_s = np.log(s_seg)
+                        val_x_sc = float(np.exp(np.interp(np.log(x), log_v, log_s)))
+                    else:
+                        log_s = np.log(s_seg)
+                        val_x_sc = float(np.exp(np.interp(x, v_seg, log_s)))
+                    break
+        if val_x_sc is not None:
+            inner_scales[i] = val_x_sc / safety
 
     return inner_scales
 

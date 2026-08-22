@@ -361,3 +361,153 @@ def test_refine_inner_scale_parameter_sweep_negative_coordinate(temp_npz_dir: st
     # Interpolation in (v, log scale) across nonpositive coordinates
     assert deltas[0] is not None and deltas[0] > 0.030 and deltas[0] < 0.040
     assert deltas[1] is not None and deltas[1] > 0.040 and deltas[1] < 0.050
+
+
+def test_explicit_inner_scale_exact_override(temp_npz_dir: str) -> None:
+    """Explicit inner_scale must be returned unchanged without dividing by safety factor."""
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        alpha=0.1,
+        a=1.0,
+        S=1e4,
+        inner_scale=0.099,
+        inner_resolution_safety=2.0,
+    )
+    vs = np.array([0.1, 0.2])
+    deltas = refine_inner_scale(vs, params)
+    assert len(deltas) == 2
+    assert deltas[0] is not None and np.isclose(deltas[0], 0.099)
+    assert deltas[1] is not None and np.isclose(deltas[1], 0.099)
+
+
+def test_refine_dispersion_k_vs_alpha_with_nonunit_a(temp_npz_dir: str) -> None:
+    """Dispersion refinement must convert cached alpha to physical k = alpha / a."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # a = 2.0: cached alpha = 0.2 (k=0.1, scale=0.02) and alpha = 0.6 (k=0.3, scale=0.08)
+    for alpha, scale in [(0.2, 0.02), (0.6, 0.08)]:
+        save_eigenmode(
+            os.path.join(temp_npz_dir, f"state_α{alpha:.6e}.npz"),
+            wavenumber=alpha,
+            a=2.0,
+            eigenvalue=0.05 + 0.0j,
+            tolerance=1e-6,
+            minimum_physical_scale=scale,
+            minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+            minimum_scale_nodes=10,
+            resistive_layer_thickness=scale,
+            resistive_layer_nodes=10,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            resolution=128,
+            grid=np.linspace(-10, 10, 128),
+            mode_scales={"classical.bz_induction.eta_vs_ideal": scale},
+            duz=np.ones(128),
+            dbz=np.ones(128),
+        )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=2.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # Requested physical k = 0.2 (between k=0.1 and k=0.3)
+    vs = np.array([0.2])
+    deltas = refine_inner_scale(vs, params)
+    expected_scale = 0.04796092578242428
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_scale, rtol=1e-4)
+    # Must NOT equal 0.02 (which occurred when alpha=0.2 was compared directly to k=0.2)
+    assert not np.isclose(deltas[0], 0.02)
+
+
+def test_refine_gap_barrier_nan(temp_npz_dir: str) -> None:
+    """A cached np.nan must act as an invalidity barrier and prevent cross-gap interpolation."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # k=0.1 (scale 0.02), k=0.2 (nan barrier), k=0.3 (scale 0.08)
+    for k_val, scale in [(0.1, 0.02), (0.2, float("nan")), (0.3, 0.08)]:
+        save_eigenmode(
+            os.path.join(temp_npz_dir, f"state_α{k_val:.6e}.npz"),
+            wavenumber=k_val,
+            a=1.0,
+            eigenvalue=0.05 + 0.0j,
+            tolerance=1e-6,
+            minimum_physical_scale=scale,
+            minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal" if not np.isnan(scale) else "",
+            minimum_scale_nodes=10 if not np.isnan(scale) else 0,
+            resistive_layer_thickness=scale,
+            resistive_layer_nodes=10 if not np.isnan(scale) else 0,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            resolution=128,
+            grid=np.linspace(-10, 10, 128),
+            mode_scales={"classical.bz_induction.eta_vs_ideal": scale},
+            duz=np.ones(128),
+            dbz=np.ones(128),
+        )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # Requested k=0.15 is between k=0.1 and k=0.2. Since k=0.1 is an isolated single-point segment,
+    # it cannot interpolate across the barrier to k=0.3.
+    vs = np.array([0.15])
+    deltas = refine_inner_scale(vs, params)
+    # Falls back to analytic estimator
+    analytic_scale = estimate_inner_scale(params, alpha=0.15)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], analytic_scale)
+
+
+def test_refine_unconverged_cached_state_rejection(temp_npz_dir: str) -> None:
+    """Cached state with tolerance > 1.0 must be rejected from refinement, retaining analytic fallback."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α0.100000e+00.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=10.0,  # Unconverged!
+        minimum_physical_scale=0.012,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.012,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=2048,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.012},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    vs = np.array([0.1])
+    deltas = refine_inner_scale(vs, params)
+    analytic_scale = estimate_inner_scale(params, alpha=0.1)
+    assert deltas[0] is not None
+    # Must NOT select 0.012
+    assert not np.isclose(deltas[0], 0.012)
+    # Must retain analytic fallback
+    assert np.isclose(deltas[0], analytic_scale)
