@@ -393,6 +393,118 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
     return scales
 
 
+@dataclass
+class CGLInductionTermProfiles:
+    z: np.ndarray
+    L_by: np.ndarray
+    T_F_by: np.ndarray
+    T_eta_by: Optional[np.ndarray]
+    E_by: np.ndarray
+    L_bz: np.ndarray
+    T_F_bz: np.ndarray
+    T_eta_bz: Optional[np.ndarray]
+    E_bz: np.ndarray
+
+
+def evaluate_cgl_induction_terms(system: Any) -> CGLInductionTermProfiles:
+    """
+    Evaluate exact equation-local signed complex term profiles for non-Hall CGL induction equations.
+    """
+    grid = system.grid
+    z = grid.zg
+    kx = system.kx
+    a = getattr(system, "a", 1.0)
+    F = system.Bx
+    H = getattr(system, "By", None)
+    eta = getattr(system, "η", None)
+    epsilon = getattr(system, "ϵ", getattr(system, "\u03b5", getattr(system, "Hall", getattr(system, "epsilon", 0.0))))
+    ky = getattr(system, "ky", 0.0)
+
+    if (isinstance(epsilon, bool) and epsilon) or (not isinstance(epsilon, bool) and float(epsilon) > 0):
+        raise NotImplementedError("CGL Hall branch (ϵ > 0) is not supported in schema version 1.")
+    if not np.isclose(ky, 0.0):
+        raise NotImplementedError("CGL modes with ky != 0 are not supported in schema version 1.")
+
+    sol = system.result
+    uy = sol["duy"]
+    uz = sol["duz"]
+    by = sol["dby"]
+    bz = sol["dbz"]
+    sigma = sol["sigma"]
+
+    # Grid derivatives
+    by_z2 = grid.derivative(by, 2)
+    bz_z2 = grid.derivative(bz, 2)
+
+    Dk_by = by_z2 - kx**2 * by
+    Dk_bz = bz_z2 - kx**2 * bz
+
+    # Induction by equation: sigma*by = -kx*Bx*duy + (Bx*By/a)*duz + eta*Dk(by)
+    L_by = sigma * by
+    if H is not None:
+        T_F_by = -kx * F * uy + (F * H / a) * uz
+    else:
+        T_F_by = -kx * F * uy
+
+    eta_active = (eta is not None and eta > 0.0)
+    T_eta_by = (eta * Dk_by) if eta_active else None
+    E_by = np.abs(T_F_by)
+
+    # Induction bz equation: sigma*bz = kx*Bx*duz + eta*Dk(bz)
+    L_bz = sigma * bz
+    T_F_bz = kx * F * uz
+    T_eta_bz = (eta * Dk_bz) if eta_active else None
+    E_bz = np.abs(T_F_bz)
+
+    return CGLInductionTermProfiles(
+        z=z,
+        L_by=L_by,
+        T_F_by=T_F_by,
+        T_eta_by=T_eta_by,
+        E_by=E_by,
+        L_bz=L_bz,
+        T_F_bz=T_F_bz,
+        T_eta_bz=T_eta_bz,
+        E_bz=E_bz,
+    )
+
+
+def measure_cgl_scales(system: Any) -> Dict[str, float]:
+    """
+    Measure standardized dominance scales for CGL induction equations (schema version 1).
+    """
+    profiles = evaluate_cgl_induction_terms(system)
+    z = profiles.z
+    a = getattr(system, "a", 1.0)
+    z_max = a
+
+    scales: Dict[str, float] = {}
+
+    if profiles.T_eta_by is not None:
+        scales["cgl.by_induction.eta_vs_ideal"] = extract_central_dominance_scale(
+            z, profiles.T_eta_by, profiles.E_by, z_max=z_max
+        )
+        scales["cgl.by_induction.eta_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_eta_by, profiles.T_F_by, z_max=z_max
+        )
+    else:
+        scales["cgl.by_induction.eta_vs_ideal"] = float("nan")
+        scales["cgl.by_induction.eta_vs_f"] = float("nan")
+
+    if profiles.T_eta_bz is not None:
+        scales["cgl.bz_induction.eta_vs_ideal"] = extract_central_dominance_scale(
+            z, profiles.T_eta_bz, profiles.E_bz, z_max=z_max
+        )
+        scales["cgl.bz_induction.eta_vs_f"] = extract_central_dominance_scale(
+            z, profiles.T_eta_bz, profiles.T_F_bz, z_max=z_max
+        )
+    else:
+        scales["cgl.bz_induction.eta_vs_ideal"] = float("nan")
+        scales["cgl.bz_induction.eta_vs_f"] = float("nan")
+
+    return scales
+
+
 def measure_eigenmode_scales(system: Any) -> Dict[str, float]:
     """
     Evaluate equation terms and measure standardized physical dominance scales.
@@ -403,7 +515,7 @@ def measure_eigenmode_scales(system: Any) -> Dict[str, float]:
     if "Classical" in model_name:
         return measure_classical_scales(system)
     elif "Gyrotropic" in model_name or "CGL" in model_name or (hasattr(system, "By") and not hasattr(system, "Ux")):
-        raise NotImplementedError("CGL mode scale measurement is not yet implemented.")
+        return measure_cgl_scales(system)
     else:
         return measure_classical_scales(system)
 
