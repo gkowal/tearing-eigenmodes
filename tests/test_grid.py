@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from tearing_eigenmodes import select_NC, SimulationParams
+from tearing_eigenmodes.grid import select_C_for_N
 from tearing_eigenmodes.exceptions import DeltaError, ConvergenceError
 
 def test_select_nc_default():
@@ -249,3 +250,94 @@ def test_select_nc_anisotropy_scale():
     _, _, C_small = select_C_for_N(64, params_small)
 
     assert C_small < C_large
+
+
+def test_select_c_for_n_exact_formulas():
+    """Document existing exact formula evaluation in select_C_for_N."""
+    params = SimulationParams(
+        alpha=0.2,
+        a=1.5,
+        w=0.5,
+        n_inner=5,
+        decay_efolds=4.0,
+        CGL=False,
+        delta=None,
+    )
+    N = 128
+    Cinn, Cout, C = select_C_for_N(N, params)
+
+    zmin = 1.5 + 0.5  # a + w = 2.0
+    m = (5 - 1) / 2   # 2
+    Np = N + 1        # 129
+    expected_Cinn = zmin / np.tan(np.pi * m / Np)
+
+    zmax = 4.0 / 0.2  # decay_efolds / alpha = 20.0
+    expected_Cout = zmax * np.tan((np.pi / 2) / Np)
+
+    assert np.isclose(Cinn, expected_Cinn)
+    assert np.isclose(Cout, expected_Cout)
+    assert np.isclose(C, Cinn)
+
+
+def test_select_c_for_n_explicit_resistive_override():
+    """Document existing explicit delta override in select_C_for_N."""
+    params = SimulationParams(
+        alpha=0.2,
+        a=1.0,
+        w=0.0,
+        n_inner=5,
+        n_resistivity=7,
+        delta=0.05,
+        decay_efolds=4.0,
+        CGL=False,
+    )
+    N = 128
+    Cinn, Cout, C = select_C_for_N(N, params)
+
+    Np = N + 1
+    Cinn_eq = 1.0 / np.tan(np.pi * 2 / Np)
+    Cinn_res = 0.05 / np.tan(np.pi * 3 / Np)
+
+    assert Cinn_res < Cinn_eq
+    assert np.isclose(Cinn, Cinn_res)
+    assert np.isclose(C, Cinn_res)
+
+
+def test_select_nc_resolves_equilibrium_and_resistive_constraints():
+    """Document select_NC resolution selection with equilibrium width vs explicit delta."""
+    params_base = SimulationParams(
+        alpha=0.2,
+        a=1.0,
+        w=0.0,
+        delta=None,
+    )
+    N_base, C_base = select_NC(params_base)
+
+    # Wider current sheet increases zmin, loosening inner limit Cinn
+    params_w = SimulationParams(
+        alpha=0.2,
+        a=1.0,
+        w=2.0,
+        delta=None,
+    )
+    N_w, C_w = select_NC(params_w)
+    Cinn_base, _, _ = select_C_for_N(N_base, params_base)
+    Cinn_w, _, _ = select_C_for_N(N_base, params_w)
+    assert Cinn_w > Cinn_base
+
+    # Explicit small delta tightens inner limit Cinn, forcing higher N or lower C
+    params_res = SimulationParams(
+        alpha=0.2,
+        a=1.0,
+        w=0.0,
+        delta=0.005,
+        n_resistivity=5,
+    )
+    N_res, C_res = select_NC(params_res)
+    assert N_res > N_base
+    assert C_res < C_base
+
+    # Verify C_out(N) <= C_in(N) at chosen N
+    Cinn_chosen, Cout_chosen, _ = select_C_for_N(N_res, params_res)
+    assert Cout_chosen <= Cinn_chosen
+
