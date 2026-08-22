@@ -4,7 +4,7 @@ import glob
 import numpy as np
 import logging
 from scipy.interpolate import make_interp_spline
-from .io import load_eigenmodes
+from .io import load_eigenmodes, load_state_data, check_state
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,8 @@ from .physics import estimate_inner_scale
 
 def _load_cached_state_records(path: str, params: SimulationParams, pattern: str = "*.npz") -> List[Dict[str, Any]]:
     """
-    Load all valid cached state files from the given directory.
+    Load all readable cached state files from the given directory.
+    Includes unconverged states so they can act as invalidity barriers during interpolation.
     """
     search_path = os.path.join(path, pattern)
     files = sorted(glob.glob(search_path))
@@ -179,28 +180,48 @@ def _load_cached_state_records(path: str, params: SimulationParams, pattern: str
     is_dependence = params.dependence is not None
 
     for f in files:
-        status, data = check_state(f)
-        if status and data is not None:
+        data = load_state_data(f)
+        if data is not None:
             if is_dependence:
                 if 'scan_parameter' in data:
                     v = float(data['scan_parameter_value'])
                 elif 'dependence' in data:
                     v = float(data['value'])
                 else:
-                    v = float(data.get('wavenumber', 0.0))
+                    raw_wn = data.get('wavenumber')
+                    if raw_wn is None or not np.isfinite(raw_wn):
+                        continue
+                    v = float(raw_wn)
                 raw_alpha = float(data.get('wavenumber', v))
             else:
-                raw_alpha = float(data['wavenumber'])
+                raw_alpha_val = data.get('wavenumber')
+                if raw_alpha_val is None or not np.isfinite(raw_alpha_val):
+                    continue
+                raw_alpha = float(raw_alpha_val)
                 state_a = float(data.get('a', getattr(params, 'a', 1.0) or 1.0))
-                if state_a <= 0.0 or np.isnan(state_a):
+                if state_a <= 0.0 or not np.isfinite(state_a):
                     state_a = float(getattr(params, 'a', 1.0) or 1.0)
                 v = raw_alpha / state_a
+
+            if not np.isfinite(v):
+                continue
+
+            # Tolerance handling: missing, NaN, Inf, or malformed -> treat as unconverged (tolerance=inf)
+            tol_val = data.get("tolerance")
+            if tol_val is None:
+                tolerance = float("inf")
+            else:
+                try:
+                    tol_float = float(np.atleast_1d(tol_val)[0])
+                    tolerance = tol_float if np.isfinite(tol_float) else float("inf")
+                except Exception:
+                    tolerance = float("inf")
 
             records.append({
                 "v": v,
                 "wavenumber": raw_alpha,
                 "alpha": raw_alpha,
-                "tolerance": float(data.get("tolerance", 0.0)),
+                "tolerance": tolerance,
                 "mode_scales": data.get("mode_scales"),
                 "minimum_physical_scale": data.get("minimum_physical_scale"),
                 "resistive_layer_thickness": data.get("resistive_layer_thickness"),

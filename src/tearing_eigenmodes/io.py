@@ -99,27 +99,13 @@ def save_eigenmode(file_path: str, **kwargs: Any) -> None:
         raise e
 
 
-def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[bool, Optional[Dict[str, Any]]]:
+def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
     """
-    Check if a state file exists and contains a completed/converged calculation.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the state .npz file.
-    force : bool
-        If True, force recalculation regardless of state file.
-    Nmax : int
-        Maximum resolution limit.
-
-    Returns
-    -------
-    tuple
-        (status, state_data) where status is True if we can reuse the results,
-        and state_data is a dictionary containing the loaded variables from the file.
+    Read and decode all state variables and reconstructed scale metadata from a .npz file.
+    Does not evaluate convergence or reuse policy.
     """
-    if force or not os.path.exists(file_path):
-        return False, None
+    if not os.path.exists(file_path):
+        return None
 
     try:
         with np.load(file_path, allow_pickle=True) as state:
@@ -163,14 +149,44 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
                 else:
                     data['minimum_scale_nodes'] = 0
 
-            e = data.get('tolerance')
-            N = data.get('resolution')
-            if e is not None and N is not None:
-                e_val = np.atleast_1d(e)[0]
-                status = not (float(e_val) > 1.0 and int(N) < Nmax)
-                return status, data
+            return data
     except Exception as e_err:
         logger.warning(f"Could not load state file {file_path}: {e_err}")
+        return None
+
+
+def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """
+    Check if a state file exists and contains a completed/converged calculation.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the state .npz file.
+    force : bool
+        If True, force recalculation regardless of state file.
+    Nmax : int
+        Maximum resolution limit.
+
+    Returns
+    -------
+    tuple
+        (status, state_data) where status is True if we can reuse the results,
+        and state_data is a dictionary containing the loaded variables from the file.
+    """
+    if force or not os.path.exists(file_path):
+        return False, None
+
+    data = load_state_data(file_path)
+    if data is None:
+        return False, None
+
+    e = data.get('tolerance')
+    N = data.get('resolution')
+    if e is not None and N is not None:
+        e_val = np.atleast_1d(e)[0]
+        status = not (float(e_val) > 1.0 and int(N) < Nmax)
+        return status, data
 
     return False, None
 

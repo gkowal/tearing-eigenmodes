@@ -511,3 +511,297 @@ def test_refine_unconverged_cached_state_rejection(temp_npz_dir: str) -> None:
     assert not np.isclose(deltas[0], 0.012)
     # Must retain analytic fallback
     assert np.isclose(deltas[0], analytic_scale)
+
+
+def test_refine_unconverged_low_resolution_barrier(temp_npz_dir: str) -> None:
+    """An unconverged state at resolution < Nmax must act as a barrier and not be skipped."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # k=0.1 (converged, scale=0.02)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α1.000000e-01.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.02,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.02,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.02},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # k=0.2 (unconverged, tolerance=10, resolution=128 < Nmax=2048, scale=0.001)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α2.000000e-01.npz"),
+        wavenumber=0.2,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=10.0,
+        minimum_physical_scale=0.001,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.001,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.001},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # k=0.3 (converged, scale=0.08)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α3.000000e-01.npz"),
+        wavenumber=0.3,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.08,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.08,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.08},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        Nmax=2048,
+        inner_resolution_safety=1.0,
+    )
+
+    # Requested k=0.15: must NOT cross the k=0.2 unconverged barrier (which would give 0.03336)
+    vs = np.array([0.15])
+    deltas = refine_inner_scale(vs, params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic)
+    assert not np.isclose(deltas[0], 0.0333604903137, atol=1e-3)
+
+
+def test_refine_unconverged_non_default_nmax_barrier(temp_npz_dir: str) -> None:
+    """Refinement barrier preservation must be independent of check_state's default Nmax."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # k=0.1 (converged, scale=0.02)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α1.000000e-01.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.02,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.02,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.02},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # k=0.2 (unconverged, tolerance=10, resolution=512, scale=0.001)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α2.000000e-01.npz"),
+        wavenumber=0.2,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=10.0,
+        minimum_physical_scale=0.001,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.001,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=512,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.001},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # k=0.3 (converged, scale=0.08)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α3.000000e-01.npz"),
+        wavenumber=0.3,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.08,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.08,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.08},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        Nmax=512,  # Non-default Nmax
+        inner_resolution_safety=1.0,
+    )
+
+    vs = np.array([0.15])
+    deltas = refine_inner_scale(vs, params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic)
+
+
+def test_refine_unconverged_exact_target_falls_back(temp_npz_dir: str) -> None:
+    """An exact request at an unconverged coordinate must fall back and never return the stored scale."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α2.000000e-01.npz"),
+        wavenumber=0.2,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=10.0,  # Unconverged
+        minimum_physical_scale=0.001,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.001,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.001},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    vs = np.array([0.2])
+    deltas = refine_inner_scale(vs, params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.2)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic)
+    assert not np.isclose(deltas[0], 0.001)
+
+
+def test_refine_malformed_tolerance_acts_as_barrier(temp_npz_dir: str) -> None:
+    """Missing or non-finite tolerance must be treated as unconverged barrier."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import save_eigenmode
+
+    # k=0.1 (converged)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α1.000000e-01.npz"),
+        wavenumber=0.1,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.02,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.02,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.02},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # k=0.2 (NaN tolerance)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α2.000000e-01.npz"),
+        wavenumber=0.2,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=float("nan"),
+        minimum_physical_scale=0.001,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.001,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.001},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    # k=0.3 (converged)
+    save_eigenmode(
+        os.path.join(temp_npz_dir, "state_α3.000000e-01.npz"),
+        wavenumber=0.3,
+        a=1.0,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-6,
+        minimum_physical_scale=0.08,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        minimum_scale_nodes=10,
+        resistive_layer_thickness=0.08,
+        resistive_layer_nodes=10,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-10, 10, 128),
+        mode_scales={"classical.bz_induction.eta_vs_ideal": 0.08},
+        duz=np.ones(128),
+        dbz=np.ones(128),
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    vs = np.array([0.15])
+    deltas = refine_inner_scale(vs, params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic)

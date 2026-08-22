@@ -187,3 +187,40 @@ def test_write_results_uses_minimum_physical_scale():
         assert "3.00000000e-02" in content
         # n_in column should contain 8 (the minimum scale nodes)
         assert " 8 " in content
+
+
+def test_load_state_data_independent_of_reuse_policy():
+    """load_state_data must decode state dictionaries even when check_state rejects them."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "state_unconverged.npz")
+        scales = {"classical.bz_induction.eta_vs_ideal": 0.015}
+        save_eigenmode(
+            filepath,
+            wavenumber=0.2,
+            eigenvalue=0.04 + 0.0j,
+            tolerance=10.0,  # Unconverged
+            minimum_physical_scale=0.015,
+            minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+            minimum_scale_nodes=8,
+            resistive_layer_thickness=0.015,
+            resistive_layer_nodes=8,
+            grid_scaling_factor=1.2,
+            current_sheet_nodes=50,
+            resolution=128,  # Below default Nmax=2048
+            grid=np.linspace(-8, 8, 128),
+            mode_scales=scales,
+            duz=np.ones(128),
+            dbz=np.ones(128),
+        )
+
+        from tearing_eigenmodes.io import load_state_data
+        data = load_state_data(filepath)
+        assert data is not None
+        assert data["wavenumber"] == 0.2
+        assert data["tolerance"] == 10.0
+        assert data["mode_scales"]["classical.bz_induction.eta_vs_ideal"] == 0.015
+
+        # check_state with default Nmax=2048 rejects this state for reuse (status is False)
+        status, check_data = check_state(filepath, Nmax=2048)
+        assert status is False
+        assert check_data is not None

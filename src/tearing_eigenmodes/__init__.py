@@ -24,7 +24,7 @@ from .physics import (
     calculate_anisotropy_scale,
 )
 from .refinement import refine_eigenvalues, refine_wavenumber_bracket, refine_inner_scale, refine_resistive_scale
-from .io import build_dpath, load_config, load_eigenmodes, write_results, save_eigenmode, check_state, compile_metadata
+from .io import build_dpath, load_config, load_eigenmodes, write_results, save_eigenmode, check_state, load_state_data, compile_metadata
 from .parser import parser_setup, build_parser, build_params, validate_parameters
 from .params import SimulationParams
 from .printing import print_info
@@ -65,6 +65,7 @@ __all__ = [
     "load_eigenmodes",
     "save_eigenmode",
     "check_state",
+    "load_state_data",
     "compile_metadata",
     "parser_setup",
     "build_parser",
