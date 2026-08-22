@@ -520,7 +520,7 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         perpendicular_index = args.gamma_perpendicular
 
     # 2. Map internal keys to args attributes
-    params = {
+    params: Dict[str, Any] = {
         'data_path'             : None,
         'Nmin'                  : args.resolution_range[0],
         'Nmax'                  : args.resolution_range[1],

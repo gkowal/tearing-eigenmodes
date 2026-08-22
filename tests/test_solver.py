@@ -16,8 +16,8 @@ def test_eigenmodes_static_vs_dynamic_C():
     )
     σ_stat, _, _, _, _, _, C_stat, N_stat, _, success_stat = eigenmodes(params_static)
     assert success_stat
-    assert C_stat > 0.0
-    assert N_stat >= 64
+    assert C_stat is not None and C_stat > 0.0
+    assert N_stat is not None and N_stat >= 64
 
     # 2. Run dynamic C convergence
     params_dynamic = SimulationParams(
@@ -32,8 +32,8 @@ def test_eigenmodes_static_vs_dynamic_C():
     )
     σ_dyn, _, _, _, _, _, C_dyn, N_dyn, _, success_dyn = eigenmodes(params_dynamic)
     assert success_dyn
-    assert C_dyn > 0.0
-    assert N_dyn >= 64
+    assert C_dyn is not None and C_dyn > 0.0
+    assert N_dyn is not None and N_dyn >= 64
 
     # C should have updated and grown in the dynamic case
-    assert C_dyn > C_stat
+    assert C_dyn is not None and C_stat is not None and C_dyn > C_stat

@@ -1,3 +1,5 @@
+from typing import Any
+
 class TearingClassicalMHD:
 	"""
 		The class implements a linear stability analysis of the tearing instability
@@ -256,7 +258,7 @@ class TearingClassicalMHD:
 		self.make_background()
 
 	def make_background(self):
-		from sympy import symbols, lambdify, diff, tanh, sech
+		import sympy as sp; symbols: Any = sp.symbols; lambdify: Any = sp.lambdify; diff: Any = sp.diff; tanh: Any = sp.tanh; sech: Any = sp.sech
 
 		def sech_stable(x):
 			"""
@@ -409,6 +411,8 @@ class TearingGyrotropicMHD:
 			wy_lhs = "sigma*(dz(duz,2) -kx**2*duz)"
 			if not self.isothermal:
 				dp_lhs = "sigma*kx*ddp"
+			else:
+				dp_lhs = ""
 
 			by_rhs_ind = " -kx*Bx*duy +Bx*By/δ*duz"
 			bz_rhs_ind = " +kx*Bx*duz"
@@ -447,6 +451,8 @@ class TearingGyrotropicMHD:
 				dp_rhs_str = " +Γβ*kx*Bx*(Bx*dz(duz) +kx*By*duy)"
 				dp_rhs_res = " -2*η*Γ2*By/δ*(kx*Bx*dz(dby) +By*(dz(dbz,2) -kx**2*dbz))"
 				dp_rhs_vis = ""
+			else:
+				dp_rhs_adv = dp_rhs_str = dp_rhs_res = dp_rhs_vis = ""
 
 			by_eq = f"{by_lhs} ={by_rhs_ind}{by_rhs_res}{by_rhs_hal}"
 			bz_eq = f"{bz_lhs} ={bz_rhs_ind}{bz_rhs_res}{bz_rhs_hal}"
@@ -521,6 +527,8 @@ class TearingGyrotropicMHD:
 				dp_rhs_str = " +By*Γβ*(By*dz(duz) -1j*ky*Bx*dux)"
 				dp_rhs_res = " -2j*Γ2*η*By/δ*(Bx*dz(dbz,2)/ky -ky*Bx*dbz +By*dz(dbx))"
 				dp_rhs_vis = ""
+			else:
+				dp_rhs_adv = dp_rhs_str = dp_rhs_res = dp_rhs_vis = ""
 
 			wx_eq = f"{wx_lhs} ={wx_rhs_adv}{wx_rhs_pre}{wx_rhs_lor}{wx_rhs_vis}{wx_rhs_ani}"
 			wz_eq = f"{wz_lhs} ={wz_rhs_adv}{wz_rhs_pre}{wz_rhs_lor}{wz_rhs_vis}{wz_rhs_ani}"
@@ -528,6 +536,8 @@ class TearingGyrotropicMHD:
 			bz_eq = f"{bz_lhs} ={bz_rhs_ind}{bz_rhs_res}{bz_rhs_hal}"
 			if not self.isothermal:
 				dp_eq = f"{dp_lhs} ={dp_rhs_adv}{dp_rhs_str}{dp_rhs_res}{dp_rhs_vis}"
+			else:
+				dp_eq = ""
 
 			if self.isothermal:
 				self.variables = ["dux", "duz", "dbx", "dbz"]
@@ -623,7 +633,7 @@ class TearingGyrotropicMHD:
 		self.Γβ  = self.Γ1 * self.β0 / 2 + self.Γ2 * self.Δβ0 / 2
 
 	def make_background(self):
-		from sympy import symbols, lambdify, diff, tanh, sech
+		import sympy as sp; symbols: Any = sp.symbols; lambdify: Any = sp.lambdify; diff: Any = sp.diff; tanh: Any = sp.tanh; sech: Any = sp.sech
 
 		def sech_stable(x):
 			"""

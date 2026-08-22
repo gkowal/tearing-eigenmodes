@@ -30,7 +30,7 @@ class TearingChebyshevRationalGrid(ChebyshevRationalGrid):
                 val = getattr(sigma_for_scale, 'real', sigma_for_scale)
                 if isinstance(val, np.ndarray):
                     val = np.atleast_1d(val)[0]
-                if float(val) > 0.0:
+                if val is not None and float(val) > 0.0:
                     is_zero_or_negative = False
 
             if is_zero_or_negative:
@@ -47,8 +47,8 @@ class TearingSolver(Solver):
     before each resolution step during the convergence iteration loop.
     """
     def iterate_solve_multimode(self, Ns, maxmode=None, allmodes=False,
-                                 atol=1e-10, rtol=1e-5, gtol=1e-2,
-                                 metric="complex", orderby="tolerance",
+                                 rtol=1e-5, atol=1e-10, gtol=1e-2,
+                                 orderby="tolerance", metric="complex",
                                  re_range=None, im_range=None,
                                  useOPinv=True, useEVguess=True, verbose=False):
         import numpy as np
@@ -144,6 +144,7 @@ class TearingSolver(Solver):
 
         error = np.inf
         delta = np.inf
+        errors: np.ndarray = np.array([])
 
         for N in Ns[1:]:
             if hasattr(self.grid, 'current_sigma') and Σ_old.size > 0:
@@ -158,7 +159,7 @@ class TearingSolver(Solver):
                 V = []
                 for i in range(modes):
                     σ0 = Σ_old[i]
-                    if useEVguess:
+                    if useEVguess and V_old is not None:
                         v0 = self.prolongate_eigenvector(V_old[:,i], grid_old)
                     else:
                         v0 = None
@@ -178,7 +179,8 @@ class TearingSolver(Solver):
             errors, deltas, index = _errors(Σ_new, Σ_old, rtol=rtol, atol=atol, metric=metric, orderby=orderby)
 
             Σ_new = Σ_new[index]
-            V_new = V_new[:,index]
+            if V_new is not None:
+                V_new = V_new[:,index]
 
             mode, modes = _select(Σ_new.size, maxmode, allmodes)
 
@@ -189,26 +191,32 @@ class TearingSolver(Solver):
                 _print_modes(Σ_new, self.grid.N, errors=errors, case=case, delta=delta, error=error)
 
             if error <= 1.0:
-                self.keep_result(Σ_new[mode], V_new[:,mode], mode)
+                v_mode = V_new[:,mode] if V_new is not None else None
+                self.keep_result(Σ_new[mode], v_mode, mode)
                 self.system.result.update({"converged": True})
                 self.system.result.update({"error": error})
                 self.system.result.update({"grid": self.grid.zg})
                 if allmodes:
-                    return Σ_new[:modes], V_new[:, :modes], errors[:modes]
-                return Σ_new[mode], V_new[:,mode], errors[mode]
+                    v_res = V_new[:, :modes] if V_new is not None else None
+                    return Σ_new[:modes], v_res, errors[:modes]
+                v_res = V_new[:,mode] if V_new is not None else None
+                return Σ_new[mode], v_res, errors[mode]
 
             Σ_old = Σ_new.copy()
-            V_old = V_new.copy()
+            V_old = V_new.copy() if V_new is not None else None
             grid_old = copy.deepcopy(self.grid)
 
-        self.keep_result(Σ_old[mode], V_old[:,mode], mode)
+        v_old_mode = V_old[:,mode] if V_old is not None else None
+        self.keep_result(Σ_old[mode], v_old_mode, mode)
         self.system.result.update({"converged": False})
         self.system.result.update({"error": error})
         self.system.result.update({"grid": self.grid.zg})
 
         if allmodes:
-            return Σ_old[:modes], V_old[:, :modes], errors[:modes]
-        return Σ_old[mode], V_old[:,mode], errors[mode]
+            v_old_res = V_old[:, :modes] if V_old is not None else None
+            return Σ_old[:modes], v_old_res, errors[:modes]
+        v_old_res = V_old[:,mode] if V_old is not None else None
+        return Σ_old[mode], v_old_res, errors[mode]
 from .systems import TearingClassicalMHD, TearingGyrotropicMHD
 from typing import Tuple, Dict, Any, Optional, Union
 import numpy as np
@@ -217,9 +225,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 EigenmodesReturn = Tuple[
-    Optional[np.ndarray],            # σ (eigenvalues)
-    Optional[Dict[str, np.ndarray]], # s (eigenfunctions)
-    Optional[float],                 # e (error/tolerance)
+    Any,                             # σ (eigenvalues)
+    Any,                             # s (eigenfunctions)
+    Any,                             # e (error/tolerance)
     Optional[float],                 # δin (inner layer thickness)
     Optional[int],                   # nin (inner layer nodes)
     Optional[int],                   # nwa (current sheet nodes)

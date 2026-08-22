@@ -34,7 +34,7 @@ def calculate_cgl_factors(
         sigma_real = getattr(sigma, 'real', sigma)
         if isinstance(sigma_real, np.ndarray):
             sigma_real = np.atleast_1d(sigma_real)[0]
-        chi = float(sigma_real)**2 / alpha**2
+        chi = float(sigma_real)**2 / alpha**2 if sigma_real is not None else 0.0
 
     A = 1.0 + chi - delta_beta / 2
     R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)

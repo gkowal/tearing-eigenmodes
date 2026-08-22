@@ -167,6 +167,7 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
             except DeltaError as ex:
                 status = False
                 logging.info(f"Stable eigenmode: {ex}")
+                αlo = αup = 0.0
         else:
             αlo, αup = αbracket
         if status:
