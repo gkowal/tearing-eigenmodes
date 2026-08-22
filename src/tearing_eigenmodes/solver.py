@@ -1,7 +1,7 @@
 from .params import SimulationParams
 from .exceptions import DeltaError, ConvergenceError
 from .grid import select_NC, select_C_for_N
-from .analysis import inner_layer_thickness
+from .analysis import inner_layer_thickness, measure_eigenmode_scales, minimum_eigenmode_scale
 from psecas import Solver, ChebyshevRationalGrid
 
 class TearingChebyshevRationalGrid(ChebyshevRationalGrid):
@@ -331,12 +331,56 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         N = solver.grid.N
         C = solver.grid.C
 
-        δin, nin, nwa = inner_layer_thickness(system, δtol=δtol)
+        system_result = getattr(system, 'result')
+
+        # Multi-scale eigenmode analysis
+        scales = measure_eigenmode_scales(system)
+        model_name = "cgl" if CGL else "classical"
+        min_scale, min_key = minimum_eigenmode_scale(scales, model=model_name)
+
+        if min_scale is not None and np.isfinite(min_scale) and min_scale > 0.0:
+            δin = min_scale
+            I = np.where(np.abs(system.grid.zg) <= δin)
+            nin = max(1, I[0].size)
+        else:
+            δin = float("nan")
+            nin = None
+
+        I_wa = np.where(np.abs(system.grid.zg) <= (w + a))
+        nwa = I_wa[0].size
+
+        # Resistive diagnostic scale
+        res_key = "cgl.bz_induction.eta_vs_ideal" if CGL else "classical.bz_induction.eta_vs_ideal"
+        res_scale = scales.get(res_key, float("nan"))
+        if res_scale is not None and np.isfinite(res_scale) and res_scale > 0.0:
+            res_nodes = max(1, np.where(np.abs(system.grid.zg) <= res_scale)[0].size)
+        else:
+            res_scale = float("nan")
+            res_nodes = 0
+
+        system_result["mode_scales"] = scales
+        system_result["minimum_physical_scale"] = min_scale if min_scale is not None else float("nan")
+        system_result["minimum_physical_scale_key"] = min_key if min_key is not None else ""
+        system_result["minimum_scale_nodes"] = nin if nin is not None else 0
+        system_result["resistive_layer_thickness"] = res_scale
+        system_result["resistive_layer_nodes"] = res_nodes
+
+        # Print verbose deterministic mode scales line once for final mode
+        if verbose:
+            scale_entries = []
+            for k in sorted(scales.keys()):
+                v = scales[k]
+                if v != 0.0 and not np.isnan(v):
+                    if np.isinf(v):
+                        scale_entries.append(f"{k}=inf")
+                    else:
+                        scale_entries.append(f"{k}={v:.4e}")
+            if scale_entries:
+                logger.info(f"mode scales: {', '.join(scale_entries)}")
 
         if allmodes:
             return σ, v, e, δin, nin, nwa, C, N, system.grid.zg, True
 
-        system_result = getattr(system, 'result')
         if np.isclose(σ, system_result['sigma']):
             σ = system_result['sigma']
             e = system_result['error']
@@ -356,9 +400,10 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         for key in system_variables:
             s[key] = system_result[key]
 
+        limiting_str = f" [limiting: {min_key}]" if min_key else ""
         logger.debug(
             f'Calculation done for α = {α:.4e} with C = {C:.3e} '
-            f'({nin} points over the interval |z| < δin, {nwa} points over |z| < w+a):'
+            f'({nin} points over interval |z| < δin={δin:.3e}{limiting_str}, {nwa} points over |z| < w+a):'
         )
         logger.debug(f'  σ₀ = {σ.real:.4e}{σ.imag:+.4e}j (error = {e:.3e}, N = {N})')
 

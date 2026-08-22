@@ -557,71 +557,30 @@ def make_fast_interpolator(grid: Any) -> Callable[[float, np.ndarray], float]:
 
 def inner_layer_thickness(system: Any, δtol: float = 1e-3, maxiter: int = 20) -> Tuple[float, int, int]:
     """
-    Calculate the inner layer thickness δ for the tearing instability eigenmode.
+    Calculate the resistive inner layer thickness for tearing instability eigenmodes.
+
+    .. deprecated:: 0.2.0
+       Use :func:`measure_eigenmode_scales` and :func:`minimum_eigenmode_scale`
+       for multi-scale analysis. This compatibility wrapper specifically returns
+       the induction resistive scale ('classical.bz_induction.eta_vs_ideal' or
+       'cgl.bz_induction.eta_vs_ideal') rather than the global multi-scale minimum.
     """
-    grid = system.grid
-    sol  = system.result
-
-    C = grid.C
-    s = getattr(system, 'shear', False)
-    a = system.a
-    w = getattr(system, 'w', 0.0)
-    S = system.S
-    ξ = getattr(system, 'ξ', 0.0)
-    α = system.kx * a
-    u = sol['duz']
-    b = sol['dbz']
-    F = system.Bx
-    G = getattr(system, 'Ux', 0.0)
-
-    if s:
-        Ti = np.abs(1j * α * (u * F - G * b) + ξ * grid.derivative(u, 1))
+    scales = measure_eigenmode_scales(system)
+    model_name = system.__class__.__name__
+    if "Gyrotropic" in model_name or "CGL" in model_name or (hasattr(system, "By") and not hasattr(system, "Ux")):
+        res_key = "cgl.bz_induction.eta_vs_ideal"
     else:
-        Ti = np.abs(1j * α *  u * F          + ξ * grid.derivative(u, 1))
-    Tn = np.abs(grid.derivative(b, 2) - α**2 * b) / S
-    Td = Tn - Ti
+        res_key = "classical.bz_induction.eta_vs_ideal"
 
-    I   = np.where((0.0 <= grid.zg) & (grid.zg <= (w + 2 * a)))
-    zin = grid.zg[I]
-    Tin = Tn[I] - Ti[I]
+    delta_res = scales.get(res_key, float("nan"))
+    if delta_res is None or np.isnan(delta_res) or np.isinf(delta_res) or delta_res <= 0:
+        δ = 0.0
+    else:
+        δ = delta_res
 
-    # Build interpolator once
-    fast_interp = make_fast_interpolator(grid)
-
-    δ = 0.0
-    # check if Td changes sign in the interval
-    if Tin.min() <= 0.0 and Tin.max() >= 0.0:
-        # start from z at which Tin is maximum and search at which distance Td becomes negative
-        idx = Tin.argmax()
-        while Tin[idx] > 0.0 and idx < (Tin.size - 1):
-            idx += 1
-        idx -= 1
-        if idx < (Tin.size - 1):
-            # endpoints of the bracket on the sliced arrays
-            zl, zh = float(zin[idx]), float(zin[idx + 1])
-            tl, th = float(Tin[idx]), float(Tin[idx + 1])
-
-            # If bracket does not change sign, fall back to choosing the best of endpoints/midpoint
-            if tl * th > 0.0:
-                zm = 0.5 * (zl + zh)
-                tm = fast_interp(zm, Td)
-                # pick the point with smallest absolute value
-                best = min(((abs(tl), zl), (abs(tm), zm), (abs(th), zh)), key=lambda x: x[0])[1]
-                δ = best
-            else:
-                it = 0
-                while 2.0 * (zh - zl) > δtol * (zh + zl) and it < maxiter:
-                    zm = 0.5 * (zl + zh)
-                    tm = fast_interp(zm, Td)
-                    if tm == 0.0:
-                        zl = zh = zm
-                        break
-                    if tl * tm > 0:
-                        zl, tl = zm, tm
-                    else:
-                        zh, th = zm, tm
-                    it += 1
-                δ = 0.5 * (zl + zh)
+    grid = system.grid
+    w = getattr(system, "w", 0.0)
+    a = getattr(system, "a", 1.0)
 
     I = np.where(np.abs(grid.zg) <= δ)
     nin = max(1, I[0].size)

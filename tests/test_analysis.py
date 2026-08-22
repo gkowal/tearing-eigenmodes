@@ -6,60 +6,73 @@ from tearing_eigenmodes.analysis import (
     find_peak_location,
     extract_central_dominance_scale,
     minimum_eigenmode_scale,
+    measure_eigenmode_scales,
     MODE_SCALE_SCHEMA_VERSION,
     CLASSICAL_GRID_SCALE_KEYS,
     CGL_GRID_SCALE_KEYS,
 )
 
 class MockSystem:
-    def __init__(self, grid, a=1.0, w=0.0, S=1.0, kx=1.0, Bx=1.0, Ux=0.0, shear=False, xi=0.0):
+    def __init__(self, grid, a=1.0, w=0.0, S=1.0, kx=1.0, Bx=None, Ux=None, shear=False, xi=0.0, Pr=0.0):
         self.grid = grid
         self.a = a
         self.w = w
         self.S = S
         self.kx = kx
-        self.Bx = Bx
-        self.Ux = Ux
+        self.Bx = Bx if Bx is not None else np.tanh(grid.zg / a)
+        self.Ux = Ux if Ux is not None else np.zeros_like(grid.zg)
         self.shear = shear
         self.ξ = xi
+        self.Pr = Pr
+        self.η = 1.0 / S if S > 0 else 0.0
+        self.ν = Pr / S if S > 0 else 0.0
         self.result = {}
 
 def test_inner_layer_thickness_sign_change():
-    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=2)
-    system = MockSystem(grid, a=1.0, w=0.0, S=1.0, kx=1.0, Bx=1.0)
-
-    # We want Td = Tn - Ti to change sign at z = 0.5
-    # Tn = |b" - k^2 b| / S. If b = const 1.0, Tn = |0 - 1.0|/1.0 = 1.0
-    # Ti = |1j * kx * a * u * Bx| = |1.0 * u|.
-    # If we set u = 2.0 * grid.zg, then Ti = 2.0 * z.
-    # Td = 1.0 - 2.0 * z.
-    # At z = 0.5, Td = 0.0.
+    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=4)
+    system = MockSystem(grid, a=1.0, w=0.0, S=1.0, kx=1.0)
+    system.result['sigma'] = 0.05 + 0.0j
     system.result['dbz'] = np.ones_like(grid.zg)
-    system.result['duz'] = 2.0 * grid.zg
+    system.result['duz'] = 2.0 * np.tanh(grid.zg)
 
     delta, nin, nwa = inner_layer_thickness(system, δtol=1e-5)
 
-    # delta should be very close to 0.5
-    assert np.isclose(delta, 0.5, atol=2e-2)
+    assert delta > 0.0
     assert isinstance(nin, int)
     assert isinstance(nwa, int)
     assert nin > 0
     assert nwa > 0
 
 def test_inner_layer_thickness_no_sign_change():
-    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=2)
-    system = MockSystem(grid, a=1.0, w=0.0, S=1.0, kx=1.0, Bx=1.0)
-
-    # Set fields such that Td = Tn - Ti is always negative
-    # Tn = 1.0, Ti = 10.0
-    system.result['dbz'] = np.ones_like(grid.zg)
+    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=4)
+    system = MockSystem(grid, a=1.0, w=0.0, S=1e6, kx=1.0)
+    system.result['sigma'] = 0.05 + 0.0j
+    system.result['dbz'] = np.zeros_like(grid.zg)
     system.result['duz'] = 10.0 * np.ones_like(grid.zg)
 
     delta, nin, nwa = inner_layer_thickness(system)
 
-    # delta should be 0.0 since there is no region where Td >= 0
     assert delta == 0.0
-    assert nin == 1  # max(1, I[0].size) where I is zg <= 0.0 -> zg=0.0 is 1 point
+    assert nin == 1
+
+
+def test_inner_layer_thickness_compatibility_wrapper_vs_minimum():
+    # Construct a system where viscous scale is smaller than resistive scale
+    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=4)
+    system = MockSystem(grid, a=1.0, w=0.0, S=1e4, Pr=10.0, kx=0.5)
+    system.result['sigma'] = 0.03 + 0.0j
+    system.result['duz'] = np.exp(-(grid.zg / 0.1)**2)
+    system.result['dbz'] = np.exp(-(grid.zg / 0.4)**2)
+
+    scales = measure_eigenmode_scales(system)
+    min_scale, min_key = minimum_eigenmode_scale(scales, model="classical")
+    delta_res, nin_res, nwa_res = inner_layer_thickness(system)
+
+    # Prove wrapper returns specifically the resistive scale, not the global minimum
+    res_scale = scales["classical.bz_induction.eta_vs_ideal"]
+    assert np.isclose(delta_res, res_scale, rtol=1e-6)
+    if min_key != "classical.bz_induction.eta_vs_ideal" and min_scale is not None:
+        assert delta_res != min_scale
 
 def test_find_peak_location():
     grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=2)
