@@ -329,25 +329,28 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
         logger.warning(f"State file {file_path} missing tolerance or resolution reuse metadata.")
         return False, None
 
-    try:
-        e_arr = np.atleast_1d(e)
-        if e_arr.size != 1:
-            logger.warning(f"Invalid tolerance in state file {file_path}: {e}")
-            return False, None
-        e_val = float(e_arr[0])
-        if not np.isfinite(e_val):
-            logger.warning(f"Non-finite tolerance in state file {file_path}: {e_val}")
-            return False, None
+    N_val = _positive_integer_scalar(N)
+    if N_val is None:
+        logger.warning(f"Invalid resolution in state file {file_path}: {N}")
+        return False, None
 
-        N_arr = np.atleast_1d(N)
-        if N_arr.size != 1:
-            logger.warning(f"Invalid resolution in state file {file_path}: {N}")
+    if isinstance(e, (bool, np.bool_)):
+        logger.warning(f"Invalid boolean tolerance in state file {file_path}: {e}")
+        return False, None
+
+    try:
+        e_arr = np.asanyarray(e)
+        if e_arr.ndim != 0 and e_arr.size != 1:
+            logger.warning(f"Invalid tolerance array in state file {file_path}: {e}")
             return False, None
-        N_float = float(N_arr[0])
-        if not np.isfinite(N_float):
-            logger.warning(f"Non-finite resolution in state file {file_path}: {N_float}")
+        elem = e_arr.item() if e_arr.ndim == 0 else e_arr.flat[0]
+        if isinstance(elem, (bool, np.bool_)):
+            logger.warning(f"Invalid boolean tolerance in state file {file_path}: {e}")
             return False, None
-        N_val = int(N_float)
+        e_val = float(elem)
+        if not np.isfinite(e_val) or e_val < 0.0:
+            logger.warning(f"Non-finite or negative tolerance in state file {file_path}: {e_val}")
+            return False, None
 
         status = not (e_val > 1.0 and N_val < Nmax)
         return status, data

@@ -353,16 +353,25 @@ def test_load_state_data_partially_malformed_diagnostics():
         ("tolerance", np.array([])),
         ("tolerance", np.nan),
         ("tolerance", np.inf),
+        ("tolerance", -0.1),
+        ("tolerance", True),
         ("tolerance", None),
         ("resolution", "bad"),
+        ("resolution", "2048.9"),
+        ("resolution", 2048.9),
+        ("resolution", np.float64(128.5)),
+        ("resolution", 0),
+        ("resolution", -128),
+        ("resolution", True),
         ("resolution", np.array([])),
+        ("resolution", np.array([128, 256])),
         ("resolution", np.nan),
         ("resolution", np.inf),
         ("resolution", None),
     ],
 )
 def test_check_state_malformed_and_nonfinite_metadata(bad_key: str, bad_val: Any) -> None:
-    """check_state must safely return (False, None) for malformed, nonfinite, or missing reuse metadata."""
+    """check_state must safely return (False, None) for malformed, nonfinite, non-integer, or missing reuse metadata."""
     from tearing_eigenmodes.io import check_state
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -381,6 +390,24 @@ def test_check_state_malformed_and_nonfinite_metadata(bad_key: str, bad_val: Any
         status, state_data = check_state(fp, Nmax=2048)
         assert status is False
         assert state_data is None
+
+
+def test_check_state_fractional_resolution_reproducer():
+    """tolerance=10.0 with fractional resolution='2048.9' at Nmax=2048 must return (False, None)."""
+    from tearing_eigenmodes.io import check_state
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fp = os.path.join(tmpdir, "state_fractional_res.npz")
+        np.savez_compressed(
+            fp,
+            wavenumber=0.1,
+            a=1.0,
+            tolerance=10.0,
+            resolution="2048.9",
+        )
+        status, data = check_state(fp, Nmax=2048)
+        assert status is False
+        assert data is None
 
 
 @pytest.mark.parametrize(
