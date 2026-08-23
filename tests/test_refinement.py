@@ -1194,3 +1194,79 @@ def test_refine_non_mapping_and_malformed_scalar_fallbacks(temp_npz_dir: str) ->
     expected_analytic = estimate_inner_scale(params, alpha=0.15)
     assert deltas[0] is not None
     assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
+
+
+def test_refine_fractional_schema_version_barrier(temp_npz_dir: str) -> None:
+    """A record with fractional schema version (e.g. 1.5) must not be trusted and must form a barrier."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import load_state_data
+    from tearing_eigenmodes.refinement import _load_cached_state_records
+
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
+
+    # Record 1 at k=0.1: valid schema=1, scale=0.02
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.02]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 2 at k=0.2: fractional schema=1.5, scale=0.0001
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.0001]),
+        mode_scale_schema_version=1.5,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 3 at k=0.3: valid schema=1, scale=0.08
+    np.savez_compressed(
+        fp3,
+        wavenumber=0.3,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.08]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # 1. State data for center has empty mode_scales
+    d_center = load_state_data(fp2)
+    assert d_center is not None
+    assert d_center["mode_scales"] == {}
+
+    # 2. Cached records include all three coordinates
+    records = _load_cached_state_records(temp_npz_dir, params)
+    assert [r["v"] for r in records] == [0.1, 0.2, 0.3]
+
+    # 3. Refine at k=0.15: returns analytic fallback (0.06065972342799003) and not cross-gap (0.00090159965149587)
+    deltas = refine_inner_scale(np.array([0.15]), params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    unwanted_cross_gap = 0.00090159965149587
+
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
+    assert not np.isclose(deltas[0], unwanted_cross_gap, rtol=1e-2)

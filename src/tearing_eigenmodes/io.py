@@ -99,6 +99,56 @@ def save_eigenmode(file_path: str, **kwargs: Any) -> None:
         raise e
 
 
+def _positive_integer_scalar(value: Any) -> Optional[int]:
+    """
+    Return one finite, positive, exactly integer-valued scalar as Python int.
+    Safely returns None for bool, NaN, inf, <= 0, fractional values (e.g. 1.5, '2048.9'),
+    empty/multi-element arrays, None, strings with fractional parts, or arbitrary objects.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (bool, np.bool_)):
+        return None
+
+    if isinstance(value, (str, bytes)):
+        try:
+            s = value.decode("utf-8") if isinstance(value, bytes) else value
+            s = s.strip()
+            try:
+                val_int = int(s)
+                return val_int if val_int > 0 else None
+            except ValueError:
+                f = float(s)
+                if np.isfinite(f) and f > 0.0 and f.is_integer():
+                    return int(f)
+                return None
+        except Exception:
+            return None
+
+    try:
+        arr = np.asanyarray(value)
+        if arr.ndim != 0 and arr.size != 1:
+            return None
+        elem = arr.item() if arr.ndim == 0 else arr.flat[0]
+        if isinstance(elem, (bool, np.bool_)):
+            return None
+        if isinstance(elem, (int, np.integer)):
+            val = int(elem)
+            return val if val > 0 else None
+        if isinstance(elem, (float, np.floating)):
+            if np.isfinite(elem) and elem > 0.0:
+                f_elem = float(elem)
+                if f_elem.is_integer():
+                    return int(f_elem)
+            return None
+        if isinstance(elem, (str, bytes)):
+            return _positive_integer_scalar(elem)
+    except Exception:
+        return None
+
+    return None
+
+
 def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
     """
     Read and decode all state variables and reconstructed scale metadata from a .npz file.
@@ -138,15 +188,12 @@ def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
             schema_valid = True
             if 'mode_scale_schema_version' in data:
                 raw_schema = data['mode_scale_schema_version']
-                try:
-                    if isinstance(raw_schema, np.ndarray) and raw_schema.ndim == 0:
-                        raw_schema = raw_schema.item()
-                    schema_ver = int(raw_schema)
-                    if schema_ver > MODE_SCALE_SCHEMA_VERSION:
-                        logger.warning(f"State file {file_path} uses newer schema version {schema_ver}.")
-                except Exception:
+                schema_ver = _positive_integer_scalar(raw_schema)
+                if schema_ver is None:
                     logger.warning(f"Malformed mode_scale_schema_version in {file_path}: {raw_schema}")
                     schema_valid = False
+                elif schema_ver > MODE_SCALE_SCHEMA_VERSION:
+                    logger.warning(f"State file {file_path} uses newer schema version {schema_ver}.")
 
             if not schema_valid:
                 data['mode_scales'] = {}

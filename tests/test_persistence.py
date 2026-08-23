@@ -268,21 +268,55 @@ def test_load_state_data_partially_malformed_diagnostics():
         assert d2 is not None
         assert d2["mode_scales"] == {}
 
-        # 3. Malformed schema version
-        fp3 = os.path.join(tmpdir, "state_bad_schema.npz")
-        np.savez_compressed(
-            fp3,
-            wavenumber=0.4,
-            a=1.0,
-            tolerance=1e-5,
-            resolution=128,
-            mode_scale_keys=np.array(["k1"]),
-            mode_scale_values=np.array(["0.045"]),
-            mode_scale_schema_version="invalid_schema_ver",
-        )
-        d3 = load_state_data(fp3)
-        assert d3 is not None
-        assert d3["mode_scales"] == {}
+        # 3. Malformed schema versions (must retain state with empty mode_scales)
+        bad_schemas = [
+            "invalid_schema_ver",
+            1.5,
+            np.float64(1.5),
+            "1.5",
+            0,
+            -1,
+            np.nan,
+            np.inf,
+            True,
+            np.array([]),
+            np.array([1, 2]),
+        ]
+        for i, bad_s in enumerate(bad_schemas):
+            fp_bad = os.path.join(tmpdir, f"state_bad_schema_{i}.npz")
+            np.savez_compressed(
+                fp_bad,
+                wavenumber=0.4,
+                a=1.0,
+                tolerance=1e-5,
+                resolution=128,
+                mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+                mode_scale_values=np.array([0.045]),
+                mode_scale_schema_version=bad_s,
+            )
+            d_bad = load_state_data(fp_bad)
+            assert d_bad is not None
+            assert d_bad["wavenumber"] == 0.4
+            assert d_bad["mode_scales"] == {}
+
+        # Valid schema versions (absent, 1, np.int32(1), 1.0, "1", "1.0", 2)
+        good_schemas = [None, 1, np.int32(1), 1.0, "1", "1.0", 2]
+        for i, good_s in enumerate(good_schemas):
+            fp_good = os.path.join(tmpdir, f"state_good_schema_{i}.npz")
+            kwargs: dict[str, Any] = {
+                "wavenumber": 0.4,
+                "a": 1.0,
+                "tolerance": 1e-5,
+                "resolution": 128,
+                "mode_scale_keys": np.array(["classical.bz_induction.eta_vs_ideal"]),
+                "mode_scale_values": np.array([0.045]),
+            }
+            if good_s is not None:
+                kwargs["mode_scale_schema_version"] = good_s
+            np.savez_compressed(fp_good, **kwargs)
+            d_good = load_state_data(fp_good)
+            assert d_good is not None
+            assert d_good["mode_scales"]["classical.bz_induction.eta_vs_ideal"] == 0.045
 
         # 4. Malformed scalar fallbacks and node counts
         fp4 = os.path.join(tmpdir, "state_bad_scalars.npz")
