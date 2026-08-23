@@ -11,6 +11,8 @@ from .analysis import (
     MODE_SCALE_SCHEMA_VERSION,
     CLASSICAL_GRID_SCALE_KEYS,
     CGL_GRID_SCALE_KEYS,
+    CLASSICAL_PHYSICAL_SCALE_KEYS,
+    CGL_PHYSICAL_SCALE_KEYS,
 )
 from .physics import (
     eos_indices,
@@ -47,6 +49,8 @@ __all__ = [
     "MODE_SCALE_SCHEMA_VERSION",
     "CLASSICAL_GRID_SCALE_KEYS",
     "CGL_GRID_SCALE_KEYS",
+    "CLASSICAL_PHYSICAL_SCALE_KEYS",
+    "CGL_PHYSICAL_SCALE_KEYS",
     "eos_indices",
     "estimate_max",
     "calculate_inner_factors",

@@ -12,6 +12,7 @@ from tearing_eigenmodes import (
     refine_resistive_scale,
     estimate_inner_scale,
     SimulationParams,
+    MODE_SCALE_SCHEMA_VERSION,
 )
 from tearing_eigenmodes.refinement import (
     _cached_load_eigenmodes,
@@ -1028,7 +1029,7 @@ def test_refine_malformed_center_record_barrier_retained(temp_npz_dir: str) -> N
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.02]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1041,7 +1042,7 @@ def test_refine_malformed_center_record_barrier_retained(temp_npz_dir: str) -> N
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array(["bad"]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1054,7 +1055,7 @@ def test_refine_malformed_center_record_barrier_retained(temp_npz_dir: str) -> N
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.08]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1105,7 +1106,7 @@ def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> 
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
         mode_scale_values=np.array([0.02, 0.02]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1118,7 +1119,7 @@ def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> 
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
         mode_scale_values=np.array(["bad", 0.04]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1131,7 +1132,7 @@ def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> 
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
         mode_scale_values=np.array([0.08, 0.08]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1172,7 +1173,7 @@ def test_refine_non_mapping_mode_scales_barrier(temp_npz_dir: str) -> None:
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.02]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1196,7 +1197,7 @@ def test_refine_non_mapping_mode_scales_barrier(temp_npz_dir: str) -> None:
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.08]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1290,7 +1291,7 @@ def test_refine_fractional_schema_version_barrier(temp_npz_dir: str) -> None:
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.02]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1307,7 +1308,7 @@ def test_refine_fractional_schema_version_barrier(temp_npz_dir: str) -> None:
         minimum_physical_scale=np.nan,
     )
 
-    # Record 3 at k=0.3: valid schema=1, scale=0.08
+    # Record 3 at k=0.3: valid schema=2, scale=0.08
     np.savez_compressed(
         fp3,
         wavenumber=0.3,
@@ -1316,7 +1317,7 @@ def test_refine_fractional_schema_version_barrier(temp_npz_dir: str) -> None:
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.08]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
@@ -1413,7 +1414,7 @@ def test_refine_malformed_saved_a_fallback_preserves_records(temp_npz_dir: str) 
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.02]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
     )
     # Record 2 at k=0.2: malformed a="bad", scale=0.04
     np.savez_compressed(
@@ -1424,7 +1425,7 @@ def test_refine_malformed_saved_a_fallback_preserves_records(temp_npz_dir: str) 
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.04]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
     )
     # Record 3 at k=0.3: a=1.0, scale=0.08
     np.savez_compressed(
@@ -1435,7 +1436,7 @@ def test_refine_malformed_saved_a_fallback_preserves_records(temp_npz_dir: str) 
         resolution=128,
         mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
         mode_scale_values=np.array([0.08]),
-        mode_scale_schema_version=1,
+        mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
     )
 
     params = SimulationParams(

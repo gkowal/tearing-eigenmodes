@@ -8,6 +8,7 @@ from tearing_eigenmodes.io import (
     check_state,
     load_eigenmodes,
     write_results,
+    load_state_data,
 )
 from tearing_eigenmodes.analysis import (
     MODE_SCALE_SCHEMA_VERSION,
@@ -23,10 +24,12 @@ def test_serialization_round_trip_without_pickle():
 
         scales = {
             "classical.bz_induction.eta_vs_ideal": 0.045,
+            "classical.bz_induction.eta_vs_ideal_envelope": 0.042,
             "classical.bz_induction.eta_vs_f": 0.050,
             "classical.bz_induction.g_vs_f": float("nan"),
             "classical.bz_induction.xi_vs_f": float("inf"),
             "classical.uz_vorticity.nu_vs_ideal": 0.025,
+            "classical.uz_vorticity.nu_vs_ideal_envelope": 0.022,
             "classical.uz_vorticity.nu_vs_f": 0.030,
             "classical.uz_vorticity.g_vs_f": float("nan"),
             "classical.uz_vorticity.xi_vs_f": float("nan"),
@@ -308,7 +311,7 @@ def test_load_state_data_partially_malformed_diagnostics():
                 "a": 1.0,
                 "tolerance": 1e-5,
                 "resolution": 128,
-                "mode_scale_keys": np.array(["classical.bz_induction.eta_vs_ideal"]),
+                "mode_scale_keys": np.array(["classical.bz_induction.eta_vs_f"]),
                 "mode_scale_values": np.array([0.045]),
             }
             if good_s is not None:
@@ -316,7 +319,7 @@ def test_load_state_data_partially_malformed_diagnostics():
             np.savez_compressed(fp_good, **kwargs)
             d_good = load_state_data(fp_good)
             assert d_good is not None
-            assert d_good["mode_scales"]["classical.bz_induction.eta_vs_ideal"] == 0.045
+            assert d_good["mode_scales"]["classical.bz_induction.eta_vs_f"] == 0.045
 
         # 4. Malformed scalar fallbacks and node counts
         fp4 = os.path.join(tmpdir, "state_bad_scalars.npz")
@@ -523,7 +526,7 @@ def test_load_eigenmodes_and_write_results_malformed_optional_scales():
 def test_load_eigenmodes_scale_key_selection():
     """load_eigenmodes should support selecting specific physical scales via scale_key."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # File 1: Multiscale with eta_vs_ideal=0.03, nu_vs_ideal=0.01, minimum=0.01
+        # File 1: Multiscale (schema 2) with eta_vs_ideal=0.03, eta_vs_ideal_envelope=0.025, nu_vs_ideal=0.01
         np.savez_compressed(
             os.path.join(tmpdir, "state_alpha0.100000e+00.npz"),
             wavenumber=0.1,
@@ -535,9 +538,13 @@ def test_load_eigenmodes_scale_key_selection():
             current_sheet_nodes=20,
             minimum_physical_scale=0.01,
             minimum_scale_nodes=3,
-            mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
-            mode_scale_values=np.array([0.03, 0.01]),
-            mode_scale_schema_version=1,
+            mode_scale_keys=np.array([
+                "classical.bz_induction.eta_vs_ideal",
+                "classical.bz_induction.eta_vs_ideal_envelope",
+                "classical.uz_vorticity.nu_vs_ideal",
+            ]),
+            mode_scale_values=np.array([0.03, 0.025, 0.01]),
+            mode_scale_schema_version=2,
         )
         # File 2: Legacy state with resistive_layer_thickness=0.04
         np.savez_compressed(
@@ -563,12 +570,118 @@ def test_load_eigenmodes_scale_key_selection():
         assert np.isclose(δ_eta[0], 0.03)
         assert np.isclose(δ_eta[1], 0.04)  # Legacy fallback
 
-        # 3. Specific scale_key='classical.uz_vorticity.nu_vs_ideal'
+        # 3. Specific scale_key='classical.bz_induction.eta_vs_ideal_envelope'
+        _, _, _, _, δ_env, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="classical.bz_induction.eta_vs_ideal_envelope")
+        assert np.isclose(δ_env[0], 0.025)
+        assert np.isnan(δ_env[1])  # Absent in legacy file
+
+        # 4. Specific scale_key='classical.uz_vorticity.nu_vs_ideal'
         _, _, _, _, δ_nu, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="classical.uz_vorticity.nu_vs_ideal")
         assert np.isclose(δ_nu[0], 0.01)
         assert np.isnan(δ_nu[1])  # Absent in legacy file
 
-        # 4. Unknown scale_key -> returns nan
+        # 5. Unknown scale_key -> returns nan
         _, _, _, _, δ_none, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="nonexistent_scale")
         assert np.isnan(δ_none[0])
         assert np.isnan(δ_none[1])
+
+
+def test_schema_version_1_remaps_envelope_and_does_not_forge_net():
+    """Schema version 1 records must remap eta_vs_ideal to eta_vs_ideal_envelope and not forge net-ideal scales."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fp = os.path.join(tmpdir, "state_schema1.npz")
+        np.savez_compressed(
+            fp,
+            wavenumber=0.1,
+            a=1.0,
+            eigenvalue=0.01 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            minimum_physical_scale=0.02,
+            minimum_scale_nodes=3,
+            mode_scale_keys=np.array([
+                "classical.bz_induction.eta_vs_ideal",
+                "classical.uz_vorticity.nu_vs_ideal",
+                "classical.bz_induction.eta_vs_f",
+            ]),
+            mode_scale_values=np.array([0.02, 0.015, 0.025]),
+            mode_scale_schema_version=1,
+        )
+
+        data = load_state_data(fp)
+        assert data is not None
+        scales = data["mode_scales"]
+
+        # Remapped to envelope:
+        assert np.isclose(scales["classical.bz_induction.eta_vs_ideal_envelope"], 0.02)
+        assert np.isclose(scales["classical.uz_vorticity.nu_vs_ideal_envelope"], 0.015)
+        assert np.isclose(scales["classical.bz_induction.eta_vs_f"], 0.025)
+
+        # Net ideal scales were not stored in schema version 1, must be nan:
+        assert np.isnan(scales["classical.bz_induction.eta_vs_ideal"])
+        assert np.isnan(scales["classical.uz_vorticity.nu_vs_ideal"])
+
+
+def test_future_schema_version_treated_as_unavailable():
+    """Future schema versions (e.g. 3) must warn, keep record loadable, but treat mode_scales as unavailable (not schema 1)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fp = os.path.join(tmpdir, "state_schema3.npz")
+        np.savez_compressed(
+            fp,
+            wavenumber=0.1,
+            a=1.0,
+            eigenvalue=0.01 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            minimum_physical_scale=0.02,
+            minimum_scale_nodes=3,
+            mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+            mode_scale_values=np.array([0.02]),
+            mode_scale_schema_version=3,  # Future schema > MODE_SCALE_SCHEMA_VERSION (2)
+        )
+
+        data = load_state_data(fp)
+        assert data is not None
+        assert data["wavenumber"] == 0.1
+        # Must be empty dict (unavailable), NOT remapped as schema 1
+        assert data["mode_scales"] == {}
+
+
+def test_cgl_schema_1_unaffected_by_classical_migration():
+    """CGL schema 1 records must not have their keys remapped or modified during loading."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fp = os.path.join(tmpdir, "state_cgl_schema1.npz")
+        np.savez_compressed(
+            fp,
+            wavenumber=0.1,
+            a=1.0,
+            eigenvalue=0.01 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            minimum_physical_scale=0.02,
+            minimum_scale_nodes=3,
+            mode_scale_keys=np.array([
+                "cgl.by_induction.eta_vs_ideal",
+                "cgl.by_induction.eta_vs_f",
+                "cgl.bz_induction.eta_vs_ideal",
+                "cgl.bz_induction.eta_vs_f",
+            ]),
+            mode_scale_values=np.array([0.02, 0.025, 0.03, 0.035]),
+            mode_scale_schema_version=1,
+        )
+
+        data = load_state_data(fp)
+        assert data is not None
+        scales = data["mode_scales"]
+
+        # CGL keys remain intact and unmodified:
+        assert np.isclose(scales["cgl.by_induction.eta_vs_ideal"], 0.02)
+        assert np.isclose(scales["cgl.by_induction.eta_vs_f"], 0.025)
+        assert np.isclose(scales["cgl.bz_induction.eta_vs_ideal"], 0.03)
+        assert np.isclose(scales["cgl.bz_induction.eta_vs_f"], 0.035)

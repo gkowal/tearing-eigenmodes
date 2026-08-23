@@ -165,7 +165,12 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: SimulationParams) -> List[
     return kbracket
 
 
-from .analysis import CLASSICAL_GRID_SCALE_KEYS, CGL_GRID_SCALE_KEYS
+from .analysis import (
+    CLASSICAL_GRID_SCALE_KEYS,
+    CGL_GRID_SCALE_KEYS,
+    CLASSICAL_PHYSICAL_SCALE_KEYS,
+    CGL_PHYSICAL_SCALE_KEYS,
+)
 from .physics import estimate_inner_scale
 
 
@@ -345,7 +350,7 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     if not records:
         return inner_scales
 
-    candidate_keys = CGL_GRID_SCALE_KEYS if params.CGL else CLASSICAL_GRID_SCALE_KEYS
+    candidate_keys = CGL_PHYSICAL_SCALE_KEYS if params.CGL else CLASSICAL_PHYSICAL_SCALE_KEYS
     is_positive_dispersion = (params.dependence is None) and np.all(vs > 0)
 
     # 2. Try per-term physical-scale interpolation within contiguous valid runs

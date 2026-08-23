@@ -186,19 +186,45 @@ def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
             data['mode_scales'] = {}
         else:
             schema_valid = True
+            schema_ver = 1
             if 'mode_scale_schema_version' in data:
                 raw_schema = data['mode_scale_schema_version']
-                schema_ver = _positive_integer_scalar(raw_schema)
-                if schema_ver is None:
+                parsed_ver = _positive_integer_scalar(raw_schema)
+                if parsed_ver is None:
                     logger.warning(f"Malformed mode_scale_schema_version in {file_path}: {raw_schema}")
                     schema_valid = False
-                elif schema_ver > MODE_SCALE_SCHEMA_VERSION:
-                    logger.warning(f"State file {file_path} uses newer schema version {schema_ver}.")
+                elif parsed_ver > MODE_SCALE_SCHEMA_VERSION:
+                    logger.warning(f"State file {file_path} uses newer schema version {parsed_ver}.")
+                    schema_valid = False
+                else:
+                    schema_ver = parsed_ver
 
             if not schema_valid:
                 data['mode_scales'] = {}
-            else:
+            elif schema_ver == 1:
+                # Schema version 1 stored envelope values under eta_vs_ideal / nu_vs_ideal.
+                # Remap them to *_envelope and do not treat them as net-ideal scales.
                 mode_scales: Dict[str, float] = {}
+                for k, v in zip(keys, values):
+                    key_str = str(k)
+                    try:
+                        if isinstance(v, np.ndarray) and v.ndim == 0:
+                            v = v.item()
+                        val_float = float(v)
+                    except Exception:
+                        val_float = float("nan")
+
+                    if key_str == "classical.bz_induction.eta_vs_ideal":
+                        mode_scales["classical.bz_induction.eta_vs_ideal_envelope"] = val_float
+                        mode_scales["classical.bz_induction.eta_vs_ideal"] = float("nan")
+                    elif key_str == "classical.uz_vorticity.nu_vs_ideal":
+                        mode_scales["classical.uz_vorticity.nu_vs_ideal_envelope"] = val_float
+                        mode_scales["classical.uz_vorticity.nu_vs_ideal"] = float("nan")
+                    else:
+                        mode_scales[key_str] = val_float
+                data['mode_scales'] = mode_scales
+            else:
+                mode_scales = {}
                 for k, v in zip(keys, values):
                     key_str = str(k)
                     try:
@@ -427,11 +453,14 @@ def load_eigenmodes(
         wavenumber = float(data['wavenumber'])
 
         if scale_key is not None:
-            mode_scales = data.get('mode_scales')
-            if isinstance(mode_scales, dict) and scale_key in mode_scales:
-                try:
-                    dlt = float(mode_scales[scale_key])
-                except Exception:
+            if 'mode_scales' in data:
+                mode_scales = data['mode_scales']
+                if isinstance(mode_scales, dict) and scale_key in mode_scales:
+                    try:
+                        dlt = float(mode_scales[scale_key])
+                    except Exception:
+                        dlt = float('nan')
+                else:
                     dlt = float('nan')
             elif scale_key in ("classical.bz_induction.eta_vs_ideal", "cgl.bz_induction.eta_vs_ideal", "resistive_layer_thickness") and 'resistive_layer_thickness' in data:
                 try:

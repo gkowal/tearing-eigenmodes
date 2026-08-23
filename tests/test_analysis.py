@@ -9,7 +9,9 @@ from tearing_eigenmodes.analysis import (
     measure_eigenmode_scales,
     MODE_SCALE_SCHEMA_VERSION,
     CLASSICAL_GRID_SCALE_KEYS,
+    CLASSICAL_PHYSICAL_SCALE_KEYS,
     CGL_GRID_SCALE_KEYS,
+    CGL_PHYSICAL_SCALE_KEYS,
 )
 
 class MockSystem:
@@ -92,11 +94,15 @@ def test_find_peak_location():
 
 
 def test_schema_constants():
-    assert MODE_SCALE_SCHEMA_VERSION == 1
+    assert MODE_SCALE_SCHEMA_VERSION == 2
     assert isinstance(CLASSICAL_GRID_SCALE_KEYS, tuple)
+    assert isinstance(CLASSICAL_PHYSICAL_SCALE_KEYS, tuple)
     assert isinstance(CGL_GRID_SCALE_KEYS, tuple)
-    assert len(CLASSICAL_GRID_SCALE_KEYS) == 8
+    assert isinstance(CGL_PHYSICAL_SCALE_KEYS, tuple)
+    assert len(CLASSICAL_GRID_SCALE_KEYS) == 10
+    assert len(CLASSICAL_PHYSICAL_SCALE_KEYS) == 8
     assert len(CGL_GRID_SCALE_KEYS) == 4
+    assert len(CGL_PHYSICAL_SCALE_KEYS) == 4
     for key in CLASSICAL_GRID_SCALE_KEYS:
         assert key.startswith("classical.")
     for key in CGL_GRID_SCALE_KEYS:

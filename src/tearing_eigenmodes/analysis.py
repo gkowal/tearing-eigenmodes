@@ -7,9 +7,22 @@ from .systems import TearingClassicalMHD, TearingGyrotropicMHD
 
 logger = logging.getLogger(__name__)
 
-MODE_SCALE_SCHEMA_VERSION: int = 1
+MODE_SCALE_SCHEMA_VERSION: int = 2
 
 CLASSICAL_GRID_SCALE_KEYS: Tuple[str, ...] = (
+    "classical.bz_induction.eta_vs_ideal",
+    "classical.bz_induction.eta_vs_ideal_envelope",
+    "classical.bz_induction.eta_vs_f",
+    "classical.bz_induction.g_vs_f",
+    "classical.bz_induction.xi_vs_f",
+    "classical.uz_vorticity.nu_vs_ideal",
+    "classical.uz_vorticity.nu_vs_ideal_envelope",
+    "classical.uz_vorticity.nu_vs_f",
+    "classical.uz_vorticity.g_vs_f",
+    "classical.uz_vorticity.xi_vs_f",
+)
+
+CLASSICAL_PHYSICAL_SCALE_KEYS: Tuple[str, ...] = (
     "classical.bz_induction.eta_vs_ideal",
     "classical.bz_induction.eta_vs_f",
     "classical.bz_induction.g_vs_f",
@@ -26,6 +39,8 @@ CGL_GRID_SCALE_KEYS: Tuple[str, ...] = (
     "cgl.bz_induction.eta_vs_ideal",
     "cgl.bz_induction.eta_vs_f",
 )
+
+CGL_PHYSICAL_SCALE_KEYS: Tuple[str, ...] = CGL_GRID_SCALE_KEYS
 
 
 def _to_positive_finite_floor(val: Any) -> Optional[float]:
@@ -259,14 +274,14 @@ def minimum_eigenmode_scale(
     """
     Select the minimum valid physical scale and its standardized key.
 
-    Filters candidates against the model's key whitelist and retains only
-    finite values > 0.0. Deterministic key order resolves exact ties.
-    Returns (None, None) if no valid candidate exists.
+    Filters candidates against the model's physical scale key whitelist (excluding
+    envelope diagnostics) and retains only finite values > 0.0. Deterministic key order
+    resolves exact ties. Returns (None, None) if no valid candidate exists.
     """
     if model.lower().startswith("cgl") or model.lower() == "gyrotropic":
-        candidate_keys = CGL_GRID_SCALE_KEYS
+        candidate_keys = CGL_PHYSICAL_SCALE_KEYS
     else:
-        candidate_keys = CLASSICAL_GRID_SCALE_KEYS
+        candidate_keys = CLASSICAL_PHYSICAL_SCALE_KEYS
 
     min_scale: Optional[float] = None
     min_key: Optional[str] = None
@@ -291,13 +306,15 @@ class ClassicalTermProfiles:
     T_G_b: Optional[np.ndarray]
     T_xi_b: Optional[np.ndarray]
     T_eta_b: Optional[np.ndarray]
-    E_b: np.ndarray
+    T_ideal_b: np.ndarray
+    E_ideal_b: np.ndarray
     L_omega: np.ndarray
     T_F_omega: np.ndarray
     T_G_omega: Optional[np.ndarray]
     T_xi_omega: Optional[np.ndarray]
     T_nu_omega: Optional[np.ndarray]
-    E_omega: np.ndarray
+    T_ideal_omega: np.ndarray
+    E_ideal_omega: np.ndarray
 
 
 def evaluate_classical_terms(system: Any) -> ClassicalTermProfiles:
@@ -317,9 +334,9 @@ def evaluate_classical_terms(system: Any) -> ClassicalTermProfiles:
     ky = getattr(system, "ky", 0.0)
 
     if (isinstance(epsilon, bool) and epsilon) or (not isinstance(epsilon, bool) and float(epsilon) > 0):
-        raise NotImplementedError("Classical Hall branch (ϵ > 0) is not supported in schema version 1.")
+        raise NotImplementedError("Classical Hall branch (ϵ > 0) is not supported.")
     if not np.isclose(ky, 0.0):
-        raise NotImplementedError("Classical 3D modes (ky != 0) are not supported in schema version 1.")
+        raise NotImplementedError("Classical 3D modes (ky != 0) are not supported.")
 
     sol = system.result
     u = sol["duz"]
@@ -364,13 +381,16 @@ def evaluate_classical_terms(system: Any) -> ClassicalTermProfiles:
     eta_active = (eta is not None and eta > 0.0)
     T_eta_b = (eta * Dk_b) if eta_active else None
 
-    # Ideal envelope for induction
+    # Net ideal sum (signed complex) and magnitude envelope for induction
+    T_ideal_b = np.array(T_F_b, copy=True)
     ideal_b_list = [np.abs(T_F_b)]
     if flow_active and T_G_b is not None:
+        T_ideal_b += T_G_b
         ideal_b_list.append(np.abs(T_G_b))
     if xi_active and T_xi_b is not None:
+        T_ideal_b += T_xi_b
         ideal_b_list.append(np.abs(T_xi_b))
-    E_b = np.maximum.reduce(ideal_b_list)
+    E_ideal_b = np.maximum.reduce(ideal_b_list)
 
     # Vorticity equation terms
     L_omega = sigma * Dk_u
@@ -390,13 +410,16 @@ def evaluate_classical_terms(system: Any) -> ClassicalTermProfiles:
     else:
         T_nu_omega = None
 
-    # Ideal envelope for vorticity
+    # Net ideal sum (signed complex) and magnitude envelope for vorticity
+    T_ideal_omega = np.array(T_F_omega, copy=True)
     ideal_omega_list = [np.abs(T_F_omega)]
     if flow_active and T_G_omega is not None:
+        T_ideal_omega += T_G_omega
         ideal_omega_list.append(np.abs(T_G_omega))
     if xi_active and T_xi_omega is not None:
+        T_ideal_omega += T_xi_omega
         ideal_omega_list.append(np.abs(T_xi_omega))
-    E_omega = np.maximum.reduce(ideal_omega_list)
+    E_ideal_omega = np.maximum.reduce(ideal_omega_list)
 
     return ClassicalTermProfiles(
         z=z,
@@ -405,13 +428,15 @@ def evaluate_classical_terms(system: Any) -> ClassicalTermProfiles:
         T_G_b=T_G_b,
         T_xi_b=T_xi_b,
         T_eta_b=T_eta_b,
-        E_b=E_b,
+        T_ideal_b=T_ideal_b,
+        E_ideal_b=E_ideal_b,
         L_omega=L_omega,
         T_F_omega=T_F_omega,
         T_G_omega=T_G_omega,
         T_xi_omega=T_xi_omega,
         T_nu_omega=T_nu_omega,
-        E_omega=E_omega,
+        T_ideal_omega=T_ideal_omega,
+        E_ideal_omega=E_ideal_omega,
     )
 
 
@@ -430,13 +455,17 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
     # Induction scales
     if profiles.T_eta_b is not None:
         scales["classical.bz_induction.eta_vs_ideal"] = extract_central_dominance_scale(
-            z, profiles.T_eta_b, profiles.E_b, z_max=z_max, L_lhs=profiles.L_b
+            z, profiles.T_eta_b, profiles.T_ideal_b, z_max=z_max, L_lhs=profiles.L_b
+        )
+        scales["classical.bz_induction.eta_vs_ideal_envelope"] = extract_central_dominance_scale(
+            z, profiles.T_eta_b, profiles.E_ideal_b, z_max=z_max, L_lhs=profiles.L_b
         )
         scales["classical.bz_induction.eta_vs_f"] = extract_central_dominance_scale(
             z, profiles.T_eta_b, profiles.T_F_b, z_max=z_max, L_lhs=profiles.L_b
         )
     else:
         scales["classical.bz_induction.eta_vs_ideal"] = float("nan")
+        scales["classical.bz_induction.eta_vs_ideal_envelope"] = float("nan")
         scales["classical.bz_induction.eta_vs_f"] = float("nan")
 
     if profiles.T_G_b is not None:
@@ -456,13 +485,17 @@ def measure_classical_scales(system: Any) -> Dict[str, float]:
     # Vorticity scales
     if profiles.T_nu_omega is not None:
         scales["classical.uz_vorticity.nu_vs_ideal"] = extract_central_dominance_scale(
-            z, profiles.T_nu_omega, profiles.E_omega, z_max=z_max, L_lhs=profiles.L_omega
+            z, profiles.T_nu_omega, profiles.T_ideal_omega, z_max=z_max, L_lhs=profiles.L_omega
+        )
+        scales["classical.uz_vorticity.nu_vs_ideal_envelope"] = extract_central_dominance_scale(
+            z, profiles.T_nu_omega, profiles.E_ideal_omega, z_max=z_max, L_lhs=profiles.L_omega
         )
         scales["classical.uz_vorticity.nu_vs_f"] = extract_central_dominance_scale(
             z, profiles.T_nu_omega, profiles.T_F_omega, z_max=z_max, L_lhs=profiles.L_omega
         )
     else:
         scales["classical.uz_vorticity.nu_vs_ideal"] = float("nan")
+        scales["classical.uz_vorticity.nu_vs_ideal_envelope"] = float("nan")
         scales["classical.uz_vorticity.nu_vs_f"] = float("nan")
 
     if profiles.T_G_omega is not None:
@@ -510,9 +543,9 @@ def evaluate_cgl_induction_terms(system: Any) -> CGLInductionTermProfiles:
     ky = getattr(system, "ky", 0.0)
 
     if (isinstance(epsilon, bool) and epsilon) or (not isinstance(epsilon, bool) and float(epsilon) > 0):
-        raise NotImplementedError("CGL Hall branch (ϵ > 0) is not supported in schema version 1.")
+        raise NotImplementedError("CGL Hall branch (ϵ > 0) is not supported.")
     if not np.isclose(ky, 0.0):
-        raise NotImplementedError("CGL modes with ky != 0 are not supported in schema version 1.")
+        raise NotImplementedError("CGL modes with ky != 0 are not supported.")
 
     sol = system.result
     uy = sol["duy"]
@@ -560,7 +593,7 @@ def evaluate_cgl_induction_terms(system: Any) -> CGLInductionTermProfiles:
 
 def measure_cgl_scales(system: Any) -> Dict[str, float]:
     """
-    Measure standardized dominance scales for CGL induction equations (schema version 1).
+    Measure standardized dominance scales for CGL induction equations.
     """
     profiles = evaluate_cgl_induction_terms(system)
     z = profiles.z

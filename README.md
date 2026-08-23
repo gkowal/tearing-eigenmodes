@@ -45,9 +45,9 @@ Grid resolution ($N$) and rational Chebyshev scaling factor ($C$) are automatica
 
 ### Multi-Scale Diagnostics
 The solver evaluates equation-level balance diagnostics across resistive, viscous, shear, and guide-field terms post-convergence:
-* **Classical MHD**: Computes 8 standardized dominance scales across induction and vorticity equations using equation-local activity floors ($\epsilon_q$).
+* **Classical MHD**: Computes 10 standardized dominance scales across induction and vorticity equations using equation-local activity floors ($\epsilon_q$). Net-ideal balance diagnostics (`eta_vs_ideal` and `nu_vs_ideal`) compare non-ideal diffusion with the magnitude of the net signed complex ideal contribution ($|T_F + T_G + T_\xi|$), preserving relative phase, reinforcement, and cancellation among active terms. Separate envelope diagnostics (`eta_vs_ideal_envelope` and `nu_vs_ideal_envelope`) compare diffusion against the pointwise maximum of individual ideal term magnitudes ($\max(|T_F|, |T_G|, |T_\xi|)$).
 * **CGL Gyrotropic MHD**: Computes 4 standardized induction dominance scales ($\epsilon = 0$).
-* **Persistence**: Stores complete versioned physical-scale dictionaries in `.npz` files alongside the canonical minimum physical scale ($\delta_{\mathrm{in}}$).
+* **Persistence**: Stores complete versioned physical-scale dictionaries in `.npz` files (`mode_scale_schema_version = 2`) alongside the canonical minimum physical scale ($\delta_{\mathrm{in}}$). Schema 1 records remap stored ideal comparisons to envelope diagnostics and treat net-ideal values as unavailable (`NaN`).
 * **Refinement**: Interpolates active candidate physical scales independently within contiguous valid segments. Unconverged readable records act as barriers and split interpolation segments. Fallback precedence (`explicit --inner-scale -> per-term minimum / safety -> scalar minimum / safety -> legacy resistive / safety -> analytic estimator`) is evaluated independently at every requested coordinate. Mixed legacy and new caches remain fully supported.
 
 ## License

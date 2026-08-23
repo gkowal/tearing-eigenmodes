@@ -7,7 +7,9 @@ from tearing_eigenmodes.analysis import (
     measure_classical_scales,
     measure_eigenmode_scales,
     minimum_eigenmode_scale,
+    inner_layer_thickness,
     CLASSICAL_GRID_SCALE_KEYS,
+    CLASSICAL_PHYSICAL_SCALE_KEYS,
 )
 
 
@@ -71,10 +73,12 @@ def test_classical_coefficient_activation():
 
     scales_res = measure_eigenmode_scales(sys_res_only)
     assert np.isfinite(scales_res["classical.bz_induction.eta_vs_ideal"])
+    assert np.isfinite(scales_res["classical.bz_induction.eta_vs_ideal_envelope"])
     assert np.isfinite(scales_res["classical.bz_induction.eta_vs_f"])
     assert np.isnan(scales_res["classical.bz_induction.g_vs_f"])
     assert np.isnan(scales_res["classical.bz_induction.xi_vs_f"])
     assert np.isnan(scales_res["classical.uz_vorticity.nu_vs_ideal"])
+    assert np.isnan(scales_res["classical.uz_vorticity.nu_vs_ideal_envelope"])
     assert np.isnan(scales_res["classical.uz_vorticity.nu_vs_f"])
     assert np.isnan(scales_res["classical.uz_vorticity.g_vs_f"])
     assert np.isnan(scales_res["classical.uz_vorticity.xi_vs_f"])
@@ -86,6 +90,7 @@ def test_classical_coefficient_activation():
     sys_visc.result["dbz"] = np.exp(-(grid.zg / 0.4)**2)
     scales_visc = measure_eigenmode_scales(sys_visc)
     assert np.isfinite(scales_visc["classical.uz_vorticity.nu_vs_ideal"]) or np.isinf(scales_visc["classical.uz_vorticity.nu_vs_ideal"])
+    assert np.isfinite(scales_visc["classical.uz_vorticity.nu_vs_ideal_envelope"]) or np.isinf(scales_visc["classical.uz_vorticity.nu_vs_ideal_envelope"])
     assert np.isfinite(scales_visc["classical.uz_vorticity.nu_vs_f"]) or np.isinf(scales_visc["classical.uz_vorticity.nu_vs_f"])
 
     # Activate xi > 0 -> xi terms become active
@@ -215,3 +220,135 @@ def test_classical_equation_closure_on_converged_eigenmode():
     scale_w = np.max(np.abs(profiles.L_omega[I]))
     rel_err_w = norm_Rw / max(scale_w, 1e-14)
     assert rel_err_w < 1e-3, f"Vorticity equation residual too large: {rel_err_w}"
+
+
+def test_classical_f_only_net_equals_envelope_and_f():
+    """When G = xi = 0, eta_vs_ideal, eta_vs_ideal_envelope, and eta_vs_f must be identical."""
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
+    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.0, S=1e4, Pr=0.0, xi=0.0, shear=False)
+    system.result["sigma"] = 0.05 + 0.0j
+    system.result["duz"] = np.exp(-(grid.zg / 0.3)**2)
+    system.result["dbz"] = np.exp(-(grid.zg / 0.4)**2)
+
+    scales = measure_classical_scales(system)
+    s_ideal = scales["classical.bz_induction.eta_vs_ideal"]
+    s_env = scales["classical.bz_induction.eta_vs_ideal_envelope"]
+    s_f = scales["classical.bz_induction.eta_vs_f"]
+
+    assert np.isfinite(s_ideal)
+    assert np.isclose(s_ideal, s_env, rtol=1e-14)
+    assert np.isclose(s_ideal, s_f, rtol=1e-14)
+
+
+def test_classical_reinforcement_net_differs_from_envelope():
+    """When T_F and T_G are in phase (reinforcement), net ideal sum exceeds envelope, yielding smaller scale."""
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
+    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.2, S=100.0, Pr=0.0, xi=0.0, shear=True)
+    system.result["sigma"] = 0.05 + 0.0j
+    system.result["duz"] = np.exp(-(grid.zg / 0.3)**2)
+    system.result["dbz"] = -grid.zg * np.exp(-(grid.zg / 0.3)**2)
+
+    profiles = evaluate_classical_terms(system)
+    assert profiles.T_G_b is not None
+    assert np.allclose(np.abs(profiles.T_ideal_b), np.abs(profiles.T_F_b) + np.abs(profiles.T_G_b))
+    assert np.all(np.abs(profiles.T_ideal_b) >= profiles.E_ideal_b)
+
+    scales = measure_classical_scales(system)
+    s_ideal = scales["classical.bz_induction.eta_vs_ideal"]
+    s_env = scales["classical.bz_induction.eta_vs_ideal_envelope"]
+    s_f = scales["classical.bz_induction.eta_vs_f"]
+
+    assert np.isfinite(s_ideal)
+    assert np.isfinite(s_env)
+    assert s_ideal < s_env  # Reinforcing ideal terms push the crossing inward
+
+
+def test_classical_cancellation_preserves_net_cancellation():
+    """When T_F and T_G oppose each other (cancellation), net ideal drive is reduced, yielding wider scale."""
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
+    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.2, S=100.0, Pr=0.0, xi=0.0, shear=True)
+    system.result["sigma"] = 0.05 + 0.0j
+    # With odd dbz > 0 for z > 0, T_F and T_G oppose on both sides
+    system.result["duz"] = np.exp(-(grid.zg / 0.3)**2)
+    system.result["dbz"] = grid.zg * np.exp(-(grid.zg / 0.3)**2)
+
+    profiles = evaluate_classical_terms(system)
+    # Net magnitude is |T_F - T_G| < max(|T_F|, |T_G|)
+    assert np.any(np.abs(profiles.T_ideal_b) < profiles.E_ideal_b)
+
+    scales = measure_classical_scales(system)
+    s_ideal = scales["classical.bz_induction.eta_vs_ideal"]
+    s_env = scales["classical.bz_induction.eta_vs_ideal_envelope"]
+
+    assert np.isfinite(s_ideal)
+    assert np.isfinite(s_env)
+    assert s_ideal > s_env  # Cancellation widens the resistive dominance scale
+
+
+def test_classical_normal_field_complex_phase_in_net_sum():
+    """When xi > 0, T_xi (real derivative) and T_F (imaginary 1j) sum in quadrature before magnitude."""
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
+    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.0, S=1e4, Pr=0.0, xi=0.2, shear=False)
+    system.result["sigma"] = 0.05 + 0.0j
+    system.result["duz"] = np.exp(-(grid.zg / 0.3)**2)
+    system.result["dbz"] = np.exp(-(grid.zg / 0.4)**2)
+
+    profiles = evaluate_classical_terms(system)
+    assert profiles.T_xi_b is not None
+    # T_F is purely imaginary, T_xi is real
+    # |T_F + T_xi| = sqrt(|T_F|^2 + |T_xi|^2)
+    expected_mag = np.sqrt(np.abs(profiles.T_F_b)**2 + np.abs(profiles.T_xi_b)**2)
+    assert np.allclose(np.abs(profiles.T_ideal_b), expected_mag)
+
+    scales = measure_classical_scales(system)
+    s_ideal = scales["classical.bz_induction.eta_vs_ideal"]
+    s_env = scales["classical.bz_induction.eta_vs_ideal_envelope"]
+    assert np.isfinite(s_ideal)
+    assert np.isfinite(s_env)
+    assert s_ideal != s_env
+
+
+def test_inner_layer_thickness_returns_net_ideal_scale():
+    """inner_layer_thickness() compatibility wrapper must return classical.bz_induction.eta_vs_ideal."""
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
+    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.2, S=100.0, Pr=0.0, xi=0.1, shear=True)
+    system.result["sigma"] = 0.05 + 0.0j
+    system.result["duz"] = np.exp(-(grid.zg / 0.25)**2)
+    system.result["dbz"] = -np.exp(-(grid.zg / 0.35)**2)
+
+    scales = measure_classical_scales(system)
+    s_net = scales["classical.bz_induction.eta_vs_ideal"]
+    s_env = scales["classical.bz_induction.eta_vs_ideal_envelope"]
+    s_f = scales["classical.bz_induction.eta_vs_f"]
+
+    # Values must differ in this setup
+    assert s_net != s_env
+    assert s_net != s_f
+
+    δ, nin, nwa = inner_layer_thickness(system)
+    assert np.isclose(δ, s_net, rtol=1e-12)
+    assert not np.isclose(δ, s_env, rtol=1e-3)
+    assert not np.isclose(δ, s_f, rtol=1e-3)
+
+
+def test_classical_vorticity_net_vs_envelope():
+    """Vorticity equation terms must sum signed complex contributions for nu_vs_ideal and compare against envelope."""
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
+    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.2, S=10.0, Pr=1.0, xi=0.1, shear=True)
+    system.result["sigma"] = 0.05 + 0.0j
+    system.result["duz"] = np.exp(-(grid.zg / 0.25)**2)
+    system.result["dbz"] = np.exp(-(grid.zg / 0.35)**2)
+
+    profiles = evaluate_classical_terms(system)
+    assert profiles.T_G_omega is not None
+    assert profiles.T_xi_omega is not None
+    # T_ideal_omega is signed complex sum
+    assert np.allclose(profiles.T_ideal_omega, profiles.T_F_omega + profiles.T_G_omega + profiles.T_xi_omega)
+
+    scales = measure_classical_scales(system)
+    assert "classical.uz_vorticity.nu_vs_ideal" in scales
+    assert "classical.uz_vorticity.nu_vs_ideal_envelope" in scales
+    assert "classical.uz_vorticity.nu_vs_f" in scales
+    assert np.isfinite(scales["classical.uz_vorticity.nu_vs_ideal"])
+    assert np.isfinite(scales["classical.uz_vorticity.nu_vs_ideal_envelope"])
+    assert scales["classical.uz_vorticity.nu_vs_ideal"] != scales["classical.uz_vorticity.nu_vs_ideal_envelope"]
