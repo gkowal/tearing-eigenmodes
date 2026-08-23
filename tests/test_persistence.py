@@ -518,3 +518,57 @@ def test_load_eigenmodes_and_write_results_malformed_optional_scales():
         write_results(params, 1.0)
         assert os.path.exists(f"{tmpdir}.dat")
         os.remove(f"{tmpdir}.dat")
+
+
+def test_load_eigenmodes_scale_key_selection():
+    """load_eigenmodes should support selecting specific physical scales via scale_key."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # File 1: Multiscale with eta_vs_ideal=0.03, nu_vs_ideal=0.01, minimum=0.01
+        np.savez_compressed(
+            os.path.join(tmpdir, "state_alpha0.100000e+00.npz"),
+            wavenumber=0.1,
+            a=1.0,
+            eigenvalue=0.01 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            minimum_physical_scale=0.01,
+            minimum_scale_nodes=3,
+            mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+            mode_scale_values=np.array([0.03, 0.01]),
+            mode_scale_schema_version=1,
+        )
+        # File 2: Legacy state with resistive_layer_thickness=0.04
+        np.savez_compressed(
+            os.path.join(tmpdir, "state_alpha0.200000e+00.npz"),
+            wavenumber=0.2,
+            a=1.0,
+            eigenvalue=0.02 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            current_sheet_nodes=20,
+            resistive_layer_thickness=0.04,
+            resistive_layer_nodes=4,
+        )
+
+        # 1. Default (scale_key=None) -> returns minimum_physical_scale
+        _, _, _, _, δ_default, _, _, _, _ = load_eigenmodes(tmpdir)
+        assert np.isclose(δ_default[0], 0.01)
+        assert np.isclose(δ_default[1], 0.04)
+
+        # 2. Specific scale_key='classical.bz_induction.eta_vs_ideal'
+        _, _, _, _, δ_eta, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="classical.bz_induction.eta_vs_ideal")
+        assert np.isclose(δ_eta[0], 0.03)
+        assert np.isclose(δ_eta[1], 0.04)  # Legacy fallback
+
+        # 3. Specific scale_key='classical.uz_vorticity.nu_vs_ideal'
+        _, _, _, _, δ_nu, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="classical.uz_vorticity.nu_vs_ideal")
+        assert np.isclose(δ_nu[0], 0.01)
+        assert np.isnan(δ_nu[1])  # Absent in legacy file
+
+        # 4. Unknown scale_key -> returns nan
+        _, _, _, _, δ_none, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="nonexistent_scale")
+        assert np.isnan(δ_none[0])
+        assert np.isnan(δ_none[1])

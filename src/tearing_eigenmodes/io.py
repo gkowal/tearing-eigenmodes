@@ -382,10 +382,24 @@ def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
     return metadata
 
 
-def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def load_eigenmodes(
+    path: str,
+    pattern: str = "*.npz",
+    scale_key: Optional[str] = None,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Load eigenmode data from .npz files using glob and os.
     Reuses load_state_data for tolerant decoding of optional multiscale fields.
+
+    Parameters
+    ----------
+    path : str
+        Directory containing state files.
+    pattern : str, optional
+        Glob pattern for state files, default '*.npz'.
+    scale_key : str, optional
+        Specific physical scale key to extract as delta (e.g. 'classical.bz_induction.eta_vs_ideal').
+        If None (default), returns the envelope minimum_physical_scale.
     """
     search_path = os.path.join(path, pattern)
     files = sorted(glob.glob(search_path))
@@ -412,7 +426,22 @@ def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.n
 
         wavenumber = float(data['wavenumber'])
 
-        dlt = float(data.get('minimum_physical_scale', float('nan')))
+        if scale_key is not None:
+            mode_scales = data.get('mode_scales')
+            if isinstance(mode_scales, dict) and scale_key in mode_scales:
+                try:
+                    dlt = float(mode_scales[scale_key])
+                except Exception:
+                    dlt = float('nan')
+            elif scale_key in ("classical.bz_induction.eta_vs_ideal", "cgl.bz_induction.eta_vs_ideal", "resistive_layer_thickness") and 'resistive_layer_thickness' in data:
+                try:
+                    dlt = float(data['resistive_layer_thickness'])
+                except Exception:
+                    dlt = float('nan')
+            else:
+                dlt = float('nan')
+        else:
+            dlt = float(data.get('minimum_physical_scale', float('nan')))
 
         tol_raw = data.get('tolerance', float('nan'))
         if isinstance(tol_raw, np.ndarray) and tol_raw.size > 0:
