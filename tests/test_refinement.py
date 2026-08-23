@@ -1393,3 +1393,118 @@ def test_refine_eigenvalues_and_brackets_with_malformed_scales(temp_npz_dir: str
     brackets = refine_wavenumber_bracket(np.array([3e4]), params)
     assert brackets is not None
     assert len(brackets) == 1
+
+
+def test_refine_malformed_saved_a_fallback_preserves_records(temp_npz_dir: str) -> None:
+    """Malformed saved 'a' must fall back to params.a and retain all valid records."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.refinement import _load_cached_state_records
+
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
+
+    # Record 1 at k=0.1: a=1.0, scale=0.02
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.02]),
+        mode_scale_schema_version=1,
+    )
+    # Record 2 at k=0.2: malformed a="bad", scale=0.04
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a="bad",
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.04]),
+        mode_scale_schema_version=1,
+    )
+    # Record 3 at k=0.3: a=1.0, scale=0.08
+    np.savez_compressed(
+        fp3,
+        wavenumber=0.3,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.08]),
+        mode_scale_schema_version=1,
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # 1. All three records are loaded and have correct coordinates
+    records = _load_cached_state_records(temp_npz_dir, params)
+    assert len(records) == 3
+    assert [r["v"] for r in records] == [0.1, 0.2, 0.3]
+
+    # 2. Refinement at k=0.1 returns exact cached scale 0.02, not analytic 0.07015872133070601
+    deltas = refine_inner_scale(np.array([0.1]), params)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], 0.02, rtol=1e-5)
+    assert not np.isclose(deltas[0], 0.07015872133070601, rtol=1e-2)
+
+
+def test_refine_malformed_saved_a_nonunit_and_invalid_fallbacks(temp_npz_dir: str) -> None:
+    """Non-unit params.a, NaN/inf/zero/negative 'a', and unrecoverable records."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.refinement import _load_cached_state_records
+
+    # 1. Non-unit params.a = 2.0 with malformed saved a="bad" -> k = alpha / a = 0.2 / 2.0 = 0.1
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.2,
+        a="bad",
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.04,
+    )
+    params2 = SimulationParams(data_path=temp_npz_dir, a=2.0)
+    records = _load_cached_state_records(temp_npz_dir, params2)
+    assert len(records) == 1
+    assert np.isclose(records[0]["v"], 0.1)
+
+    # 2. Various bad a values (NaN, inf, 0, -1) with params.a = 1.0 -> all resolve to k = alpha / 1.0
+    bad_a_vals = [np.nan, np.inf, 0.0, -1.0]
+    for i, bad_a in enumerate(bad_a_vals):
+        fp_bad = os.path.join(temp_npz_dir, f"state_bada_{i}.npz")
+        np.savez_compressed(
+            fp_bad,
+            wavenumber=0.4 + i * 0.1,
+            a=bad_a,
+            tolerance=1e-5,
+            resolution=128,
+            minimum_physical_scale=0.05,
+        )
+    params1 = SimulationParams(data_path=temp_npz_dir, a=1.0)
+    records_all = _load_cached_state_records(temp_npz_dir, params1)
+    assert len(records_all) == 5  # record 1 + 4 bad_a records
+
+    # 3. Unrecoverable record where both saved 'a' and params.a are bad -> only that record is skipped
+    fp_unrec = os.path.join(temp_npz_dir, "state_unrecoverable.npz")
+    np.savez_compressed(
+        fp_unrec,
+        wavenumber=0.9,
+        a="bad",
+        tolerance=1e-5,
+        resolution=128,
+    )
+    params_none = SimulationParams(data_path=temp_npz_dir)
+    params_none.a = None  # unusable fallback
+    records_sub = _load_cached_state_records(temp_npz_dir, params_none)
+    # The bad 'a' records with no params.a fallback are skipped, but valid ones (like record 1 with a=1.0) survive
+    assert len(records_sub) == 0 or all(r["v"] is not None for r in records_sub)

@@ -189,6 +189,23 @@ def _to_positive_finite_float(val: Any) -> Optional[float]:
     return None
 
 
+def _to_finite_float(val: Any) -> Optional[float]:
+    """Convert scalar to finite float, safely returning None for bool, array, non-finite, or malformed input."""
+    if val is None or isinstance(val, (bool, np.bool_)):
+        return None
+    try:
+        arr = np.asanyarray(val)
+        if arr.ndim != 0 and arr.size != 1:
+            return None
+        elem = arr.item() if arr.ndim == 0 else arr.flat[0]
+        if isinstance(elem, (bool, np.bool_)):
+            return None
+        f = float(elem)
+        return f if np.isfinite(f) else None
+    except Exception:
+        return None
+
+
 def _load_cached_state_records(path: str, params: SimulationParams, pattern: str = "*.npz") -> List[Dict[str, Any]]:
     """
     Load all readable cached state files from the given directory.
@@ -200,27 +217,41 @@ def _load_cached_state_records(path: str, params: SimulationParams, pattern: str
     is_dependence = params.dependence is not None
 
     for f in files:
-        data = load_state_data(f)
-        if data is not None:
+        try:
+            data = load_state_data(f)
+            if data is None:
+                continue
+
             if is_dependence:
                 if 'scan_parameter' in data:
-                    v = float(data['scan_parameter_value'])
+                    raw_v = _to_finite_float(data.get('scan_parameter_value'))
                 elif 'dependence' in data:
-                    v = float(data['value'])
+                    raw_v = _to_finite_float(data.get('value'))
                 else:
-                    raw_wn = data.get('wavenumber')
-                    if raw_wn is None or not np.isfinite(raw_wn):
-                        continue
-                    v = float(raw_wn)
-                raw_alpha = float(data.get('wavenumber', v))
-            else:
-                raw_alpha_val = data.get('wavenumber')
-                if raw_alpha_val is None or not np.isfinite(raw_alpha_val):
+                    raw_v = _to_finite_float(data.get('wavenumber'))
+
+                if raw_v is None:
                     continue
-                raw_alpha = float(raw_alpha_val)
-                state_a = float(data.get('a', getattr(params, 'a', 1.0) or 1.0))
-                if state_a <= 0.0 or not np.isfinite(state_a):
-                    state_a = float(getattr(params, 'a', 1.0) or 1.0)
+                v = raw_v
+                raw_alpha_val = _to_finite_float(data.get('wavenumber'))
+                raw_alpha = raw_alpha_val if raw_alpha_val is not None else v
+            else:
+                raw_alpha_val = _to_positive_finite_float(data.get('wavenumber'))
+                if raw_alpha_val is None:
+                    continue
+                raw_alpha = raw_alpha_val
+
+                # Saved sheet thickness 'a' resolution with fallback to params.a
+                raw_a = data.get('a')
+                state_a = _to_positive_finite_float(raw_a)
+                if state_a is None:
+                    param_a = getattr(params, 'a', 1.0)
+                    state_a = _to_positive_finite_float(param_a)
+
+                if state_a is None:
+                    logger.warning(f"Skipping record {f}: invalid sheet thickness 'a' ({raw_a}) and no valid fallback.")
+                    continue
+
                 v = raw_alpha / state_a
 
             if not np.isfinite(v):
@@ -246,6 +277,10 @@ def _load_cached_state_records(path: str, params: SimulationParams, pattern: str
                 "minimum_physical_scale": data.get("minimum_physical_scale"),
                 "resistive_layer_thickness": data.get("resistive_layer_thickness"),
             })
+        except Exception as ex:
+            logger.warning(f"Could not process cached record {f}: {ex}")
+            continue
+
     records.sort(key=lambda r: r["v"])
     return records
 
