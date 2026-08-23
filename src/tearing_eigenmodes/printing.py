@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List
 from .params import SimulationParams
 import logging
 
@@ -90,10 +90,11 @@ def print_info(params: SimulationParams) -> None:
 def format_mode_scale_summary(scales: Any) -> Optional[str]:
     """
     Format a deterministic mode scales summary string from a mode_scales mapping.
-    Safely handles non-mapping inputs, mixed key types, NaN, inf, <= 0, strings, and malformed entries.
+    Safely handles non-mapping inputs, mixed key types, canonical key collisions, NaN, inf, <= 0, strings, and malformed entries.
     Returns 'mode scales: key=value, ...' if valid entries exist, else None.
     """
     from collections.abc import Mapping
+    from collections import defaultdict
     import numpy as np
 
     if not isinstance(scales, Mapping):
@@ -104,7 +105,7 @@ def format_mode_scale_summary(scales: Any) -> Optional[str]:
     except Exception:
         return None
 
-    valid_entries = []
+    grouped_entries: Dict[str, List[str]] = defaultdict(list)
     for k, v in items:
         try:
             k_str = str(k)
@@ -135,16 +136,26 @@ def format_mode_scale_summary(scales: Any) -> Optional[str]:
                 continue
             if np.isinf(f_val):
                 if f_val > 0.0:
-                    valid_entries.append((k_str, f"{k_str}=inf"))
+                    rendered = f"{k_str}=inf"
+                    if rendered not in grouped_entries[k_str]:
+                        grouped_entries[k_str].append(rendered)
             else:
-                valid_entries.append((k_str, f"{k_str}={f_val:.4e}"))
+                rendered = f"{k_str}={f_val:.4e}"
+                if rendered not in grouped_entries[k_str]:
+                    grouped_entries[k_str].append(rendered)
         except Exception:
             continue
 
-    if not valid_entries:
+    # Resolve canonical duplicate collisions:
+    # If a canonical key has exactly one distinct rendered value, emit it.
+    # If multiple distinct rendered values exist (conflict), omit that ambiguous key.
+    scale_strings = []
+    for k_str in sorted(grouped_entries.keys()):
+        rendered_list = grouped_entries[k_str]
+        if len(rendered_list) == 1:
+            scale_strings.append(rendered_list[0])
+
+    if not scale_strings:
         return None
 
-    # Deterministic alphabetical sorting by converted string key
-    valid_entries.sort(key=lambda item: item[0])
-    scale_strings = [item[1] for item in valid_entries]
     return f"mode scales: {', '.join(scale_strings)}"

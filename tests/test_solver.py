@@ -212,7 +212,7 @@ def test_eigenmodes_unconverged_solve_behavior():
 
 
 def test_format_mode_scale_summary_robustness():
-    """format_mode_scale_summary must safely handle non-mappings, mixed key types, strings, invalid values, and sort deterministically."""
+    """format_mode_scale_summary must safely handle non-mappings, mixed key types, canonical key collisions, and sort deterministically."""
     from tearing_eigenmodes.printing import format_mode_scale_summary
 
     # 1. Non-mapping returns None
@@ -228,11 +228,23 @@ def test_format_mode_scale_summary_robustness():
     mixed_keys_summary = format_mode_scale_summary({"b": 0.02, 1: 0.01})
     assert mixed_keys_summary == "mode scales: 1=1.0000e-02, b=2.0000e-02"
 
-    # 4. Numeric and non-numeric string values must be omitted, not converted
+    # 4. Canonical key collisions: conflicting values are omitted independently of insertion order
+    assert format_mode_scale_summary({1: 0.01, "1": 0.02}) is None
+    assert format_mode_scale_summary({"1": 0.02, 1: 0.01}) is None
+
+    # 5. Canonical key collisions: identical values are emitted once
+    assert format_mode_scale_summary({1: 0.01, "1": 0.01}) == "mode scales: 1=1.0000e-02"
+    assert format_mode_scale_summary({"1": 0.01, 1: 0.01}) == "mode scales: 1=1.0000e-02"
+
+    # 6. Unrelated valid keys remain visible when one canonical group has a conflict
+    unrelated_summary = format_mode_scale_summary({1: 0.01, "1": 0.02, "b": 0.05})
+    assert unrelated_summary == "mode scales: b=5.0000e-02"
+
+    # 7. Numeric and non-numeric string values must be omitted, not converted
     str_val_summary = format_mode_scale_summary({"k1": "1.25", "k2": "bad", "k3": 0.05})
     assert str_val_summary == "mode scales: k3=5.0000e-02"
 
-    # 5. Mixed valid, inf, and invalid
+    # 8. Mixed valid, inf, and invalid
     scales = {
         "z_key": 0.05,
         "a_key": np.inf,
@@ -250,7 +262,7 @@ def test_format_mode_scale_summary_robustness():
 
 
 def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.CaptureFixture, tmp_path, monkeypatch: pytest.MonkeyPatch):
-    """Cached execution with verbose=True must not crash on non-mapping or mixed-key mode_scales."""
+    """Cached execution with verbose=True must not crash on non-mapping or raw mixed-key mode_scales."""
     import os
     import importlib.util
 
@@ -279,7 +291,7 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     scale_lines_c1 = [line for line in out_c1.splitlines() if "mode scales:" in line]
     assert len(scale_lines_c1) == 0
 
-    # 1b. Mixed int/str keys in compute script
+    # 1b. Raw mixed int/str keys in compute script
     fp_c2 = os.path.join(str(tmp_path), f"state_α{0.2:.6e}.npz")
     np.savez_compressed(
         fp_c2,
@@ -289,9 +301,7 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
         resolution=128,
         grid_scaling_factor=1.0,
         current_sheet_nodes=20,
-        mode_scale_keys=np.array(["b", "1"]),
-        mode_scale_values=np.array([0.02, 0.01]),
-        mode_scale_schema_version=1,
+        mode_scales=np.array({1: 0.01, "b": 0.02, "bad": "1.25"}, dtype=object),
     )
     params_c2 = SimulationParams(alpha=0.2, verbose=True, data_path=str(tmp_path))
     compute_mod.task(0.2, None, None, params_c2)
@@ -340,7 +350,7 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     scale_lines_m1 = [line for line in out_m1.splitlines() if "mode scales:" in line]
     assert len(scale_lines_m1) == 0
 
-    # 2b. Mixed int/str keys with correct signed filename
+    # 2b. Raw mixed int/str keys with correct signed filename
     fp_m2 = os.path.join(str(tmp_path), f"state_S{2e4:+.6e}.npz")
     np.savez_compressed(
         fp_m2,
@@ -360,9 +370,7 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
         current_sheet_nodes=20,
         minimum_physical_scale=0.02,
         minimum_scale_nodes=5,
-        mode_scale_keys=np.array(["b", "1"]),
-        mode_scale_values=np.array([0.02, 0.01]),
-        mode_scale_schema_version=1,
+        mode_scales=np.array({1: 0.01, "b": 0.02, "bad": "1.25"}, dtype=object),
     )
     params_m2 = SimulationParams(dependence="S", S=2e4, verbose=True, data_path=str(tmp_path))
     res_m2 = maxima_mod.task(2e4, None, None, None, params_m2)
