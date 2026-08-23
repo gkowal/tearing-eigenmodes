@@ -477,3 +477,21 @@ def test_extract_central_dominance_valid_floor_eps_variations():
     # 2. Large explicit floor classifies numerator (max=1.0) as inactive -> returns nan
     inactive_res = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs, floor_eps=10.0)
     assert np.isnan(inactive_res)
+
+
+def test_measure_eigenmode_scales_unsupported_model_rejection():
+    """measure_eigenmode_scales must raise NotImplementedError for unknown equation systems."""
+    class UnknownSystem:
+        def __init__(self):
+            self.result = {
+                "duz": np.zeros(10),
+                "dbz": np.zeros(10),
+                "sigma": 1.0,
+            }
+
+    sys = UnknownSystem()
+    with pytest.raises(NotImplementedError, match="Unsupported system"):
+        measure_eigenmode_scales(sys)
+
+    with pytest.raises(NotImplementedError, match="Unsupported model"):
+        measure_eigenmode_scales(sys, model="relativistic_mhd")
