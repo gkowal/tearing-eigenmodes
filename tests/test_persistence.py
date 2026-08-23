@@ -13,6 +13,8 @@ from tearing_eigenmodes.io import (
 from tearing_eigenmodes.analysis import (
     MODE_SCALE_SCHEMA_VERSION,
     CLASSICAL_GRID_SCALE_KEYS,
+    CLASSICAL_DIAGNOSTIC_SCALE_KEYS,
+    CLASSICAL_PHYSICAL_SCALE_KEYS,
     CGL_GRID_SCALE_KEYS,
 )
 from tearing_eigenmodes.params import SimulationParams
@@ -140,9 +142,9 @@ def test_old_state_backward_compatibility():
 
 def test_write_results_uses_minimum_physical_scale():
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create a new-style state file where viscous scale (0.03) is smaller than resistive scale (0.09)
+        # Create a new-style state file where induction minimum (0.09) is selected over smaller vorticity scale (0.03)
         filepath = os.path.join(tmpdir, "state_alpha0.200000e+00.npz")
-        scales = {k: float("nan") for k in CLASSICAL_GRID_SCALE_KEYS}
+        scales = {k: float("nan") for k in CLASSICAL_DIAGNOSTIC_SCALE_KEYS}
         scales["classical.bz_induction.eta_vs_ideal"] = 0.09
         scales["classical.uz_vorticity.nu_vs_ideal"] = 0.03
 
@@ -151,9 +153,9 @@ def test_write_results_uses_minimum_physical_scale():
             wavenumber=0.2,
             eigenvalue=0.04 + 0.0j,
             tolerance=1e-5,
-            minimum_physical_scale=0.03,
-            minimum_physical_scale_key="classical.uz_vorticity.nu_vs_ideal",
-            minimum_scale_nodes=8,
+            minimum_physical_scale=0.09,
+            minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+            minimum_scale_nodes=22,
             resistive_layer_thickness=0.09,
             resistive_layer_nodes=22,
             grid_scaling_factor=1.2,
@@ -187,10 +189,14 @@ def test_write_results_uses_minimum_physical_scale():
             content = f.read()
 
         # Check table contents
-        # δ_in column should contain 3.00000000e-02 (the minimum physical scale)
-        assert "3.00000000e-02" in content
-        # n_in column should contain 8 (the minimum scale nodes)
-        assert " 8 " in content
+        # δ_in column should contain 9.00000000e-02 (the induction-selected minimum physical scale)
+        assert "9.00000000e-02" in content
+        # n_in column should contain 22 (the minimum scale nodes)
+        assert " 22 " in content
+
+        # Explicit extraction with scale_key still extracts vorticity diagnostic:
+        _, _, _, _, δ_vort, _, _, _, _ = load_eigenmodes(tmpdir, scale_key="classical.uz_vorticity.nu_vs_ideal")
+        assert np.isclose(δ_vort[0], 0.03)
 
 
 def test_load_state_data_independent_of_reuse_policy():

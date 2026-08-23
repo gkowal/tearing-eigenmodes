@@ -7,6 +7,8 @@ from .analysis import (
     minimum_eigenmode_scale,
     CLASSICAL_GRID_SCALE_KEYS,
     CGL_GRID_SCALE_KEYS,
+    CLASSICAL_DIAGNOSTIC_SCALE_KEYS,
+    CGL_DIAGNOSTIC_SCALE_KEYS,
 )
 from psecas import Solver, ChebyshevRationalGrid
 
@@ -371,7 +373,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
                 res_nodes = 0
         else:
             # Solve did not converge: populate all-nan/zero invalid dictionaries
-            candidate_keys = CGL_GRID_SCALE_KEYS if CGL else CLASSICAL_GRID_SCALE_KEYS
+            candidate_keys = CGL_DIAGNOSTIC_SCALE_KEYS if CGL else CLASSICAL_DIAGNOSTIC_SCALE_KEYS
             scales = {k: float("nan") for k in candidate_keys}
             δin = float("nan")
             nin = 0

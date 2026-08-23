@@ -1,4 +1,5 @@
 import pytest
+from typing import Dict, Any
 import numpy as np
 from psecas import ChebyshevRationalGrid, Solver
 from tearing_eigenmodes.systems import TearingClassicalMHD
@@ -9,6 +10,7 @@ from tearing_eigenmodes.analysis import (
     minimum_eigenmode_scale,
     inner_layer_thickness,
     CLASSICAL_GRID_SCALE_KEYS,
+    CLASSICAL_DIAGNOSTIC_SCALE_KEYS,
     CLASSICAL_PHYSICAL_SCALE_KEYS,
 )
 
@@ -20,30 +22,32 @@ class MockClassicalSystem:
         kx=0.5,
         a=1.0,
         w=0.0,
-        S=1e4,
+        S=1.0,
         Pr=0.0,
         xi=0.0,
-        epsilon=0.0,
-        ky=0.0,
-        shear=True,
+        Hall: float = 0.0,
+        epsilon: float = 0.0,
+        shear: bool = False,
     ):
         self.grid = grid
         self.kx = kx
+        self.ky = 0.0
         self.a = a
         self.w = w
         self.S = S
-        self.Pr = Pr
-        self.ξ = xi
-        self.ϵ = epsilon
-        self.ky = ky
-        self.shear = shear
         self.η = 1.0 / S if S > 0 else 0.0
-        self.ν = (Pr / S) if S > 0 else 0.0
+        self.Pr = Pr
+        self.ν = Pr / S if S > 0 else 0.0
+        self.ξ = xi
+        self.ϵ = epsilon if epsilon > 0 else Hall
+        self.shear = shear
+        self.model = "classical"
         self.Bx = np.tanh(grid.zg / a)
-        self.Ux = 0.5 * (np.tanh((grid.zg + w) / a) - np.tanh((grid.zg - w) / a)) if w > 0 else np.zeros_like(grid.zg)
-        self.d2Bxdz = grid.derivative(self.Bx, 2)
-        self.d2Uxdz = grid.derivative(self.Ux, 2) if w > 0 else np.zeros_like(grid.zg)
-        self.result = {}
+        if shear:
+            self.Ux = 0.5 * (np.tanh((grid.zg + w) / a) - np.tanh((grid.zg - w) / a))
+        else:
+            self.Ux = np.zeros_like(grid.zg)
+        self.result: Dict[str, Any] = {}
 
 
 def test_classical_all_keys_present_and_types():
@@ -54,8 +58,8 @@ def test_classical_all_keys_present_and_types():
     system.result["dbz"] = np.exp(-(grid.zg / 0.4)**2)
 
     scales = measure_eigenmode_scales(system)
-    assert len(scales) == len(CLASSICAL_GRID_SCALE_KEYS)
-    for key in CLASSICAL_GRID_SCALE_KEYS:
+    assert len(scales) == len(CLASSICAL_DIAGNOSTIC_SCALE_KEYS) == 10
+    for key in CLASSICAL_DIAGNOSTIC_SCALE_KEYS:
         assert key in scales
         val = scales[key]
         assert isinstance(val, float)
@@ -128,7 +132,7 @@ def test_classical_scale_invariance_under_eigenvector_scaling():
 
     scales2 = measure_classical_scales(system)
 
-    for k in CLASSICAL_GRID_SCALE_KEYS:
+    for k in CLASSICAL_DIAGNOSTIC_SCALE_KEYS:
         v1 = scales1[k]
         v2 = scales2[k]
         if np.isfinite(v1):
@@ -352,3 +356,22 @@ def test_classical_vorticity_net_vs_envelope():
     assert np.isfinite(scales["classical.uz_vorticity.nu_vs_ideal"])
     assert np.isfinite(scales["classical.uz_vorticity.nu_vs_ideal_envelope"])
     assert scales["classical.uz_vorticity.nu_vs_ideal"] != scales["classical.uz_vorticity.nu_vs_ideal_envelope"]
+
+
+def test_classical_grid_minimum_selects_induction_over_vorticity_and_envelopes():
+    """minimum_eigenmode_scale must select minimum induction scale and ignore smaller vorticity or envelope scales."""
+    scales = {
+        "classical.bz_induction.eta_vs_ideal": 0.050,
+        "classical.bz_induction.eta_vs_ideal_envelope": 0.020,  # smaller envelope
+        "classical.bz_induction.eta_vs_f": 0.060,
+        "classical.bz_induction.g_vs_f": np.nan,
+        "classical.bz_induction.xi_vs_f": np.nan,
+        "classical.uz_vorticity.nu_vs_ideal": 0.010,  # smaller vorticity
+        "classical.uz_vorticity.nu_vs_ideal_envelope": 0.008,
+        "classical.uz_vorticity.nu_vs_f": 0.015,
+        "classical.uz_vorticity.g_vs_f": np.nan,
+        "classical.uz_vorticity.xi_vs_f": np.nan,
+    }
+    s_min, k_min = minimum_eigenmode_scale(scales, model="classical")
+    assert s_min == 0.050
+    assert k_min == "classical.bz_induction.eta_vs_ideal"

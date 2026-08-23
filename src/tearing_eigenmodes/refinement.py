@@ -280,6 +280,7 @@ def _load_cached_state_records(path: str, params: SimulationParams, pattern: str
                 "tolerance": tolerance,
                 "mode_scales": data.get("mode_scales"),
                 "minimum_physical_scale": data.get("minimum_physical_scale"),
+                "minimum_physical_scale_key": data.get("minimum_physical_scale_key"),
                 "resistive_layer_thickness": data.get("resistive_layer_thickness"),
             })
         except Exception as ex:
@@ -350,7 +351,7 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     if not records:
         return inner_scales
 
-    candidate_keys = CGL_PHYSICAL_SCALE_KEYS if params.CGL else CLASSICAL_PHYSICAL_SCALE_KEYS
+    candidate_keys = CGL_GRID_SCALE_KEYS if params.CGL else CLASSICAL_GRID_SCALE_KEYS
     is_positive_dispersion = (params.dependence is None) and np.all(vs > 0)
 
     # 2. Try per-term physical-scale interpolation within contiguous valid runs
@@ -424,7 +425,7 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
                     f"(limiting: {min_key}, safety: {safety})"
                 )
 
-    # 3. Fallback to scalar minimum_physical_scale or legacy resistive_layer_thickness in contiguous segments
+    # 3. Fallback to scalar minimum_physical_scale (if key is grid-eligible) or legacy resistive_layer_thickness in contiguous segments
     scalar_segments: List[Tuple[np.ndarray, np.ndarray]] = []
     current_v_sc: List[float] = []
     current_scale_sc: List[float] = []
@@ -435,11 +436,40 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
         val = None
         if is_conv:
             raw_min = r.get("minimum_physical_scale")
+            raw_key = r.get("minimum_physical_scale_key")
             raw_res = r.get("resistive_layer_thickness")
-            for candidate in (raw_min, raw_res):
-                val = _to_positive_finite_float(candidate)
-                if val is not None:
-                    break
+
+            min_val = _to_positive_finite_float(raw_min)
+            key_str: Optional[str] = None
+            if raw_key is not None:
+                if isinstance(raw_key, np.ndarray) and raw_key.ndim == 0:
+                    raw_key = raw_key.item()
+                if isinstance(raw_key, (str, bytes)):
+                    s_val = str(raw_key).strip()
+                    if s_val:
+                        key_str = s_val
+
+            if params.CGL:
+                if key_str is not None:
+                    if key_str in CGL_GRID_SCALE_KEYS and min_val is not None:
+                        val = min_val
+                elif min_val is not None:
+                    # Genuinely legacy CGL record without key
+                    val = min_val
+
+                if val is None:
+                    res_val = _to_positive_finite_float(raw_res)
+                    if res_val is not None:
+                        val = res_val
+            else:
+                if key_str is not None and key_str in CLASSICAL_GRID_SCALE_KEYS and min_val is not None:
+                    val = min_val
+                else:
+                    # Key is missing, vorticity, envelope, or unknown -> reject min_val
+                    # Try legacy resistive induction fallback:
+                    res_val = _to_positive_finite_float(raw_res)
+                    if res_val is not None:
+                        val = res_val
 
         if val is not None:
             current_v_sc.append(r["v"])

@@ -207,8 +207,50 @@ def test_eigenmodes_unconverged_solve_behavior():
     assert np.isnan(s["minimum_physical_scale"])
     assert s["minimum_physical_scale_key"] == ""
     assert s["minimum_scale_nodes"] == 0
+    from tearing_eigenmodes.analysis import CLASSICAL_DIAGNOSTIC_SCALE_KEYS
+    assert len(s["mode_scales"]) == len(CLASSICAL_DIAGNOSTIC_SCALE_KEYS)
     for k, val in s["mode_scales"].items():
         assert np.isnan(val)
+
+
+def test_solver_converged_selects_induction_minimum_over_smaller_vorticity(monkeypatch: pytest.MonkeyPatch):
+    """Converged solver must store all diagnostics but report induction minimum as delta_in."""
+    def mock_measure(sys):
+        return {
+            "classical.bz_induction.eta_vs_ideal": 0.045,
+            "classical.bz_induction.eta_vs_ideal_envelope": 0.040,
+            "classical.bz_induction.eta_vs_f": 0.050,
+            "classical.bz_induction.g_vs_f": np.nan,
+            "classical.bz_induction.xi_vs_f": np.nan,
+            "classical.uz_vorticity.nu_vs_ideal": 0.015,  # smaller vorticity diagnostic
+            "classical.uz_vorticity.nu_vs_ideal_envelope": 0.012,
+            "classical.uz_vorticity.nu_vs_f": 0.020,
+            "classical.uz_vorticity.g_vs_f": np.nan,
+            "classical.uz_vorticity.xi_vs_f": np.nan,
+        }
+
+    monkeypatch.setattr("tearing_eigenmodes.solver.measure_eigenmode_scales", mock_measure)
+
+    params = SimulationParams(
+        alpha=0.15,
+        a=1.0,
+        w=0.0,
+        S=1e4,
+        Pr=0.0,
+        Nmin=64,
+        Nmax=512,
+        Ninc=32,
+        dynamic_C=False,
+    )
+    sigma, s, e, delta_in, nin, nwa, C, N, z, success = eigenmodes(params)
+    assert success
+    # Must report induction minimum 0.045, NOT smaller vorticity 0.015:
+    assert delta_in is not None and np.isclose(delta_in, 0.045)
+    assert np.isclose(s["minimum_physical_scale"], 0.045)
+    assert s["minimum_physical_scale_key"] == "classical.bz_induction.eta_vs_ideal"
+    # All 10 diagnostics remain stored:
+    assert len(s["mode_scales"]) == 10
+    assert np.isclose(s["mode_scales"]["classical.uz_vorticity.nu_vs_ideal"], 0.015)
 
 
 def test_format_mode_scale_summary_robustness():

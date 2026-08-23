@@ -11,6 +11,20 @@ MODE_SCALE_SCHEMA_VERSION: int = 2
 
 CLASSICAL_GRID_SCALE_KEYS: Tuple[str, ...] = (
     "classical.bz_induction.eta_vs_ideal",
+    "classical.bz_induction.eta_vs_f",
+    "classical.bz_induction.g_vs_f",
+    "classical.bz_induction.xi_vs_f",
+)
+
+CGL_GRID_SCALE_KEYS: Tuple[str, ...] = (
+    "cgl.by_induction.eta_vs_ideal",
+    "cgl.by_induction.eta_vs_f",
+    "cgl.bz_induction.eta_vs_ideal",
+    "cgl.bz_induction.eta_vs_f",
+)
+
+CLASSICAL_DIAGNOSTIC_SCALE_KEYS: Tuple[str, ...] = (
+    "classical.bz_induction.eta_vs_ideal",
     "classical.bz_induction.eta_vs_ideal_envelope",
     "classical.bz_induction.eta_vs_f",
     "classical.bz_induction.g_vs_f",
@@ -22,6 +36,8 @@ CLASSICAL_GRID_SCALE_KEYS: Tuple[str, ...] = (
     "classical.uz_vorticity.xi_vs_f",
 )
 
+CGL_DIAGNOSTIC_SCALE_KEYS: Tuple[str, ...] = CGL_GRID_SCALE_KEYS
+
 CLASSICAL_PHYSICAL_SCALE_KEYS: Tuple[str, ...] = (
     "classical.bz_induction.eta_vs_ideal",
     "classical.bz_induction.eta_vs_f",
@@ -32,14 +48,6 @@ CLASSICAL_PHYSICAL_SCALE_KEYS: Tuple[str, ...] = (
     "classical.uz_vorticity.g_vs_f",
     "classical.uz_vorticity.xi_vs_f",
 )
-
-CGL_GRID_SCALE_KEYS: Tuple[str, ...] = (
-    "cgl.by_induction.eta_vs_ideal",
-    "cgl.by_induction.eta_vs_f",
-    "cgl.bz_induction.eta_vs_ideal",
-    "cgl.bz_induction.eta_vs_f",
-)
-
 CGL_PHYSICAL_SCALE_KEYS: Tuple[str, ...] = CGL_GRID_SCALE_KEYS
 
 
@@ -272,16 +280,16 @@ def minimum_eigenmode_scale(
     model: str = "classical",
 ) -> Tuple[Optional[float], Optional[str]]:
     """
-    Select the minimum valid physical scale and its standardized key.
+    Select the minimum valid grid-controlling scale and its standardized key.
 
-    Filters candidates against the model's physical scale key whitelist (excluding
-    envelope diagnostics) and retains only finite values > 0.0. Deterministic key order
-    resolves exact ties. Returns (None, None) if no valid candidate exists.
+    Filters candidates against the model's grid scale key whitelist (induction scales only)
+    and retains only finite values > 0.0. Deterministic key order resolves exact ties.
+    Returns (None, None) if no valid candidate exists.
     """
     if model.lower().startswith("cgl") or model.lower() == "gyrotropic":
-        candidate_keys = CGL_PHYSICAL_SCALE_KEYS
+        candidate_keys = CGL_GRID_SCALE_KEYS
     else:
-        candidate_keys = CLASSICAL_PHYSICAL_SCALE_KEYS
+        candidate_keys = CLASSICAL_GRID_SCALE_KEYS
 
     min_scale: Optional[float] = None
     min_key: Optional[str] = None

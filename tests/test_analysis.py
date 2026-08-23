@@ -9,8 +9,10 @@ from tearing_eigenmodes.analysis import (
     measure_eigenmode_scales,
     MODE_SCALE_SCHEMA_VERSION,
     CLASSICAL_GRID_SCALE_KEYS,
-    CLASSICAL_PHYSICAL_SCALE_KEYS,
     CGL_GRID_SCALE_KEYS,
+    CLASSICAL_DIAGNOSTIC_SCALE_KEYS,
+    CGL_DIAGNOSTIC_SCALE_KEYS,
+    CLASSICAL_PHYSICAL_SCALE_KEYS,
     CGL_PHYSICAL_SCALE_KEYS,
 )
 
@@ -96,16 +98,16 @@ def test_find_peak_location():
 def test_schema_constants():
     assert MODE_SCALE_SCHEMA_VERSION == 2
     assert isinstance(CLASSICAL_GRID_SCALE_KEYS, tuple)
-    assert isinstance(CLASSICAL_PHYSICAL_SCALE_KEYS, tuple)
+    assert isinstance(CLASSICAL_DIAGNOSTIC_SCALE_KEYS, tuple)
     assert isinstance(CGL_GRID_SCALE_KEYS, tuple)
-    assert isinstance(CGL_PHYSICAL_SCALE_KEYS, tuple)
-    assert len(CLASSICAL_GRID_SCALE_KEYS) == 10
-    assert len(CLASSICAL_PHYSICAL_SCALE_KEYS) == 8
+    assert isinstance(CGL_DIAGNOSTIC_SCALE_KEYS, tuple)
+    assert len(CLASSICAL_GRID_SCALE_KEYS) == 4
+    assert len(CLASSICAL_DIAGNOSTIC_SCALE_KEYS) == 10
     assert len(CGL_GRID_SCALE_KEYS) == 4
-    assert len(CGL_PHYSICAL_SCALE_KEYS) == 4
-    for key in CLASSICAL_GRID_SCALE_KEYS:
+    assert len(CGL_DIAGNOSTIC_SCALE_KEYS) == 4
+    for key in CLASSICAL_DIAGNOSTIC_SCALE_KEYS:
         assert key.startswith("classical.")
-    for key in CGL_GRID_SCALE_KEYS:
+    for key in CGL_DIAGNOSTIC_SCALE_KEYS:
         assert key.startswith("cgl.")
 
 
@@ -245,8 +247,9 @@ def test_minimum_eigenmode_scale_selection():
     }
 
     min_scale, min_key = minimum_eigenmode_scale(scales, model="classical")
-    assert min_scale == 0.03
-    assert min_key == "classical.uz_vorticity.nu_vs_ideal"
+    # Must select minimum induction scale (0.05) and ignore smaller vorticity scale (0.03)
+    assert min_scale == 0.05
+    assert min_key == "classical.bz_induction.eta_vs_ideal"
 
     # All nan/inf test
     all_invalid = {k: np.nan for k in CLASSICAL_GRID_SCALE_KEYS}

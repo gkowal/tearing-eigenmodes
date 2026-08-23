@@ -216,10 +216,11 @@ def test_refine_inner_scale_multiscale_mechanism_switching(temp_npz_dir: str) ->
     _load_eigenmodes_cache.clear()
     from tearing_eigenmodes.io import save_eigenmode
 
-    # State 1 at k=0.1: resistive is limiting (0.020 vs viscous 0.070)
+    # State 1 at k=0.1: eta_vs_ideal is limiting induction scale (0.020 vs g_vs_f 0.050, vorticity 0.008)
     scales_1 = {
         "classical.bz_induction.eta_vs_ideal": 0.020,
-        "classical.uz_vorticity.nu_vs_ideal": 0.070,
+        "classical.bz_induction.g_vs_f": 0.050,
+        "classical.uz_vorticity.nu_vs_ideal": 0.008,
     }
     save_eigenmode(
         os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz"),
@@ -240,10 +241,11 @@ def test_refine_inner_scale_multiscale_mechanism_switching(temp_npz_dir: str) ->
         dbz=np.ones(128),
     )
 
-    # State 2 at k=0.3: viscous is limiting (0.030 vs resistive 0.080)
+    # State 2 at k=0.3: g_vs_f is limiting induction scale (0.030 vs eta_vs_ideal 0.080, vorticity 0.008)
     scales_2 = {
         "classical.bz_induction.eta_vs_ideal": 0.080,
-        "classical.uz_vorticity.nu_vs_ideal": 0.030,
+        "classical.bz_induction.g_vs_f": 0.030,
+        "classical.uz_vorticity.nu_vs_ideal": 0.008,
     }
     save_eigenmode(
         os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz"),
@@ -251,7 +253,7 @@ def test_refine_inner_scale_multiscale_mechanism_switching(temp_npz_dir: str) ->
         eigenvalue=0.06 + 0.0j,
         tolerance=1e-6,
         minimum_physical_scale=0.030,
-        minimum_physical_scale_key="classical.uz_vorticity.nu_vs_ideal",
+        minimum_physical_scale_key="classical.bz_induction.g_vs_f",
         minimum_scale_nodes=15,
         resistive_layer_thickness=0.080,
         resistive_layer_nodes=40,
@@ -273,7 +275,8 @@ def test_refine_inner_scale_multiscale_mechanism_switching(temp_npz_dir: str) ->
         inner_resolution_safety=1.0,
     )
 
-    # Check that at k=0.1, refined scale is 0.020
+    # Check that at k=0.1, refined scale is 0.020 (eta_vs_ideal, ignoring 0.008 vorticity)
+    # Check that at k=0.3, refined scale is 0.030 (g_vs_f, ignoring 0.008 vorticity)
     vs = np.array([0.1, 0.3])
     deltas = refine_inner_scale(vs, params)
     assert deltas[0] is not None and deltas[1] is not None
@@ -1090,47 +1093,47 @@ def test_refine_malformed_center_record_barrier_retained(temp_npz_dir: str) -> N
 
 
 def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> None:
-    """One malformed scale key in a record must invalidate only that key while other valid keys remain usable."""
+    """One malformed induction key in a record must invalidate only that key while other valid induction keys remain usable."""
     _load_eigenmodes_cache.clear()
 
     fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
     fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
     fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
 
-    # Record 1 at k=0.1: induction=0.02, vorticity=0.02
+    # Record 1 at k=0.1: eta_vs_ideal=0.02, g_vs_f=0.02
     np.savez_compressed(
         fp1,
         wavenumber=0.1,
         a=1.0,
         tolerance=1e-5,
         resolution=128,
-        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.bz_induction.g_vs_f"]),
         mode_scale_values=np.array([0.02, 0.02]),
         mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
-    # Record 2 at k=0.2: induction='bad' (malformed), vorticity=0.04 (valid)
+    # Record 2 at k=0.2: eta_vs_ideal='bad' (malformed), g_vs_f=0.04 (valid)
     np.savez_compressed(
         fp2,
         wavenumber=0.2,
         a=1.0,
         tolerance=1e-5,
         resolution=128,
-        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.bz_induction.g_vs_f"]),
         mode_scale_values=np.array(["bad", 0.04]),
         mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
     )
 
-    # Record 3 at k=0.3: induction=0.08, vorticity=0.08
+    # Record 3 at k=0.3: eta_vs_ideal=0.08, g_vs_f=0.08
     np.savez_compressed(
         fp3,
         wavenumber=0.3,
         a=1.0,
         tolerance=1e-5,
         resolution=128,
-        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.bz_induction.g_vs_f"]),
         mode_scale_values=np.array([0.08, 0.08]),
         mode_scale_schema_version=MODE_SCALE_SCHEMA_VERSION,
         minimum_physical_scale=np.nan,
@@ -1145,11 +1148,11 @@ def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> 
     )
 
     # Refine at k=0.15:
-    # - induction key is split by barrier at 0.2 (no segment covering 0.15)
-    # - vorticity key has continuous segment [0.1, 0.2, 0.3] -> log-log interp at 0.15
+    # - eta_vs_ideal is split by barrier at 0.2 (no segment covering 0.15)
+    # - g_vs_f has continuous segment [0.1, 0.2, 0.3] -> log-log interp at 0.15
     deltas = refine_inner_scale(np.array([0.15]), params)
     assert deltas[0] is not None
-    # Vorticity log-log interp between (0.1, 0.02) and (0.2, 0.04) at 0.15:
+    # g_vs_f log-log interp between (0.1, 0.02) and (0.2, 0.04) at 0.15:
     # scale = 0.02 * (0.15 / 0.1) = 0.03
     assert np.isclose(deltas[0], 0.03, rtol=1e-5)
 
@@ -1509,3 +1512,168 @@ def test_refine_malformed_saved_a_nonunit_and_invalid_fallbacks(temp_npz_dir: st
     records_sub = _load_cached_state_records(temp_npz_dir, params_none)
     # The bad 'a' records with no params.a fallback are skipped, but valid ones (like record 1 with a=1.0) survive
     assert len(records_sub) == 0 or all(r["v"] is not None for r in records_sub)
+
+
+def test_scalar_fallback_with_induction_key_accepted(temp_npz_dir: str) -> None:
+    """A valid scalar minimum with an eligible induction key is accepted."""
+    _load_eigenmodes_cache.clear()
+    fp = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    np.savez_compressed(
+        fp,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.035,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+        resistive_layer_thickness=0.035,
+    )
+    params = SimulationParams(data_path=temp_npz_dir, a=1.0, S=1e4, CGL=False, inner_resolution_safety=1.0)
+    deltas = refine_inner_scale(np.array([0.1]), params)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], 0.035, rtol=1e-5)
+
+
+def test_scalar_fallback_with_vorticity_key_rejected_and_uses_resistive_fallback(temp_npz_dir: str) -> None:
+    """A smaller scalar whose key is a vorticity key is rejected, using resistive induction fallback."""
+    _load_eigenmodes_cache.clear()
+    fp = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    np.savez_compressed(
+        fp,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.010,  # smaller vorticity scale
+        minimum_physical_scale_key="classical.uz_vorticity.nu_vs_ideal",
+        resistive_layer_thickness=0.045,  # valid induction resistive fallback
+    )
+    params = SimulationParams(data_path=temp_npz_dir, a=1.0, S=1e4, CGL=False, inner_resolution_safety=1.0)
+    deltas = refine_inner_scale(np.array([0.1]), params)
+    assert deltas[0] is not None
+    # Must reject 0.010 and use resistive induction fallback 0.045:
+    assert np.isclose(deltas[0], 0.045, rtol=1e-5)
+
+
+def test_scalar_fallback_with_vorticity_key_rejected_no_resistive_uses_analytic(temp_npz_dir: str) -> None:
+    """A rejected vorticity-limited record with no resistive fallback retains analytic estimator."""
+    _load_eigenmodes_cache.clear()
+    fp = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    np.savez_compressed(
+        fp,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.010,  # smaller vorticity scale
+        minimum_physical_scale_key="classical.uz_vorticity.nu_vs_ideal",
+        resistive_layer_thickness=np.nan,  # no valid resistive fallback
+    )
+    params = SimulationParams(data_path=temp_npz_dir, a=1.0, S=1e4, CGL=False, inner_resolution_safety=1.0)
+    deltas = refine_inner_scale(np.array([0.1]), params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.1)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
+    assert not np.isclose(deltas[0], 0.010, rtol=1e-2)
+
+
+def test_scalar_fallback_missing_key_classical_does_not_authorize_scalar_minimum(temp_npz_dir: str) -> None:
+    """A Classical record with missing key does not authorize scalar minimum and falls back to resistive."""
+    _load_eigenmodes_cache.clear()
+    fp = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    np.savez_compressed(
+        fp,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.015,  # unknown provenance
+        resistive_layer_thickness=0.050,  # legacy induction fallback
+    )
+    params = SimulationParams(data_path=temp_npz_dir, a=1.0, S=1e4, CGL=False, inner_resolution_safety=1.0)
+    deltas = refine_inner_scale(np.array([0.1]), params)
+    assert deltas[0] is not None
+    # Must use resistive fallback 0.050, NOT unauthorized scalar 0.015:
+    assert np.isclose(deltas[0], 0.050, rtol=1e-5)
+
+
+def test_scalar_fallback_vorticity_barrier_prevents_silent_bridging(temp_npz_dir: str) -> None:
+    """A vorticity-limited record with no resistive fallback acts as a barrier preventing interpolation across it."""
+    _load_eigenmodes_cache.clear()
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
+
+    # Record 1 at k=0.1: valid induction scalar 0.02
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.02,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+    )
+    # Record 2 at k=0.2: vorticity-limited scalar, no resistive fallback -> barrier
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.005,
+        minimum_physical_scale_key="classical.uz_vorticity.nu_vs_ideal",
+        resistive_layer_thickness=np.nan,
+    )
+    # Record 3 at k=0.3: valid induction scalar 0.08
+    np.savez_compressed(
+        fp3,
+        wavenumber=0.3,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.08,
+        minimum_physical_scale_key="classical.bz_induction.eta_vs_ideal",
+    )
+
+    params = SimulationParams(data_path=temp_npz_dir, a=1.0, S=1e4, CGL=False, inner_resolution_safety=1.0)
+    # At k=0.15: falls in gap caused by barrier at 0.2 -> must return analytic estimator, NOT interpolated value
+    deltas = refine_inner_scale(np.array([0.15]), params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    unwanted_interpolated = 0.02 * (0.15 / 0.1)  # 0.03
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
+    assert not np.isclose(deltas[0], unwanted_interpolated, rtol=1e-2)
+
+
+def test_scalar_fallback_cgl_legacy_and_keyed_behavior(temp_npz_dir: str) -> None:
+    """CGL records with induction key or legacy record without key accept scalar minimum."""
+    _load_eigenmodes_cache.clear()
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+
+    # Record 1: CGL with explicit induction key
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.025,
+        minimum_physical_scale_key="cgl.bz_induction.eta_vs_ideal",
+    )
+    # Record 2: Genuinely legacy CGL record without key
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.035,
+    )
+
+    params = SimulationParams(data_path=temp_npz_dir, a=1.0, S=1e4, CGL=True, inner_resolution_safety=1.0)
+    deltas = refine_inner_scale(np.array([0.1, 0.2]), params)
+    assert deltas[0] is not None and deltas[1] is not None
+    assert np.isclose(deltas[0], 0.025, rtol=1e-5)
+    assert np.isclose(deltas[1], 0.035, rtol=1e-5)
