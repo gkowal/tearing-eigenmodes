@@ -1345,3 +1345,51 @@ def test_refine_fractional_schema_version_barrier(temp_npz_dir: str) -> None:
     assert deltas[0] is not None
     assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
     assert not np.isclose(deltas[0], unwanted_cross_gap, rtol=1e-2)
+
+
+def test_refine_eigenvalues_and_brackets_with_malformed_scales(temp_npz_dir: str) -> None:
+    """refine_eigenvalues and refine_wavenumber_bracket must succeed even if optional scale diagnostics are malformed."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.refinement import refine_eigenvalues, refine_wavenumber_bracket
+
+    # File 1 at S=1e4
+    np.savez_compressed(
+        os.path.join(temp_npz_dir, "state_S1.000000e+04.npz"),
+        scan_parameter="S",
+        scan_parameter_value=1e4,
+        wavenumber=0.1,
+        eigenvalue=0.01 + 0.0j,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale="bad",
+        minimum_scale_nodes="bad",
+    )
+    # File 2 at S=1e5
+    np.savez_compressed(
+        os.path.join(temp_npz_dir, "state_S1.000000e+05.npz"),
+        scan_parameter="S",
+        scan_parameter_value=1e5,
+        wavenumber=0.1,
+        eigenvalue=0.02 + 0.0j,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale="bad",
+        minimum_scale_nodes="bad",
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        dependence="S",
+        logarithmic=True,
+    )
+
+    # 1. refine_eigenvalues operates smoothly
+    sigmas = refine_eigenvalues(np.array([3e4]), params)
+    assert sigmas is not None
+    assert len(sigmas) == 1
+    assert np.isfinite(sigmas[0])
+
+    # 2. refine_wavenumber_bracket operates smoothly
+    brackets = refine_wavenumber_bracket(np.array([3e4]), params)
+    assert brackets is not None
+    assert len(brackets) == 1

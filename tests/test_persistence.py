@@ -454,3 +454,67 @@ def test_check_state_finite_reuse_policy_matrix(
         missing_status, missing_data = check_state(os.path.join(tmpdir, "nonexistent.npz"), Nmax=nmax)
         assert missing_status is False
         assert missing_data is None
+
+
+def test_load_eigenmodes_and_write_results_malformed_optional_scales():
+    """load_eigenmodes and write_results must tolerate malformed optional scale metadata without raising."""
+    from tearing_eigenmodes.io import load_eigenmodes, write_results
+    from tearing_eigenmodes.params import SimulationParams
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # File 1: valid scale = 0.02, nin = 5
+        np.savez_compressed(
+            os.path.join(tmpdir, "state_alpha0.100000e+00.npz"),
+            wavenumber=0.1,
+            a=1.0,
+            eigenvalue=0.01 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            minimum_physical_scale=0.02,
+            minimum_scale_nodes=5,
+            current_sheet_nodes=20,
+        )
+        # File 2: malformed scale = "bad", nin = "bad"
+        np.savez_compressed(
+            os.path.join(tmpdir, "state_alpha0.200000e+00.npz"),
+            wavenumber=0.2,
+            a=1.0,
+            eigenvalue=0.02 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            minimum_physical_scale="bad",
+            minimum_scale_nodes="bad",
+            current_sheet_nodes=20,
+        )
+        # File 3: valid scale = 0.08, nin = 8
+        np.savez_compressed(
+            os.path.join(tmpdir, "state_alpha0.300000e+00.npz"),
+            wavenumber=0.3,
+            a=1.0,
+            eigenvalue=0.03 + 0.0j,
+            tolerance=1e-5,
+            resolution=128,
+            grid_scaling_factor=1.0,
+            minimum_physical_scale=0.08,
+            minimum_scale_nodes=8,
+            current_sheet_nodes=20,
+        )
+
+        v, α, σ, e, δ, c, nin, nwa, N = load_eigenmodes(tmpdir)
+        assert np.allclose(v, [0.1, 0.2, 0.3])
+        assert np.allclose(α, [0.1, 0.2, 0.3])
+        assert np.allclose(σ, [0.01, 0.02, 0.03])
+        assert δ[0] == 0.02
+        assert np.isnan(δ[1])
+        assert δ[2] == 0.08
+        assert nin[0] == 5
+        assert nin[1] == 0
+        assert nin[2] == 8
+
+        # Test write_results
+        params = SimulationParams(data_path=tmpdir, a=1.0, S=1e4, CGL=False)
+        write_results(params, 1.0)
+        assert os.path.exists(f"{tmpdir}.dat")
+        os.remove(f"{tmpdir}.dat")

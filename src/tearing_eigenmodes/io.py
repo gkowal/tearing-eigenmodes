@@ -385,6 +385,7 @@ def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
 def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Load eigenmode data from .npz files using glob and os.
+    Reuses load_state_data for tolerant decoding of optional multiscale fields.
     """
     search_path = os.path.join(path, pattern)
     files = sorted(glob.glob(search_path))
@@ -394,51 +395,71 @@ def load_eigenmodes(path: str, pattern: str = "*.npz") -> Tuple[np.ndarray, np.n
 
     rows = []
     for f in files:
-        with np.load(f) as state:
-            if 'scan_parameter' in state:
-                val = float(state['scan_parameter_value'])
-            elif 'dependence' in state:
-                val = float(state['value'])
-            else:
-                val = float(state['wavenumber'])
+        data = load_state_data(f)
+        if data is None:
+            continue
 
-            growth = state['eigenvalue'] if 'eigenvalue' in state else state['growth_rate']
-            if isinstance(growth, np.ndarray) and growth.ndim > 0:
-                growth = growth[0]
+        if 'scan_parameter' in data:
+            val = float(data['scan_parameter_value'])
+        elif 'dependence' in data:
+            val = float(data['value'])
+        else:
+            val = float(data['wavenumber'])
 
-            wavenumber = float(state['wavenumber'])
+        growth = data.get('eigenvalue', data.get('growth_rate'))
+        if isinstance(growth, np.ndarray) and growth.ndim > 0:
+            growth = growth[0]
 
-            if 'minimum_physical_scale' in state:
-                dlt = float(state['minimum_physical_scale'])
-            elif 'resistive_layer_thickness' in state:
-                dlt = float(state['resistive_layer_thickness'])
-            else:
-                dlt = float(state['inner_scale'])
+        wavenumber = float(data['wavenumber'])
 
-            tol = float(state['tolerance'])
-            scaling = float(state['grid_scaling_factor']) if 'grid_scaling_factor' in state else float(state['scaling_factor'])
-            res = int(state['resolution'])
+        dlt = float(data.get('minimum_physical_scale', float('nan')))
 
-            if 'minimum_scale_nodes' in state:
-                nin_val = int(state['minimum_scale_nodes'])
-            elif 'resistive_layer_nodes' in state:
-                nin_val = int(state['resistive_layer_nodes'])
-            else:
-                nin_val = int(state['n_inner'])
+        tol_raw = data.get('tolerance', float('nan'))
+        if isinstance(tol_raw, np.ndarray) and tol_raw.size > 0:
+            tol = float(tol_raw.flat[0])
+        elif tol_raw is not None:
+            try:
+                tol = float(tol_raw)
+            except Exception:
+                tol = float('nan')
+        else:
+            tol = float('nan')
 
-            nwa_val = int(state['current_sheet_nodes']) if 'current_sheet_nodes' in state else int(state['n_wa'])
+        scaling_raw = data.get('grid_scaling_factor', data.get('scaling_factor', float('nan')))
+        if isinstance(scaling_raw, np.ndarray) and scaling_raw.size > 0:
+            scaling = float(scaling_raw.flat[0])
+        elif scaling_raw is not None:
+            try:
+                scaling = float(scaling_raw)
+            except Exception:
+                scaling = float('nan')
+        else:
+            scaling = float('nan')
 
-            rows.append([
-                val,
-                wavenumber,
-                growth,
-                tol,
-                dlt,
-                nin_val,
-                nwa_val,
-                scaling,
-                res
-            ])
+        res_raw = data.get('resolution', 0)
+        res_int = _positive_integer_scalar(res_raw)
+        res = res_int if res_int is not None else 0
+
+        nin_val = int(data.get('minimum_scale_nodes', 0))
+
+        nwa_raw = data.get('current_sheet_nodes', data.get('n_wa', 0))
+        nwa_int = _positive_integer_scalar(nwa_raw)
+        nwa_val = nwa_int if nwa_int is not None else 0
+
+        rows.append([
+            val,
+            wavenumber,
+            growth,
+            tol,
+            dlt,
+            nin_val,
+            nwa_val,
+            scaling,
+            res
+        ])
+
+    if not rows:
+        raise FileNotFoundError(f"No valid state data loaded matching {pattern} in {path}")
 
     rows.sort()
 
