@@ -1,5 +1,6 @@
 import os
 import tempfile
+from typing import Any
 import numpy as np
 import pytest
 from tearing_eigenmodes.io import (
@@ -309,3 +310,86 @@ def test_load_state_data_partially_malformed_diagnostics():
             f.write(b"NOT_A_VALID_ZIP_OR_NPZ_DATA")
         d5 = load_state_data(fp5)
         assert d5 is None
+
+
+@pytest.mark.parametrize(
+    "bad_key,bad_val",
+    [
+        ("tolerance", "bad"),
+        ("tolerance", np.array([])),
+        ("tolerance", np.nan),
+        ("tolerance", np.inf),
+        ("tolerance", None),
+        ("resolution", "bad"),
+        ("resolution", np.array([])),
+        ("resolution", np.nan),
+        ("resolution", np.inf),
+        ("resolution", None),
+    ],
+)
+def test_check_state_malformed_and_nonfinite_metadata(bad_key: str, bad_val: Any) -> None:
+    """check_state must safely return (False, None) for malformed, nonfinite, or missing reuse metadata."""
+    from tearing_eigenmodes.io import check_state
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fp = os.path.join(tmpdir, "state_malformed_reuse.npz")
+        if bad_key == "tolerance":
+            if bad_val is None:
+                np.savez_compressed(fp, wavenumber=0.1, a=1.0, resolution=128)
+            else:
+                np.savez_compressed(fp, wavenumber=0.1, a=1.0, tolerance=bad_val, resolution=128)
+        elif bad_key == "resolution":
+            if bad_val is None:
+                np.savez_compressed(fp, wavenumber=0.1, a=1.0, tolerance=1e-5)
+            else:
+                np.savez_compressed(fp, wavenumber=0.1, a=1.0, tolerance=1e-5, resolution=bad_val)
+
+        status, state_data = check_state(fp, Nmax=2048)
+        assert status is False
+        assert state_data is None
+
+
+@pytest.mark.parametrize(
+    "tol,res,nmax,expected_status,is_data_none",
+    [
+        (0.5, 128, 2048, True, False),     # tolerance <= 1, finite resolution -> (True, data)
+        (1.0, 128, 2048, True, False),     # tolerance == 1 -> (True, data)
+        (10.0, 128, 2048, False, False),   # tolerance > 1, resolution < Nmax -> (False, data)
+        (10.0, 2048, 2048, True, False),   # tolerance > 1, resolution == Nmax -> (True, data)
+        (10.0, 4096, 2048, True, False),   # tolerance > 1, resolution > Nmax -> (True, data)
+    ],
+)
+def test_check_state_finite_reuse_policy_matrix(
+    tol: float, res: int, nmax: int, expected_status: bool, is_data_none: bool
+) -> None:
+    """Explicitly verify the finite reuse-policy matrix for check_state."""
+    from tearing_eigenmodes.io import check_state
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fp = os.path.join(tmpdir, "state_finite_matrix.npz")
+        np.savez_compressed(
+            fp,
+            wavenumber=0.1,
+            a=1.0,
+            tolerance=tol,
+            resolution=res,
+        )
+
+        # Normal invocation
+        status, data = check_state(fp, force=False, Nmax=nmax)
+        assert status is expected_status
+        if is_data_none:
+            assert data is None
+        else:
+            assert data is not None
+            assert data["wavenumber"] == 0.1
+
+        # Force=True always returns (False, None)
+        force_status, force_data = check_state(fp, force=True, Nmax=nmax)
+        assert force_status is False
+        assert force_data is None
+
+        # Missing file always returns (False, None)
+        missing_status, missing_data = check_state(os.path.join(tmpdir, "nonexistent.npz"), Nmax=nmax)
+        assert missing_status is False
+        assert missing_data is None

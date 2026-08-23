@@ -278,12 +278,35 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
 
     e = data.get('tolerance')
     N = data.get('resolution')
-    if e is not None and N is not None:
-        e_val = np.atleast_1d(e)[0]
-        status = not (float(e_val) > 1.0 and int(N) < Nmax)
-        return status, data
+    if e is None or N is None:
+        logger.warning(f"State file {file_path} missing tolerance or resolution reuse metadata.")
+        return False, None
 
-    return False, None
+    try:
+        e_arr = np.atleast_1d(e)
+        if e_arr.size != 1:
+            logger.warning(f"Invalid tolerance in state file {file_path}: {e}")
+            return False, None
+        e_val = float(e_arr[0])
+        if not np.isfinite(e_val):
+            logger.warning(f"Non-finite tolerance in state file {file_path}: {e_val}")
+            return False, None
+
+        N_arr = np.atleast_1d(N)
+        if N_arr.size != 1:
+            logger.warning(f"Invalid resolution in state file {file_path}: {N}")
+            return False, None
+        N_float = float(N_arr[0])
+        if not np.isfinite(N_float):
+            logger.warning(f"Non-finite resolution in state file {file_path}: {N_float}")
+            return False, None
+        N_val = int(N_float)
+
+        status = not (e_val > 1.0 and N_val < Nmax)
+        return status, data
+    except Exception as ex:
+        logger.warning(f"Malformed reuse metadata in state file {file_path}: {ex}")
+        return False, None
 
 
 def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
