@@ -1153,8 +1153,83 @@ def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> 
     assert np.isclose(deltas[0], 0.03, rtol=1e-5)
 
 
-def test_refine_non_mapping_and_malformed_scalar_fallbacks(temp_npz_dir: str) -> None:
-    """Non-mapping mode_scales and malformed scalar fallbacks must not raise and must act as unavailable data."""
+def test_refine_non_mapping_mode_scales_barrier(temp_npz_dir: str) -> None:
+    """A non-mapping mode_scales field must not raise and must act as an unavailable data barrier."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import load_state_data
+    from tearing_eigenmodes.refinement import _load_cached_state_records
+
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
+
+    # Record 1 at k=0.1: valid per-term scale 0.02
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.02]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 2 at k=0.2: raw non-mapping mode_scales field, no parallel keys/values
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scales="not-a-mapping",
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 3 at k=0.3: valid per-term scale 0.08
+    np.savez_compressed(
+        fp3,
+        wavenumber=0.3,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.08]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # 1. State data for center retains raw non-mapping mode_scales
+    d_center = load_state_data(fp2)
+    assert d_center is not None
+    assert d_center["mode_scales"] == "not-a-mapping"
+
+    # 2. Cached records include all three coordinates and expose the center non-mapping value
+    records = _load_cached_state_records(temp_npz_dir, params)
+    assert [r["v"] for r in records] == [0.1, 0.2, 0.3]
+    assert records[1]["mode_scales"] == "not-a-mapping"
+
+    # 3. Refine at k=0.15: non-mapping center acts as barrier, returning analytic fallback
+    deltas = refine_inner_scale(np.array([0.15]), params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    unwanted_cross_gap = 0.0333604903137
+
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
+    assert not np.isclose(deltas[0], unwanted_cross_gap, rtol=1e-2)
+
+
+def test_refine_malformed_scalar_fallback_barrier(temp_npz_dir: str) -> None:
+    """Malformed scalar fallbacks must act as an unavailable data barrier for the scalar path."""
     _load_eigenmodes_cache.clear()
 
     fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
