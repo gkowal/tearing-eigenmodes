@@ -212,7 +212,7 @@ def test_eigenmodes_unconverged_solve_behavior():
 
 
 def test_format_mode_scale_summary_robustness():
-    """format_mode_scale_summary must safely handle non-mappings, invalid values, infs, and sort deterministically."""
+    """format_mode_scale_summary must safely handle non-mappings, mixed key types, strings, invalid values, and sort deterministically."""
     from tearing_eigenmodes.printing import format_mode_scale_summary
 
     # 1. Non-mapping returns None
@@ -222,15 +222,26 @@ def test_format_mode_scale_summary_robustness():
 
     # 2. Empty or all-invalid returns None
     assert format_mode_scale_summary({}) is None
-    assert format_mode_scale_summary({"k1": np.nan, "k2": 0.0, "k3": -1.0, "k4": "bad"}) is None
+    assert format_mode_scale_summary({"k1": np.nan, "k2": 0.0, "k3": -1.0, "k4": "bad", "k5": "1.25", "k6": True}) is None
 
-    # 3. Mixed valid, inf, and invalid
+    # 3. Mixed key types (int and str)
+    mixed_keys_summary = format_mode_scale_summary({"b": 0.02, 1: 0.01})
+    assert mixed_keys_summary == "mode scales: 1=1.0000e-02, b=2.0000e-02"
+
+    # 4. Numeric and non-numeric string values must be omitted, not converted
+    str_val_summary = format_mode_scale_summary({"k1": "1.25", "k2": "bad", "k3": 0.05})
+    assert str_val_summary == "mode scales: k3=5.0000e-02"
+
+    # 5. Mixed valid, inf, and invalid
     scales = {
         "z_key": 0.05,
         "a_key": np.inf,
         "b_key": np.nan,
         "c_key": "bad",
         "d_key": 0.001234,
+        "e_key": True,
+        "f_key": np.array([1.0, 2.0]),
+        "g_key": -1.0,
     }
     summary = format_mode_scale_summary(scales)
     assert summary is not None
@@ -238,10 +249,9 @@ def test_format_mode_scale_summary_robustness():
     assert summary == "mode scales: a_key=inf, d_key=1.2340e-03, z_key=5.0000e-02"
 
 
-def test_cached_task_verbose_with_non_mapping_scales(caplog: pytest.LogCaptureFixture, tmp_path):
-    """Cached execution with verbose=True and non-mapping mode_scales must not crash and emit no scale summary."""
+def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.CaptureFixture, tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Cached execution with verbose=True must not crash on non-mapping or mixed-key mode_scales."""
     import os
-    import logging
     import importlib.util
 
     # 1. Test compute script task
@@ -250,9 +260,10 @@ def test_cached_task_verbose_with_non_mapping_scales(caplog: pytest.LogCaptureFi
     compute_mod = importlib.util.module_from_spec(spec_c)
     spec_c.loader.exec_module(compute_mod)
 
-    fp_c = os.path.join(str(tmp_path), f"state_α{0.1:.6e}.npz")
+    # 1a. Non-mapping scales in compute script
+    fp_c1 = os.path.join(str(tmp_path), f"state_α{0.1:.6e}.npz")
     np.savez_compressed(
-        fp_c,
+        fp_c1,
         wavenumber=0.1,
         eigenvalue=0.05 + 0.0j,
         tolerance=1e-5,
@@ -261,23 +272,49 @@ def test_cached_task_verbose_with_non_mapping_scales(caplog: pytest.LogCaptureFi
         current_sheet_nodes=20,
         mode_scales="not-a-mapping",
     )
+    params_c1 = SimulationParams(alpha=0.1, verbose=True, data_path=str(tmp_path))
+    capsys.readouterr()
+    compute_mod.task(0.1, None, None, params_c1)
+    out_c1 = capsys.readouterr().out
+    scale_lines_c1 = [line for line in out_c1.splitlines() if "mode scales:" in line]
+    assert len(scale_lines_c1) == 0
 
-    params = SimulationParams(alpha=0.1, verbose=True, data_path=str(tmp_path))
-    with caplog.at_level(logging.INFO):
-        compute_mod.task(0.1, None, None, params)
-    scale_logs = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
-    assert len(scale_logs) == 0
+    # 1b. Mixed int/str keys in compute script
+    fp_c2 = os.path.join(str(tmp_path), f"state_α{0.2:.6e}.npz")
+    np.savez_compressed(
+        fp_c2,
+        wavenumber=0.2,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-5,
+        resolution=128,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        mode_scale_keys=np.array(["b", "1"]),
+        mode_scale_values=np.array([0.02, 0.01]),
+        mode_scale_schema_version=1,
+    )
+    params_c2 = SimulationParams(alpha=0.2, verbose=True, data_path=str(tmp_path))
+    compute_mod.task(0.2, None, None, params_c2)
+    out_c2 = capsys.readouterr().out
+    scale_lines_c2 = [line for line in out_c2.splitlines() if "mode scales:" in line]
+    assert len(scale_lines_c2) == 1
+    assert scale_lines_c2[0] == "mode scales: 1=1.0000e-02, b=2.0000e-02"
 
     # 2. Test maxima script task
-    caplog.clear()
     spec_m = importlib.util.spec_from_file_location("maxima_mod", "scripts/eigenmodes-maxima.py")
     assert spec_m is not None and spec_m.loader is not None
     maxima_mod = importlib.util.module_from_spec(spec_m)
     spec_m.loader.exec_module(maxima_mod)
 
-    fp_m = os.path.join(str(tmp_path), f"state_S{1e4:.6e}.npz")
+    def guard_fresh_optimization(*args, **kwargs):
+        raise AssertionError("Fresh optimization must not be entered on cached state!")
+
+    monkeypatch.setattr(maxima_mod, "make_objective", guard_fresh_optimization)
+
+    # 2a. Non-mapping scales with correct signed filename
+    fp_m1 = os.path.join(str(tmp_path), f"state_S{1e4:+.6e}.npz")
     np.savez_compressed(
-        fp_m,
+        fp_m1,
         scan_parameter="S",
         scan_parameter_value=1e4,
         wavenumber=0.1,
@@ -285,16 +322,52 @@ def test_cached_task_verbose_with_non_mapping_scales(caplog: pytest.LogCaptureFi
         growth_rate=0.05,
         alpha_max=0.1,
         sigma_max=0.05,
+        wavenumber_error=1e-5,
+        eigenvalue_error=1e-6,
+        niter=10,
         tolerance=1e-5,
         resolution=128,
         grid_scaling_factor=1.0,
         current_sheet_nodes=20,
+        minimum_physical_scale=0.02,
+        minimum_scale_nodes=5,
         mode_scales="not-a-mapping",
     )
+    params_m1 = SimulationParams(dependence="S", S=1e4, verbose=True, data_path=str(tmp_path))
+    res_m1 = maxima_mod.task(1e4, None, None, None, params_m1)
+    assert res_m1[0] is not None
+    out_m1 = capsys.readouterr().out
+    scale_lines_m1 = [line for line in out_m1.splitlines() if "mode scales:" in line]
+    assert len(scale_lines_m1) == 0
 
-    params_m = SimulationParams(dependence="S", S=1e4, verbose=True, data_path=str(tmp_path))
-    with caplog.at_level(logging.INFO):
-        res_m = maxima_mod.task(1e4, None, None, None, params_m)
-    assert res_m[0] is not None
-    scale_logs_m = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
-    assert len(scale_logs_m) == 0
+    # 2b. Mixed int/str keys with correct signed filename
+    fp_m2 = os.path.join(str(tmp_path), f"state_S{2e4:+.6e}.npz")
+    np.savez_compressed(
+        fp_m2,
+        scan_parameter="S",
+        scan_parameter_value=2e4,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        growth_rate=0.05,
+        alpha_max=0.1,
+        sigma_max=0.05,
+        wavenumber_error=1e-5,
+        eigenvalue_error=1e-6,
+        niter=10,
+        tolerance=1e-5,
+        resolution=128,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        minimum_physical_scale=0.02,
+        minimum_scale_nodes=5,
+        mode_scale_keys=np.array(["b", "1"]),
+        mode_scale_values=np.array([0.02, 0.01]),
+        mode_scale_schema_version=1,
+    )
+    params_m2 = SimulationParams(dependence="S", S=2e4, verbose=True, data_path=str(tmp_path))
+    res_m2 = maxima_mod.task(2e4, None, None, None, params_m2)
+    assert res_m2[0] is not None
+    out_m2 = capsys.readouterr().out
+    scale_lines_m2 = [line for line in out_m2.splitlines() if "mode scales:" in line]
+    assert len(scale_lines_m2) == 1
+    assert scale_lines_m2[0] == "mode scales: 1=1.0000e-02, b=2.0000e-02"

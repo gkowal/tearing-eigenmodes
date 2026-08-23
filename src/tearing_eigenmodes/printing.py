@@ -90,7 +90,7 @@ def print_info(params: SimulationParams) -> None:
 def format_mode_scale_summary(scales: Any) -> Optional[str]:
     """
     Format a deterministic mode scales summary string from a mode_scales mapping.
-    Safely handles non-mapping inputs, NaN, inf, <= 0, and malformed entries.
+    Safely handles non-mapping inputs, mixed key types, NaN, inf, <= 0, strings, and malformed entries.
     Returns 'mode scales: key=value, ...' if valid entries exist, else None.
     """
     from collections.abc import Mapping
@@ -99,11 +99,23 @@ def format_mode_scale_summary(scales: Any) -> Optional[str]:
     if not isinstance(scales, Mapping):
         return None
 
-    scale_entries = []
-    for k in sorted(scales.keys()):
-        key_str = str(k)
-        v = scales[k]
-        if v is None or isinstance(v, (bool, np.bool_)):
+    try:
+        items = list(scales.items())
+    except Exception:
+        return None
+
+    valid_entries = []
+    for k, v in items:
+        try:
+            k_str = str(k)
+        except Exception:
+            continue
+
+        if v is None:
+            continue
+        if isinstance(v, (bool, np.bool_)):
+            continue
+        if isinstance(v, (str, bytes)):
             continue
         try:
             arr = np.asanyarray(v)
@@ -112,17 +124,27 @@ def format_mode_scale_summary(scales: Any) -> Optional[str]:
             elem = arr.item() if arr.ndim == 0 else arr.flat[0]
             if isinstance(elem, (bool, np.bool_)):
                 continue
+            if isinstance(elem, (str, bytes)):
+                continue
+            if isinstance(elem, complex) or np.iscomplexobj(elem):
+                if elem.imag != 0.0:
+                    continue
+                elem = elem.real
             f_val = float(elem)
             if np.isnan(f_val) or f_val <= 0.0:
                 continue
             if np.isinf(f_val):
                 if f_val > 0.0:
-                    scale_entries.append(f"{key_str}=inf")
+                    valid_entries.append((k_str, f"{k_str}=inf"))
             else:
-                scale_entries.append(f"{key_str}={f_val:.4e}")
+                valid_entries.append((k_str, f"{k_str}={f_val:.4e}"))
         except Exception:
             continue
 
-    if scale_entries:
-        return f"mode scales: {', '.join(scale_entries)}"
-    return None
+    if not valid_entries:
+        return None
+
+    # Deterministic alphabetical sorting by converted string key
+    valid_entries.sort(key=lambda item: item[0])
+    scale_strings = [item[1] for item in valid_entries]
+    return f"mode scales: {', '.join(scale_strings)}"
