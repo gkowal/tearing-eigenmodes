@@ -390,16 +390,10 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         # Print verbose deterministic mode scales line once for final mode if converged
         emit_scale = getattr(params, "emit_scale_summary", True)
         if verbose and is_converged and emit_scale:
-            scale_entries = []
-            for k in sorted(scales.keys()):
-                v = scales[k]
-                if v != 0.0 and not np.isnan(v):
-                    if np.isinf(v):
-                        scale_entries.append(f"{k}=inf")
-                    else:
-                        scale_entries.append(f"{k}={v:.4e}")
-            if scale_entries:
-                logger.info(f"mode scales: {', '.join(scale_entries)}")
+            from .printing import format_mode_scale_summary
+            summary = format_mode_scale_summary(scales)
+            if summary:
+                logger.info(summary)
 
         if allmodes:
             return σ, v, e, δin, nin, nwa, C, N, system.grid.zg, True

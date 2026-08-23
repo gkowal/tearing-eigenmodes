@@ -1,3 +1,4 @@
+from typing import Any, Optional
 from .params import SimulationParams
 import logging
 
@@ -84,3 +85,44 @@ def print_info(params: SimulationParams) -> None:
 
     if params.suffix:
         logger.info(f"  {'Suffix':<34} =  {params.suffix}")
+
+
+def format_mode_scale_summary(scales: Any) -> Optional[str]:
+    """
+    Format a deterministic mode scales summary string from a mode_scales mapping.
+    Safely handles non-mapping inputs, NaN, inf, <= 0, and malformed entries.
+    Returns 'mode scales: key=value, ...' if valid entries exist, else None.
+    """
+    from collections.abc import Mapping
+    import numpy as np
+
+    if not isinstance(scales, Mapping):
+        return None
+
+    scale_entries = []
+    for k in sorted(scales.keys()):
+        key_str = str(k)
+        v = scales[k]
+        if v is None or isinstance(v, (bool, np.bool_)):
+            continue
+        try:
+            arr = np.asanyarray(v)
+            if arr.ndim != 0 and arr.size != 1:
+                continue
+            elem = arr.item() if arr.ndim == 0 else arr.flat[0]
+            if isinstance(elem, (bool, np.bool_)):
+                continue
+            f_val = float(elem)
+            if np.isnan(f_val) or f_val <= 0.0:
+                continue
+            if np.isinf(f_val):
+                if f_val > 0.0:
+                    scale_entries.append(f"{key_str}=inf")
+            else:
+                scale_entries.append(f"{key_str}={f_val:.4e}")
+        except Exception:
+            continue
+
+    if scale_entries:
+        return f"mode scales: {', '.join(scale_entries)}"
+    return None

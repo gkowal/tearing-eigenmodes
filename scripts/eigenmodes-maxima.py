@@ -270,17 +270,10 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
         assert nwa is not None
         assert N is not None
         if verbose and state_data and 'mode_scales' in state_data:
-            scales = state_data['mode_scales']
-            scale_entries = []
-            for k in sorted(scales.keys()):
-                v = scales[k]
-                if v != 0.0 and not np.isnan(v):
-                    if np.isinf(v):
-                        scale_entries.append(f"{k}=inf")
-                    else:
-                        scale_entries.append(f"{k}={v:.4e}")
-            if scale_entries:
-                logging.info(f"mode scales: {', '.join(scale_entries)}")
+            from tearing_eigenmodes.printing import format_mode_scale_summary
+            summary = format_mode_scale_summary(state_data.get('mode_scales'))
+            if summary:
+                logging.info(summary)
         σm_val = σm[0]
         Δσ_val = np.atleast_1d(Δσ)[0]
         result_line = info + f"α={αm:.4e}±{Δα:.1e}  σ={σm_val.real:.4e}±{Δσ_val:.1e}  δin={δin:.3e}  nin={nin}  nwa={nwa}  C={C:.3e}  N={N} after {nit} function calls" + ' '*6

@@ -209,3 +209,92 @@ def test_eigenmodes_unconverged_solve_behavior():
     assert s["minimum_scale_nodes"] == 0
     for k, val in s["mode_scales"].items():
         assert np.isnan(val)
+
+
+def test_format_mode_scale_summary_robustness():
+    """format_mode_scale_summary must safely handle non-mappings, invalid values, infs, and sort deterministically."""
+    from tearing_eigenmodes.printing import format_mode_scale_summary
+
+    # 1. Non-mapping returns None
+    assert format_mode_scale_summary("not-a-mapping") is None
+    assert format_mode_scale_summary(None) is None
+    assert format_mode_scale_summary([1, 2, 3]) is None
+
+    # 2. Empty or all-invalid returns None
+    assert format_mode_scale_summary({}) is None
+    assert format_mode_scale_summary({"k1": np.nan, "k2": 0.0, "k3": -1.0, "k4": "bad"}) is None
+
+    # 3. Mixed valid, inf, and invalid
+    scales = {
+        "z_key": 0.05,
+        "a_key": np.inf,
+        "b_key": np.nan,
+        "c_key": "bad",
+        "d_key": 0.001234,
+    }
+    summary = format_mode_scale_summary(scales)
+    assert summary is not None
+    # Deterministic alphabetical ordering: a_key, d_key, z_key
+    assert summary == "mode scales: a_key=inf, d_key=1.2340e-03, z_key=5.0000e-02"
+
+
+def test_cached_task_verbose_with_non_mapping_scales(caplog: pytest.LogCaptureFixture, tmp_path):
+    """Cached execution with verbose=True and non-mapping mode_scales must not crash and emit no scale summary."""
+    import os
+    import logging
+    import importlib.util
+
+    # 1. Test compute script task
+    spec_c = importlib.util.spec_from_file_location("compute_mod", "scripts/eigenmodes-compute.py")
+    assert spec_c is not None and spec_c.loader is not None
+    compute_mod = importlib.util.module_from_spec(spec_c)
+    spec_c.loader.exec_module(compute_mod)
+
+    fp_c = os.path.join(str(tmp_path), f"state_α{0.1:.6e}.npz")
+    np.savez_compressed(
+        fp_c,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-5,
+        resolution=128,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        mode_scales="not-a-mapping",
+    )
+
+    params = SimulationParams(alpha=0.1, verbose=True, data_path=str(tmp_path))
+    with caplog.at_level(logging.INFO):
+        compute_mod.task(0.1, None, None, params)
+    scale_logs = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
+    assert len(scale_logs) == 0
+
+    # 2. Test maxima script task
+    caplog.clear()
+    spec_m = importlib.util.spec_from_file_location("maxima_mod", "scripts/eigenmodes-maxima.py")
+    assert spec_m is not None and spec_m.loader is not None
+    maxima_mod = importlib.util.module_from_spec(spec_m)
+    spec_m.loader.exec_module(maxima_mod)
+
+    fp_m = os.path.join(str(tmp_path), f"state_S{1e4:.6e}.npz")
+    np.savez_compressed(
+        fp_m,
+        scan_parameter="S",
+        scan_parameter_value=1e4,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        growth_rate=0.05,
+        alpha_max=0.1,
+        sigma_max=0.05,
+        tolerance=1e-5,
+        resolution=128,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        mode_scales="not-a-mapping",
+    )
+
+    params_m = SimulationParams(dependence="S", S=1e4, verbose=True, data_path=str(tmp_path))
+    with caplog.at_level(logging.INFO):
+        res_m = maxima_mod.task(1e4, None, None, None, params_m)
+    assert res_m[0] is not None
+    scale_logs_m = [rec.message for rec in caplog.records if "mode scales:" in rec.message]
+    assert len(scale_logs_m) == 0

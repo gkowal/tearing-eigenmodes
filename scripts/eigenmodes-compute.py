@@ -115,17 +115,10 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
         assert C is not None
         assert N is not None
         if verbose and state_data and 'mode_scales' in state_data:
-            scales = state_data['mode_scales']
-            scale_entries = []
-            for k in sorted(scales.keys()):
-                v = scales[k]
-                if v != 0.0 and not np.isnan(v):
-                    if np.isinf(v):
-                        scale_entries.append(f"{k}=inf")
-                    else:
-                        scale_entries.append(f"{k}={v:.4e}")
-            if scale_entries:
-                logging.info(f"mode scales: {', '.join(scale_entries)}")
+            from tearing_eigenmodes.printing import format_mode_scale_summary
+            summary = format_mode_scale_summary(state_data.get('mode_scales'))
+            if summary:
+                logging.info(summary)
         σ_arr = np.atleast_1d(σ)
         σ_val = σ_arr[0]
         e_arr = np.atleast_1d(e)
