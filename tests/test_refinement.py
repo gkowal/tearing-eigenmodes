@@ -1007,3 +1007,190 @@ def test_safety_default_margin_and_drift_protection(temp_npz_dir: str) -> None:
     nodes_inside = int(np.sum(np.abs(grid.zg) <= drifted_physical_scale))
     # Nodes inside the remeasured physical scale remain >= 5 with the 1.01 margin
     assert nodes_inside >= 5
+
+
+def test_refine_malformed_center_record_barrier_retained(temp_npz_dir: str) -> None:
+    """A record with malformed scale data must remain visible as an invalidity barrier."""
+    _load_eigenmodes_cache.clear()
+    from tearing_eigenmodes.io import load_state_data
+    from tearing_eigenmodes.refinement import _load_cached_state_records
+
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
+
+    # Record 1 at k=0.1: valid scale = 0.02
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.02]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 2 at k=0.2: malformed scale value = 'bad'
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array(["bad"]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 3 at k=0.3: valid scale = 0.08
+    np.savez_compressed(
+        fp3,
+        wavenumber=0.3,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal"]),
+        mode_scale_values=np.array([0.08]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # 1. load_state_data(center) must not be None and must decode center coordinate
+    d_center = load_state_data(fp2)
+    assert d_center is not None
+    assert d_center["wavenumber"] == 0.2
+    assert np.isnan(d_center["mode_scales"]["classical.bz_induction.eta_vs_ideal"])
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # 2. _load_cached_state_records must retain all three coordinates [0.1, 0.2, 0.3]
+    records = _load_cached_state_records(temp_npz_dir, params)
+    assert [r["v"] for r in records] == [0.1, 0.2, 0.3]
+
+    # 3. Refine at k=0.15: must NOT cross the barrier at k=0.2 and must return analytic estimate
+    vs = np.array([0.15])
+    deltas = refine_inner_scale(vs, params)
+    assert deltas[0] is not None
+
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    forbidden_cross_gap = 0.0333604903137
+
+    assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)
+    assert not np.isclose(deltas[0], forbidden_cross_gap, rtol=1e-2)
+
+
+def test_refine_center_record_multi_key_partial_malformed(temp_npz_dir: str) -> None:
+    """One malformed scale key in a record must invalidate only that key while other valid keys remain usable."""
+    _load_eigenmodes_cache.clear()
+
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+    fp3 = os.path.join(temp_npz_dir, "state_alpha0.300000e+00.npz")
+
+    # Record 1 at k=0.1: induction=0.02, vorticity=0.02
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+        mode_scale_values=np.array([0.02, 0.02]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 2 at k=0.2: induction='bad' (malformed), vorticity=0.04 (valid)
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+        mode_scale_values=np.array(["bad", 0.04]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    # Record 3 at k=0.3: induction=0.08, vorticity=0.08
+    np.savez_compressed(
+        fp3,
+        wavenumber=0.3,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scale_keys=np.array(["classical.bz_induction.eta_vs_ideal", "classical.uz_vorticity.nu_vs_ideal"]),
+        mode_scale_values=np.array([0.08, 0.08]),
+        mode_scale_schema_version=1,
+        minimum_physical_scale=np.nan,
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # Refine at k=0.15:
+    # - induction key is split by barrier at 0.2 (no segment covering 0.15)
+    # - vorticity key has continuous segment [0.1, 0.2, 0.3] -> log-log interp at 0.15
+    deltas = refine_inner_scale(np.array([0.15]), params)
+    assert deltas[0] is not None
+    # Vorticity log-log interp between (0.1, 0.02) and (0.2, 0.04) at 0.15:
+    # scale = 0.02 * (0.15 / 0.1) = 0.03
+    assert np.isclose(deltas[0], 0.03, rtol=1e-5)
+
+
+def test_refine_non_mapping_and_malformed_scalar_fallbacks(temp_npz_dir: str) -> None:
+    """Non-mapping mode_scales and malformed scalar fallbacks must not raise and must act as unavailable data."""
+    _load_eigenmodes_cache.clear()
+
+    fp1 = os.path.join(temp_npz_dir, "state_alpha0.100000e+00.npz")
+    fp2 = os.path.join(temp_npz_dir, "state_alpha0.200000e+00.npz")
+
+    # Record 1 at k=0.1: valid scalar fallback 0.05
+    np.savez_compressed(
+        fp1,
+        wavenumber=0.1,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale=0.05,
+    )
+
+    # Record 2 at k=0.2: malformed scalar fallback
+    np.savez_compressed(
+        fp2,
+        wavenumber=0.2,
+        a=1.0,
+        tolerance=1e-5,
+        resolution=128,
+        minimum_physical_scale="bad_scalar",
+        resistive_layer_thickness="bad_res",
+    )
+
+    params = SimulationParams(
+        data_path=temp_npz_dir,
+        a=1.0,
+        S=1e4,
+        CGL=False,
+        inner_resolution_safety=1.0,
+    )
+
+    # Refine at k=0.15: k=0.2 is a barrier for scalar path -> falls back to analytic estimator
+    deltas = refine_inner_scale(np.array([0.15]), params)
+    expected_analytic = estimate_inner_scale(params, alpha=0.15)
+    assert deltas[0] is not None
+    assert np.isclose(deltas[0], expected_analytic, rtol=1e-5)

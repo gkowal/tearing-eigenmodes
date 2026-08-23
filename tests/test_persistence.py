@@ -224,3 +224,88 @@ def test_load_state_data_independent_of_reuse_policy():
         status, check_data = check_state(filepath, Nmax=2048)
         assert status is False
         assert check_data is not None
+
+
+def test_load_state_data_partially_malformed_diagnostics():
+    """load_state_data must retain coordinates and decode valid fields even when optional fields are malformed."""
+    from tearing_eigenmodes.io import load_state_data
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # 1. Partial malformed mode_scale_values
+        fp1 = os.path.join(tmpdir, "state_partial_scale.npz")
+        np.savez_compressed(
+            fp1,
+            wavenumber=0.2,
+            a=1.0,
+            tolerance=1e-5,
+            resolution=128,
+            mode_scale_keys=np.array(["key_bad", "key_good"]),
+            mode_scale_values=np.array(["bad_float_val", "0.045"]),
+            mode_scale_schema_version=1,
+            minimum_physical_scale=0.045,
+            minimum_scale_nodes=5,
+        )
+        d1 = load_state_data(fp1)
+        assert d1 is not None
+        assert d1["wavenumber"] == 0.2
+        assert np.isnan(d1["mode_scales"]["key_bad"])
+        assert d1["mode_scales"]["key_good"] == 0.045
+        assert d1["minimum_physical_scale"] == 0.045
+
+        # 2. Mismatched / non-1D key-value arrays
+        fp2 = os.path.join(tmpdir, "state_mismatched_keys.npz")
+        np.savez_compressed(
+            fp2,
+            wavenumber=0.3,
+            a=1.0,
+            tolerance=1e-5,
+            resolution=128,
+            mode_scale_keys=np.array(["k1", "k2"]),
+            mode_scale_values=np.array(["0.045"]),  # length 1 vs 2
+        )
+        d2 = load_state_data(fp2)
+        assert d2 is not None
+        assert d2["mode_scales"] == {}
+
+        # 3. Malformed schema version
+        fp3 = os.path.join(tmpdir, "state_bad_schema.npz")
+        np.savez_compressed(
+            fp3,
+            wavenumber=0.4,
+            a=1.0,
+            tolerance=1e-5,
+            resolution=128,
+            mode_scale_keys=np.array(["k1"]),
+            mode_scale_values=np.array(["0.045"]),
+            mode_scale_schema_version="invalid_schema_ver",
+        )
+        d3 = load_state_data(fp3)
+        assert d3 is not None
+        assert d3["mode_scales"] == {}
+
+        # 4. Malformed scalar fallbacks and node counts
+        fp4 = os.path.join(tmpdir, "state_bad_scalars.npz")
+        np.savez_compressed(
+            fp4,
+            wavenumber=0.5,
+            a=1.0,
+            tolerance=1e-5,
+            resolution=128,
+            minimum_physical_scale="bad_scale",
+            minimum_scale_nodes="bad_nodes",
+            resistive_layer_thickness="bad_res",
+            resistive_layer_nodes="bad_res_nodes",
+        )
+        d4 = load_state_data(fp4)
+        assert d4 is not None
+        assert np.isnan(d4["minimum_physical_scale"])
+        assert d4["minimum_scale_nodes"] == 0
+        assert np.isnan(d4["resistive_layer_thickness"])
+        assert d4["resistive_layer_nodes"] == 0
+
+        # 5. Wholly corrupt / non-NPZ file
+        fp5 = os.path.join(tmpdir, "corrupt.npz")
+        with open(fp5, "wb") as f:
+            f.write(b"NOT_A_VALID_ZIP_OR_NPZ_DATA")
+        d5 = load_state_data(fp5)
+        assert d5 is None

@@ -116,43 +116,138 @@ def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
                     data[key] = val.item()
                 else:
                     data[key] = val
-
-            # Reconstruct standardized mode_scales dictionary if present
-            if 'mode_scale_keys' in data and 'mode_scale_values' in data:
-                keys = data['mode_scale_keys']
-                values = data['mode_scale_values']
-                if len(keys) != len(values):
-                    logger.warning(f"Malformed scale data in {file_path}: mismatched key/value lengths.")
-                else:
-                    schema_ver = int(data.get('mode_scale_schema_version', 1))
-                    if schema_ver > MODE_SCALE_SCHEMA_VERSION:
-                        logger.warning(f"State file {file_path} uses newer schema version {schema_ver}.")
-                    data['mode_scales'] = {str(k): float(v) for k, v in zip(keys, values)}
-
-            # Fallback for minimum physical scale and node counts on old states
-            if 'minimum_physical_scale' not in data:
-                if 'resistive_layer_thickness' in data:
-                    data['minimum_physical_scale'] = float(data['resistive_layer_thickness'])
-                elif 'inner_scale' in data:
-                    data['minimum_physical_scale'] = float(data['inner_scale'])
-                else:
-                    data['minimum_physical_scale'] = float("nan")
-
-            if 'minimum_physical_scale_key' not in data:
-                data['minimum_physical_scale_key'] = ""
-
-            if 'minimum_scale_nodes' not in data:
-                if 'resistive_layer_nodes' in data:
-                    data['minimum_scale_nodes'] = int(data['resistive_layer_nodes'])
-                elif 'n_inner' in data:
-                    data['minimum_scale_nodes'] = int(data['n_inner'])
-                else:
-                    data['minimum_scale_nodes'] = 0
-
-            return data
     except Exception as e_err:
         logger.warning(f"Could not load state file {file_path}: {e_err}")
         return None
+
+    # Reconstruct standardized mode_scales dictionary if present
+    if 'mode_scale_keys' in data and 'mode_scale_values' in data:
+        keys = data['mode_scale_keys']
+        values = data['mode_scale_values']
+
+        keys_1d = isinstance(keys, (np.ndarray, list, tuple)) and np.ndim(keys) == 1
+        values_1d = isinstance(values, (np.ndarray, list, tuple)) and np.ndim(values) == 1
+
+        if not keys_1d or not values_1d or len(keys) != len(values):
+            logger.warning(
+                f"Malformed scale data in {file_path}: mode_scale_keys and mode_scale_values "
+                "must be one-dimensional sequences of equal length."
+            )
+            data['mode_scales'] = {}
+        else:
+            schema_valid = True
+            if 'mode_scale_schema_version' in data:
+                raw_schema = data['mode_scale_schema_version']
+                try:
+                    if isinstance(raw_schema, np.ndarray) and raw_schema.ndim == 0:
+                        raw_schema = raw_schema.item()
+                    schema_ver = int(raw_schema)
+                    if schema_ver > MODE_SCALE_SCHEMA_VERSION:
+                        logger.warning(f"State file {file_path} uses newer schema version {schema_ver}.")
+                except Exception:
+                    logger.warning(f"Malformed mode_scale_schema_version in {file_path}: {raw_schema}")
+                    schema_valid = False
+
+            if not schema_valid:
+                data['mode_scales'] = {}
+            else:
+                mode_scales: Dict[str, float] = {}
+                for k, v in zip(keys, values):
+                    key_str = str(k)
+                    try:
+                        if isinstance(v, np.ndarray) and v.ndim == 0:
+                            v = v.item()
+                        val_float = float(v)
+                        mode_scales[key_str] = val_float
+                    except Exception:
+                        logger.warning(f"Malformed scale value for key '{key_str}' in {file_path}: {v}")
+                        mode_scales[key_str] = float("nan")
+                data['mode_scales'] = mode_scales
+
+    # Normalize scalar fallbacks independently
+    if 'minimum_physical_scale' not in data:
+        if 'resistive_layer_thickness' in data:
+            try:
+                v = data['resistive_layer_thickness']
+                if isinstance(v, np.ndarray) and v.ndim == 0:
+                    v = v.item()
+                data['minimum_physical_scale'] = float(v)
+            except Exception:
+                data['minimum_physical_scale'] = float("nan")
+        elif 'inner_scale' in data:
+            try:
+                v = data['inner_scale']
+                if isinstance(v, np.ndarray) and v.ndim == 0:
+                    v = v.item()
+                data['minimum_physical_scale'] = float(v)
+            except Exception:
+                data['minimum_physical_scale'] = float("nan")
+        else:
+            data['minimum_physical_scale'] = float("nan")
+    else:
+        try:
+            v = data['minimum_physical_scale']
+            if isinstance(v, np.ndarray) and v.ndim == 0:
+                v = v.item()
+            data['minimum_physical_scale'] = float(v)
+        except Exception:
+            data['minimum_physical_scale'] = float("nan")
+
+    if 'minimum_physical_scale_key' not in data:
+        data['minimum_physical_scale_key'] = ""
+    else:
+        try:
+            data['minimum_physical_scale_key'] = str(data['minimum_physical_scale_key'])
+        except Exception:
+            data['minimum_physical_scale_key'] = ""
+
+    if 'minimum_scale_nodes' not in data:
+        if 'resistive_layer_nodes' in data:
+            try:
+                v = data['resistive_layer_nodes']
+                if isinstance(v, np.ndarray) and v.ndim == 0:
+                    v = v.item()
+                data['minimum_scale_nodes'] = int(v)
+            except Exception:
+                data['minimum_scale_nodes'] = 0
+        elif 'n_inner' in data:
+            try:
+                v = data['n_inner']
+                if isinstance(v, np.ndarray) and v.ndim == 0:
+                    v = v.item()
+                data['minimum_scale_nodes'] = int(v)
+            except Exception:
+                data['minimum_scale_nodes'] = 0
+        else:
+            data['minimum_scale_nodes'] = 0
+    else:
+        try:
+            v = data['minimum_scale_nodes']
+            if isinstance(v, np.ndarray) and v.ndim == 0:
+                v = v.item()
+            data['minimum_scale_nodes'] = int(v)
+        except Exception:
+            data['minimum_scale_nodes'] = 0
+
+    if 'resistive_layer_thickness' in data:
+        try:
+            v = data['resistive_layer_thickness']
+            if isinstance(v, np.ndarray) and v.ndim == 0:
+                v = v.item()
+            data['resistive_layer_thickness'] = float(v)
+        except Exception:
+            data['resistive_layer_thickness'] = float("nan")
+
+    if 'resistive_layer_nodes' in data:
+        try:
+            v = data['resistive_layer_nodes']
+            if isinstance(v, np.ndarray) and v.ndim == 0:
+                v = v.item()
+            data['resistive_layer_nodes'] = int(v)
+        except Exception:
+            data['resistive_layer_nodes'] = 0
+
+    return data
 
 
 def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[bool, Optional[Dict[str, Any]]]:

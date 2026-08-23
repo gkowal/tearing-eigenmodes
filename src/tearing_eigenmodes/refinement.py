@@ -1,10 +1,11 @@
 from typing import List, Optional, Dict, Any, Tuple
+from collections.abc import Mapping
 import os
 import glob
 import numpy as np
 import logging
 from scipy.interpolate import make_interp_spline
-from .io import load_eigenmodes, load_state_data, check_state
+from .io import load_eigenmodes, load_state_data
 
 logger = logging.getLogger(__name__)
 
@@ -165,8 +166,27 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: SimulationParams) -> List[
 
 
 from .analysis import CLASSICAL_GRID_SCALE_KEYS, CGL_GRID_SCALE_KEYS
-from .io import check_state
 from .physics import estimate_inner_scale
+
+
+def _to_positive_finite_float(val: Any) -> Optional[float]:
+    """
+    Return a float only if val is a valid single-element numeric scalar > 0 and finite.
+    Safely returns None for strings, arrays, None, NaN, inf, <= 0, or malformed objects.
+    """
+    if val is None:
+        return None
+    if isinstance(val, (str, bytes)):
+        return None
+    try:
+        arr = np.asanyarray(val)
+        if arr.ndim == 0 or arr.size == 1:
+            f = float(arr.item() if arr.ndim == 0 else arr.flat[0])
+            if np.isfinite(f) and f > 0.0:
+                return f
+    except Exception:
+        pass
+    return None
 
 
 def _load_cached_state_records(path: str, params: SimulationParams, pattern: str = "*.npz") -> List[Dict[str, Any]]:
@@ -303,13 +323,17 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
         current_scale: List[float] = []
 
         for r in records:
-            tol = float(r.get("tolerance", 0.0))
+            tol = float(r.get("tolerance", float("inf")))
             is_conv = tol <= 1.0
             scales_dict = r.get("mode_scales")
-            val = scales_dict.get(k) if (scales_dict is not None and is_conv) else None
-            if val is not None and np.isfinite(val) and not np.isinf(val) and float(val) > 0.0:
+            val: Optional[float] = None
+            if is_conv and isinstance(scales_dict, Mapping):
+                raw_val = scales_dict.get(k)
+                val = _to_positive_finite_float(raw_val)
+
+            if val is not None:
                 current_v.append(r["v"])
-                current_scale.append(float(val))
+                current_scale.append(val)
             else:
                 if current_v:
                     segments.append((np.array(current_v), np.array(current_scale)))
@@ -366,21 +390,16 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
     current_scale_sc: List[float] = []
 
     for r in records:
-        tol = float(r.get("tolerance", 0.0))
+        tol = float(r.get("tolerance", float("inf")))
         is_conv = tol <= 1.0
         val = None
         if is_conv:
             raw_min = r.get("minimum_physical_scale")
             raw_res = r.get("resistive_layer_thickness")
             for candidate in (raw_min, raw_res):
-                if candidate is not None:
-                    try:
-                        c_float = float(candidate)
-                        if np.isfinite(c_float) and not np.isinf(c_float) and c_float > 0.0:
-                            val = c_float
-                            break
-                    except (ValueError, TypeError):
-                        pass
+                val = _to_positive_finite_float(candidate)
+                if val is not None:
+                    break
 
         if val is not None:
             current_v_sc.append(r["v"])
