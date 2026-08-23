@@ -157,8 +157,13 @@ def extract_central_dominance_scale(
 
         # Walk outward from resonant center
         for i in range(start_idx, z_side.size - 1):
+            # If outer node i+1 is fully neutral (both terms below activity floor), connected active interval ends
+            if num_side[i + 1] < eps_val and ref_side[i + 1] < eps_val:
+                return float("inf")
+
             if num_side[i] >= ref_side[i] and num_side[i + 1] < ref_side[i + 1]:
                 # Transition bracket [i, i+1]
+                # Reject if numerator is sub-floor at both endpoints
                 if num_side[i] < eps_val and num_side[i + 1] < eps_val:
                     return float("inf")
 
@@ -172,11 +177,6 @@ def extract_central_dominance_scale(
                 else:
                     zc = 0.5 * (z_l + z_r)
                 return float(zc)
-
-            # If numerator continues to dominate at i+1, check if both terms are sub-floor
-            if num_side[i + 1] < eps_val and ref_side[i + 1] < eps_val:
-                # Connected active interval ended without a crossing
-                return float("inf")
 
         # Reached outer boundary of the analysis window while remaining dominant
         return float("inf")

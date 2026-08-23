@@ -403,6 +403,25 @@ def test_extract_central_dominance_outer_endpoint_subfloor_accepted():
     assert np.isclose(scale, 0.2, atol=2e-3)
 
 
+def test_extract_central_dominance_active_to_neutral_ratio_flip_rejected():
+    """A transition from active core to a fully neutral outer endpoint must return inf."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    r = np.abs(z)
+    L_lhs = np.ones_like(z)
+
+    # 1. Exact reproducer: outer region has T_num=1e-20, T_ref=2e-20 (both subfloor, ref > num)
+    T_num1 = np.where(r < 0.2, 1.0, 1.0e-20)
+    T_ref1 = np.where(r < 0.2, 0.1, 2.0e-20)
+    scale1 = extract_central_dominance_scale(z, T_num1, T_ref1, z_max=1.0, L_lhs=L_lhs)
+    assert np.isinf(scale1)
+
+    # 2. Changed neutral ratio: outer region has T_num=3e-20, T_ref=5e-20 (both subfloor, ref > num)
+    T_num2 = np.where(r < 0.2, 1.0, 3.0e-20)
+    T_ref2 = np.where(r < 0.2, 0.1, 5.0e-20)
+    scale2 = extract_central_dominance_scale(z, T_num2, T_ref2, z_max=1.0, L_lhs=L_lhs)
+    assert np.isinf(scale2)
+
+
 def test_extract_central_dominance_malformed_floor_eps_matrix():
     """Malformed explicit floor_eps values must safely fall back to the equation-local floor without raising."""
     z = np.linspace(-1.0, 1.0, 2001)
