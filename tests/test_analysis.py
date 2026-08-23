@@ -307,6 +307,44 @@ def test_extract_central_dominance_equation_local_floor():
     assert np.isnan(scale)
 
 
+def test_extract_central_dominance_subfloor_numerator_noise_rejection():
+    """Sub-floor numerator noise must return nan even if reference profile is active."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    T_num = np.full_like(z, 1.0e-20)
+    T_ref = np.abs(z)
+    L_lhs = np.ones_like(z)
+
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isnan(scale)
+
+
+def test_extract_central_dominance_out_of_window_activity_rejection():
+    """Activity outside z_max must not validate sub-floor noise inside z_max."""
+    z = np.linspace(-5.0, 5.0, 1001)
+    # Inside [-1, 1], profiles are 1e-20 (sub-floor compared to L_lhs=1.0)
+    # Outside [-1, 1], profiles are large (1.0)
+    T_num = np.where(np.abs(z) <= 1.0, 1e-20, 1.0)
+    T_ref = np.where(np.abs(z) <= 1.0, np.abs(z) * 1e-20, np.abs(z))
+    L_lhs = np.ones_like(z)
+
+    # z_max = 1.0: within window, numerator is sub-floor relative to LHS -> returns nan
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isnan(scale)
+
+
+def test_extract_central_dominance_neutral_core_first_active_reference_dominant():
+    """A neutral sub-floor core where first active sample is reference-dominant must return inf."""
+    z = np.linspace(-2.0, 2.0, 401)
+    # Central core |z| < 0.1 has sub-floor noise (1e-20)
+    # For |z| >= 0.1, reference term is active (0.5) and dominates numerator (0.1)
+    T_num = np.where(np.abs(z) < 0.1, 1e-20, 0.1)
+    T_ref = np.where(np.abs(z) < 0.1, 1e-20, 0.5)
+    L_lhs = np.ones_like(z)
+
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=2.0, L_lhs=L_lhs)
+    assert np.isinf(scale)
+
+
 def test_measure_eigenmode_scales_unsupported_model_rejection():
     """measure_eigenmode_scales must raise NotImplementedError for unknown equation systems."""
     class UnknownSystem:

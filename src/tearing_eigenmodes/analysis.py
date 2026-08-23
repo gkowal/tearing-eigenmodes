@@ -65,44 +65,69 @@ def extract_central_dominance_scale(
     else:
         z_max_val = z_max
 
-    eps_mach = np.finfo(float).eps
-    max_terms = max(float(np.max(num_arr)), float(np.max(ref_arr)))
-    if max_terms <= 0.0 or np.isnan(max_terms):
+    # 1. Define analysis-window mask first
+    mask_win = np.abs(z_arr) <= z_max_val
+    if not np.any(mask_win):
         return float("nan")
 
+    eps_mach = np.finfo(float).eps
+
+    # 2. Maximum term amplitudes within the analysis window
+    max_num_win = float(np.max(num_arr[mask_win]))
+    max_ref_win = float(np.max(ref_arr[mask_win]))
+    max_terms_win = max(max_num_win, max_ref_win)
+
+    if max_terms_win <= 0.0 or np.isnan(max_terms_win):
+        return float("nan")
+
+    # 3. Calculate equation-local floor
+    eps_q: float
     if L_lhs is not None:
         L_arr = np.abs(np.asarray(L_lhs))
-        if L_arr.size > 0:
-            mask_lhs = np.abs(z_arr) <= z_max_val
-            if np.any(mask_lhs):
-                max_lhs = float(np.max(L_arr[mask_lhs]))
-            else:
-                max_lhs = float(np.max(L_arr))
+        if L_arr.size > 0 and np.any(mask_win):
+            max_lhs = float(np.max(L_arr[mask_win]))
+        elif L_arr.size > 0:
+            max_lhs = float(np.max(L_arr))
         else:
             max_lhs = 0.0
-        if max_lhs > 0.0 and not np.isnan(max_lhs):
-            eps_q = 100.0 * eps_mach * max_lhs
+        if max_lhs > 0.0 and np.isfinite(max_lhs):
+            eps_q = float(100.0 * eps_mach * max_lhs)
         else:
-            eps_q = 100.0 * eps_mach * max_terms
+            eps_q = float(100.0 * eps_mach * max_terms_win)
     else:
-        eps_q = 100.0 * eps_mach * max_terms
+        eps_q = float(100.0 * eps_mach * max_terms_win)
 
-    if max_terms < eps_q:
+    # Explicit floor_eps override if valid positive finite
+    if floor_eps is not None:
+        if np.isfinite(floor_eps) and floor_eps > 0.0:
+            eps_q = floor_eps
+
+    # 4. Numerator activity check: if numerator never reaches the floor inside the window, return nan
+    if max_num_win < eps_q:
         return float("nan")
 
-    eps_val = floor_eps if floor_eps is not None else eps_q
+    eps_val = eps_q
 
     def _dominance_boundary_1d(z_side: np.ndarray, num_side: np.ndarray, ref_side: np.ndarray) -> float:
         if z_side.size < 2:
             return float("inf")
 
-        # Centre node check:
-        # If numerator does not dominate at the resonant center, no central dominance region exists
-        if num_side[0] < ref_side[0]:
+        # Find the first node where at least one term is active (>= eps_val)
+        start_idx = 0
+        while start_idx < z_side.size and num_side[start_idx] < eps_val and ref_side[start_idx] < eps_val:
+            start_idx += 1
+
+        if start_idx >= z_side.size:
+            # All nodes below floor on this side
+            return float("inf")
+
+        # Centre node dominance check at the first active node:
+        # If numerator does not dominate at the first active node, no central dominance exists
+        if num_side[start_idx] < ref_side[start_idx]:
             return float("inf")
 
         # Walk outward from resonant center
-        for i in range(z_side.size - 1):
+        for i in range(start_idx, z_side.size - 1):
             if num_side[i] >= ref_side[i] and num_side[i + 1] < ref_side[i + 1]:
                 z_l, z_r = z_side[i], z_side[i + 1]
                 q_l = np.log(num_side[i] + eps_val) - np.log(ref_side[i] + eps_val)
