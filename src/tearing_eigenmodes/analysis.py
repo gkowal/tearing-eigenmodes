@@ -28,6 +28,35 @@ CGL_GRID_SCALE_KEYS: Tuple[str, ...] = (
 )
 
 
+def _to_positive_finite_floor(val: Any) -> Optional[float]:
+    """Convert explicit floor_eps to positive finite float scalar, safely returning None for invalid values."""
+    if val is None:
+        return None
+    if isinstance(val, (bool, np.bool_)):
+        return None
+    if isinstance(val, (str, bytes)):
+        return None
+    try:
+        arr = np.asanyarray(val)
+        if arr.ndim != 0 and arr.size != 1:
+            return None
+        elem = arr.item() if arr.ndim == 0 else arr.flat[0]
+        if isinstance(elem, (bool, np.bool_)):
+            return None
+        if isinstance(elem, (str, bytes)):
+            return None
+        if isinstance(elem, complex) or np.iscomplexobj(elem):
+            if elem.imag != 0.0:
+                return None
+            elem = elem.real
+        f = float(elem)
+        if np.isfinite(f) and f > 0.0:
+            return f
+        return None
+    except Exception:
+        return None
+
+
 def extract_central_dominance_scale(
     z: np.ndarray,
     T_num: np.ndarray,
@@ -97,10 +126,10 @@ def extract_central_dominance_scale(
     else:
         eps_q = float(100.0 * eps_mach * max_terms_win)
 
-    # Explicit floor_eps override if valid positive finite
-    if floor_eps is not None:
-        if np.isfinite(floor_eps) and floor_eps > 0.0:
-            eps_q = floor_eps
+    # Explicit floor_eps override if valid positive finite scalar
+    valid_floor_eps = _to_positive_finite_floor(floor_eps)
+    if valid_floor_eps is not None:
+        eps_q = valid_floor_eps
 
     # 4. Numerator activity check: if numerator never reaches the floor inside the window, return nan
     if max_num_win < eps_q:

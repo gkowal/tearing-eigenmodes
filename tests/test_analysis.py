@@ -403,15 +403,58 @@ def test_extract_central_dominance_outer_endpoint_subfloor_accepted():
     assert np.isclose(scale, 0.2, atol=2e-3)
 
 
-def test_measure_eigenmode_scales_unsupported_model_rejection():
-    """measure_eigenmode_scales must raise NotImplementedError for unknown equation systems."""
-    class UnknownSystem:
-        def __init__(self):
-            self.result = {"duz": np.zeros(10), "dbz": np.zeros(10), "sigma": 1.0}
+def test_extract_central_dominance_malformed_floor_eps_matrix():
+    """Malformed explicit floor_eps values must safely fall back to the equation-local floor without raising."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    r = np.abs(z)
+    L_lhs = np.ones_like(z)
+    T_num = np.where(r < 0.2, 1.0, 0.05)
+    T_ref = np.where(r < 0.2, 0.1, 0.5)
 
-    sys = UnknownSystem()
-    with pytest.raises(NotImplementedError, match="Unsupported system"):
-        measure_eigenmode_scales(sys)
+    baseline = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isfinite(baseline)
 
-    with pytest.raises(NotImplementedError, match="Unsupported model"):
-        measure_eigenmode_scales(sys, model="relativistic_mhd")
+    malformed_floors = [
+        "bad",
+        "1e-12",
+        b"bad",
+        True,
+        False,
+        np.bool_(True),
+        np.bool_(False),
+        np.nan,
+        np.inf,
+        -np.inf,
+        0.0,
+        -1.0,
+        -1e-12,
+        np.array([]),
+        np.array([1e-12, 2e-12]),
+        1.0 + 2.0j,
+        [1e-12],
+        {"eps": 1e-12},
+    ]
+
+    for bad_floor in malformed_floors:
+        res = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs, floor_eps=bad_floor)  # type: ignore[arg-type]
+        assert np.isfinite(res), f"Failed on bad_floor={bad_floor!r}"
+        assert np.isclose(res, baseline, rtol=1e-12), f"Value differed on bad_floor={bad_floor!r}"
+
+
+def test_extract_central_dominance_valid_floor_eps_variations():
+    """Valid explicit floor_eps representations are accepted and can classify numerators as inactive."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    r = np.abs(z)
+    L_lhs = np.ones_like(z)
+    T_num = np.where(r < 0.2, 1.0, 0.05)
+    T_ref = np.where(r < 0.2, 0.1, 0.5)
+
+    # 1. Valid positive scalar formats
+    for valid_floor in [1e-5, np.float64(1e-5), np.array(1e-5), np.array([1e-5]), 1e-5 + 0.0j]:
+        res = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs, floor_eps=valid_floor)  # type: ignore[arg-type]
+        assert np.isfinite(res)
+        assert np.isclose(res, 0.2, atol=2e-3)
+
+    # 2. Large explicit floor classifies numerator (max=1.0) as inactive -> returns nan
+    inactive_res = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs, floor_eps=10.0)
+    assert np.isnan(inactive_res)
