@@ -345,6 +345,64 @@ def test_extract_central_dominance_neutral_core_first_active_reference_dominant(
     assert np.isinf(scale)
 
 
+def test_extract_central_dominance_active_connectivity_reproducer():
+    """A transition bracket constructed entirely from sub-floor numerator values must return inf."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    r = np.abs(z)
+    L_lhs = np.ones_like(z)
+
+    T_num = np.full_like(z, 1.0e-20)
+    T_ref = np.full_like(z, 2.0e-20)
+
+    # Active centrally numerator-dominant core
+    active_core = r < 0.0995
+    T_num[active_core] = 1.0
+    T_ref[active_core] = 0.1
+
+    # Neutral sample formally numerator-dominant followed by neutral reference-dominant sample
+    neutral_dominant = (r >= 0.0995) & (r < 0.1005)
+    T_num[neutral_dominant] = 2.0e-20
+    T_ref[neutral_dominant] = 1.0e-20
+
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isinf(scale)
+
+
+def test_extract_central_dominance_extended_neutral_gap():
+    """An active central interval interrupted by an extended neutral gap must not cross the gap."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    r = np.abs(z)
+    L_lhs = np.ones_like(z)
+
+    # Active core |z| < 0.1
+    T_num = np.where(r < 0.1, 1.0, 1e-20)
+    T_ref = np.where(r < 0.1, 0.1, 1e-20)
+
+    # Outer active reference-dominant region |z| >= 0.3 (separated by neutral gap in [0.1, 0.3])
+    T_ref[r >= 0.3] = 1.0
+    T_num[r >= 0.3] = 0.05
+
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isinf(scale)
+
+
+def test_extract_central_dominance_outer_endpoint_subfloor_accepted():
+    """A direct crossing where only the outer numerator is sub-floor must remain accepted."""
+    z = np.linspace(-1.0, 1.0, 2001)
+    r = np.abs(z)
+    L_lhs = np.ones_like(z)
+
+    # Active core |z| < 0.2: T_num=1.0, T_ref=0.1
+    # Outer region |z| >= 0.2: T_num=1e-20 (subfloor), T_ref=1.0 (active)
+    # The crossing is direct from active (0.199) to outer (0.200) without neutral gap
+    T_num = np.where(r < 0.2, 1.0, 1e-20)
+    T_ref = np.where(r < 0.2, 0.1, 1.0)
+
+    scale = extract_central_dominance_scale(z, T_num, T_ref, z_max=1.0, L_lhs=L_lhs)
+    assert np.isfinite(scale)
+    assert np.isclose(scale, 0.2, atol=2e-3)
+
+
 def test_measure_eigenmode_scales_unsupported_model_rejection():
     """measure_eigenmode_scales must raise NotImplementedError for unknown equation systems."""
     class UnknownSystem:

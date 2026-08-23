@@ -129,6 +129,10 @@ def extract_central_dominance_scale(
         # Walk outward from resonant center
         for i in range(start_idx, z_side.size - 1):
             if num_side[i] >= ref_side[i] and num_side[i + 1] < ref_side[i + 1]:
+                # Transition bracket [i, i+1]
+                if num_side[i] < eps_val and num_side[i + 1] < eps_val:
+                    return float("inf")
+
                 z_l, z_r = z_side[i], z_side[i + 1]
                 q_l = np.log(num_side[i] + eps_val) - np.log(ref_side[i] + eps_val)
                 q_r = np.log(num_side[i + 1] + eps_val) - np.log(ref_side[i + 1] + eps_val)
@@ -139,6 +143,11 @@ def extract_central_dominance_scale(
                 else:
                     zc = 0.5 * (z_l + z_r)
                 return float(zc)
+
+            # If numerator continues to dominate at i+1, check if both terms are sub-floor
+            if num_side[i + 1] < eps_val and ref_side[i + 1] < eps_val:
+                # Connected active interval ended without a crossing
+                return float("inf")
 
         # Reached outer boundary of the analysis window while remaining dominant
         return float("inf")
