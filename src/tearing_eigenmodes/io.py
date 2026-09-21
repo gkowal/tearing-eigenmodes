@@ -19,11 +19,20 @@ def build_dpath(params: SimulationParams) -> str:
     β, Δβ = params.plasma_beta, params.plasma_beta_difference
 
     dpath  = './RESULTS/'
+    dpath += 'CGL' if params.CGL else 'MHD'
     dpath += '' if S  is None else f'S{S:.3e}'
     dpath += '' if Pr is None else f'Pr{Pr:.3e}'
     if params.CGL:
         dpath += '' if β  is None else f'β{β:.3e}'
         dpath += '' if Δβ is None else f'Δβ{Δβ:+.2f}'
+        dpath += '' if params.eos is None else params.eos
+        parallel, perpendicular = params.parallel_index, params.perpendicular_index
+        dpath += '' if parallel is None else f'ɣpar{parallel:.3e}'
+        dpath += '' if perpendicular is None else f'ɣper{perpendicular:.3e}'
+    else:
+        if params.noshear is True:
+            dpath += 'noshear'
+        dpath += '' if params.zeta is None else f'ζ{params.zeta:.3e}'
     dpath += '' if ξ is None else f'ξ{ξ:.3e}'
     dpath += '' if ϵ is None else f'ϵ{ϵ:.3e}'
     dpath += '' if a is None else f'a{a:.3e}'
