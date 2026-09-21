@@ -15,8 +15,10 @@ description = "Utilities for analyzing tearing instability eigenmodes"
 dependencies = [
     "numpy",
     "scipy",
-    "psecas"
+    "psecas",
+    "sympy",
+    "matplotlib"
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "mypy"]
