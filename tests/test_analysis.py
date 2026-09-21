@@ -95,6 +95,27 @@ def test_find_peak_location():
     assert n > 0
 
 
+def test_find_peak_location_beyond_a_with_w():
+    # Regression test: with w > 0 the refinement bracket must span
+    # the [0, w + 2a] coarse-search window instead of capping at a.
+    # A Gaussian centred at a + w/2 peaks beyond a; capping zh at a
+    # skips refinement and returns the coarse grid node.
+    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=2)
+    a = 1.0
+    w = 1.0
+    z_true = a + w / 2.0
+
+    u0 = np.exp(-((grid.zg - z_true) / 0.3)**2)
+    b0 = np.zeros_like(grid.zg)
+
+    z_peak, n = find_peak_location(u0, b0, grid, a=a, w=w, ztol=1e-4)
+
+    assert z_peak > a
+    assert np.isclose(z_peak, z_true, atol=1e-3)
+    assert isinstance(n, int)
+    assert n > 0
+
+
 def test_schema_constants():
     assert MODE_SCALE_SCHEMA_VERSION == 2
     assert isinstance(CLASSICAL_GRID_SCALE_KEYS, tuple)
