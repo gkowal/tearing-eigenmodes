@@ -655,10 +655,8 @@ class TearingGyrotropicMHD:
 		z2 = self.z2
 
 		if self.periodic:
-			Bx_sym =  (tanh((z - z1) / a) + tanh((z - z1) / a)) / 2 \
-					- (tanh((z - z2) / a) + tanh((z - z2) / a)) / 2 - 1
-			By_sym =  (sech((z - z1) / a) + sech((z - z1) / a)) / 2 \
-					- (sech((z - z2) / a) + sech((z - z2) / a)) / 2 - 1
+			Bx_sym = tanh((z - z1) / a) - tanh((z - z2) / a) - 1
+			By_sym = sech((z - z1) / a) - sech((z - z2) / a) - 1
 		else:
 			Bx_sym = tanh(z / a)
 			By_sym = sech(z / a)

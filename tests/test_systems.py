@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 from psecas import ChebyshevRationalGrid
 from tearing_eigenmodes.systems import TearingClassicalMHD, TearingGyrotropicMHD
@@ -25,3 +26,16 @@ def test_gyrotropic_mhd_init():
     assert "duy" in system.variables
     assert "dby" in system.variables
     assert "ddp" in system.variables
+
+def test_gyrotropic_periodic_matches_classical():
+    # Gyrotropic periodic background must equal the Classical periodic
+    # background with w=0, zeta=0, Bguide=0 (Gyrotropic has no such params).
+    a, z1, z2, kx = 0.5, -1.0, 1.0, 0.3
+    grid_g = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    grid_c = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    gyro = TearingGyrotropicMHD(grid_g, kx=kx, S=1e4, a=a, z1=z1, z2=z2,
+                                periodic=True)
+    clas = TearingClassicalMHD(grid_c, kx=kx, S=1e4, a=a, z1=z1, z2=z2,
+                               w=0, ζ=0, Bguide=0, periodic=True)
+    np.testing.assert_allclose(gyro.Bx, clas.Bx, rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(gyro.By, clas.By, rtol=1e-12, atol=1e-14)
