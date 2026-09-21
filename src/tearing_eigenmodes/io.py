@@ -569,7 +569,8 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
         if params.CGL:
             write_head("Plasma-β (β)", 'plasma_beta')
             write_head("Plasma-β difference (Δβ)", 'plasma_beta_difference')
-        write_head("Magnetic transverse field (ξ)", 'xi')
+        if not params.CGL:
+            write_head("Magnetic transverse field (ξ)", 'xi')
         write_head("Hall current term strength (ϵ)", 'Hall')
         if params.CGL:
             write_head("  Parallel adiabatic index (γpar)", 'parallel_index')
@@ -577,7 +578,9 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
 
         io.write("# Equilibrium parameters:\n")
         write_head("Current sheet thickness (a)", 'a')
-        write_head("Current sheet half-width (w)", 'w')
+        if not params.CGL:
+            write_head("Current sheet half-width (w)", 'w')
+            write_head("Shear parameter (ζ)", 'zeta')
 
         io.write("# Geometry/convergence parameters:\n")
         io.write(f"#   {'Resolution range (N)':<36} =  [{params.Nmin}, {params.Nmax}] increment {params.Ninc}\n")
@@ -597,7 +600,8 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
         write_head("Inner-layer thickness tolerance", 'dtol')
         io.write(f"#   {'Equilibrium collocation points':<36} =   {params.n_equilibrium}\n")
         io.write(f"#   {'Inner scale collocation points':<36} =   {params.n_inner_scale}\n")
-        io.write(f"#   {'Anisotropy scale points':<36} =   {params.n_anisotropy}\n")
+        if params.CGL:
+            io.write(f"#   {'Anisotropy scale points':<36} =   {params.n_anisotropy}\n")
         io.write(f"#   {'Dynamic C grid':<36} =   {'on' if params.dynamic_C else 'off'}\n")
         io.write(f"#   {'Amplitude fraction at zmax':<36} =   {params.f_outer}\n")
         io.write(f"#   {'Decay e-folds at zmax':<36} =  {params.decay_efolds:10.3e}\n")

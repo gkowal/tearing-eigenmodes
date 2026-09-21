@@ -18,13 +18,16 @@ def print_info(params: SimulationParams) -> None:
     logger.info("Plasma parameters:")
     eq_type = "Gyrotropic" if params.CGL else "Classical"
     logger.info(f"  {'Equations':<34} =  {eq_type} MHD")
-    logger.info(f"  {'Equation of State':<34} =  {params.eos}")
+    if params.CGL:
+        logger.info(f"  {'Equation of State':<34} =  {params.eos}")
 
     log_head("Lundquist number (S)", 'S')
     log_head("Prandtl number (Pr)", 'Pr')
-    log_head("Plasma-β (β)", 'plasma_beta')
-    log_head("Plasma-β difference (Δβ)", 'plasma_beta_difference')
-    log_head("Magnetic transverse field (ξ)", 'xi')
+    if params.CGL:
+        log_head("Plasma-β (β)", 'plasma_beta')
+        log_head("Plasma-β difference (Δβ)", 'plasma_beta_difference')
+    if not params.CGL:
+        log_head("Magnetic transverse field (ξ)", 'xi')
     log_head("Hall current term strength (ϵ)", 'Hall')
 
     if params.CGL:
@@ -33,9 +36,12 @@ def print_info(params: SimulationParams) -> None:
 
     logger.info("Equilibrium parameters:")
     log_head("Current sheet thickness (a)", 'a')
-    log_head("Current sheet half-width (w)", 'w')
+    if not params.CGL:
+        log_head("Current sheet half-width (w)", 'w')
+        log_head("Shear parameter (ζ)", 'zeta')
 
-    logger.info(f"  {'Velocity shear     ':<34} =  {not params.noshear}")
+    if not params.CGL:
+        logger.info(f"  {'Velocity shear     ':<34} =  {not params.noshear}")
 
     vmin, vmax, vinc = params.vmin, params.vmax, params.vinc
     is_log = "log10" if params.logarithmic else ""
@@ -65,7 +71,8 @@ def print_info(params: SimulationParams) -> None:
 
     logger.info(f"  {'Equilibrium collocation points':<34} =  {params.n_equilibrium}")
     logger.info(f"  {'Inner scale collocation points':<34} =  {params.n_inner_scale}")
-    logger.info(f"  {'Anisotropy scale points':<34} =  {params.n_anisotropy}")
+    if params.CGL:
+        logger.info(f"  {'Anisotropy scale points':<34} =  {params.n_anisotropy}")
     logger.info(f"  {'Inner resolution safety factor':<34} =  {params.inner_resolution_safety}")
     logger.info(f"  {'Amplitude fraction at zmax':<34} =  {params.f_outer}")
     logger.info(f"  {'Dynamic C grid':<34} =  {'on' if params.dynamic_C else 'off'}")
