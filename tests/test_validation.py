@@ -302,6 +302,24 @@ def test_only_growth_rate_error_migrated():
             assert state["eigenvalue_error"] == 2e-7
 
 
+def test_missing_zeta_backfilled_default():
+    """Missing zeta backfills to the SimulationParams default (1.0)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "state_a0.1.npz")
+
+        mock_data = _dispersion_base()
+        assert "zeta" not in mock_data
+
+        np.savez(filepath, **mock_data)
+
+        success, modified = validate_and_fix_file(filepath, dry_run=False)
+        assert success is True
+        assert modified is True
+
+        with np.load(filepath, allow_pickle=True) as state:
+            assert state["zeta"] == 1.0
+
+
 def test_missing_eos_backfilled_adiabatic():
     """Missing eos backfills to 'adiabatic' and stays usable by eos_indices."""
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -155,6 +155,30 @@ def test_check_state_changed_model_flag_forces_recompute(tmp_path):
     assert data is None
 
 
+def test_compile_metadata_carries_zeta():
+    assert compile_metadata(SimulationParams())["zeta"] == 1.0
+    assert compile_metadata(SimulationParams(zeta=0.3))["zeta"] == 0.3
+
+
+def test_zeta_round_trip_through_save_load(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_zeta.npz")
+    _write_config_state(fp, SimulationParams(zeta=0.3))
+    data = load_state_data(fp)
+    assert data is not None
+    assert data["zeta"] == 0.3
+
+
+def test_check_state_changed_zeta_forces_recompute(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_zeta.npz")
+    _write_config_state(fp, SimulationParams(zeta=1.0))
+    status, data = check_state(fp, params=SimulationParams(zeta=1.0))
+    assert status is True
+    assert data is not None
+    status, data = check_state(fp, params=SimulationParams(zeta=0.3))
+    assert status is False
+    assert data is None
+
+
 def test_check_state_legacy_file_missing_metadata_forces_recompute(tmp_path):
     fp = os.path.join(str(tmp_path), "state_legacy.npz")
     np.savez_compressed(fp, wavenumber=0.1, tolerance=1e-5, resolution=128)

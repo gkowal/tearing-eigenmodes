@@ -490,7 +490,7 @@ def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
     """
     metadata_keys = [
         'S', 'Pr', 'plasma_beta', 'plasma_beta_difference', 'xi', 'Hall',
-        'a', 'w', 'parallel_index', 'perpendicular_index', 'eos', 'CGL',
+        'zeta', 'a', 'w', 'parallel_index', 'perpendicular_index', 'eos', 'CGL',
         'noshear', 'Nmin', 'Nmax', 'Ninc', 'atol', 'rtol', 'gtol', 'dtol',
         'f_outer', 'mode', 'dynamic_C', 'n_anisotropy', 'inner_scale',
         'inner_resolution_safety', 'n_equilibrium', 'n_inner_scale'
