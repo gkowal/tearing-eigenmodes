@@ -1,7 +1,8 @@
-from tearing_eigenmodes.io import build_dpath, check_state, compile_metadata, save_eigenmode
+from tearing_eigenmodes.io import build_dpath, check_state, compile_metadata, load_state_data, save_eigenmode
 from tearing_eigenmodes.params import SimulationParams
 import numpy as np
 import os
+import pytest
 
 
 def test_model_tag_distinguishes_classical_and_cgl():
@@ -201,3 +202,62 @@ def test_save_eigenmode_temp_hidden_from_npz_glob(tmp_path, monkeypatch):
     assert glob.glob(os.path.join(str(tmp_path), "*.npz.tmp")) == []
     with np.load(target) as loaded:
         assert float(loaded["wavenumber"]) == 0.42
+
+
+def test_save_eigenmode_new_files_load_without_pickle(tmp_path):
+    """New files carry no pickled object arrays; legacy ones still load."""
+    fp = os.path.join(str(tmp_path), "state_new.npz")
+    scales = {"b_key": 0.02, "a_key": 0.01}
+    grid = np.linspace(-5.0, 5.0, 8)
+    save_eigenmode(
+        fp,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-5,
+        resolution=128,
+        grid=grid,
+        minimum_physical_scale=0.01,
+        minimum_physical_scale_key="a_key",
+        minimum_scale_nodes=4,
+        mode_scales=scales,
+    )
+    with np.load(fp, allow_pickle=False) as npz:
+        assert float(npz["wavenumber"]) == 0.1
+        assert np.array_equal(npz["grid"], grid)
+        assert [str(k) for k in npz["mode_scale_keys"]] == sorted(scales)
+        assert np.allclose(
+            npz["mode_scale_values"],
+            [scales[k] for k in sorted(scales)],
+        )
+    legacy = os.path.join(str(tmp_path), "state_legacy_obj.npz")
+    np.savez_compressed(
+        legacy,
+        wavenumber=0.1,
+        tolerance=1e-5,
+        resolution=128,
+        mode_scales=np.array({"a_key": 0.01}, dtype=object),
+    )
+    data = load_state_data(legacy)
+    assert data is not None
+    assert float(data["wavenumber"]) == 0.1
+    # None-valued optional metadata (e.g. inner_scale/mode default None)
+    # round-trips through load_state_data but is stored as pickled object
+    # arrays, so such files require allow_pickle=True (which loaders keep).
+    meta = compile_metadata(SimulationParams())
+    assert meta["inner_scale"] is None and meta["mode"] is None
+    fp_none = os.path.join(str(tmp_path), "state_none_meta.npz")
+    save_eigenmode(
+        fp_none,
+        wavenumber=0.1,
+        tolerance=1e-5,
+        resolution=128,
+        **meta,
+    )
+    data_none = load_state_data(fp_none)
+    assert data_none is not None
+    assert data_none["inner_scale"] is None
+    assert data_none["mode"] is None
+    with np.load(fp_none, allow_pickle=False) as npz:
+        with pytest.raises(ValueError):
+            for key in npz.files:
+                npz[key]

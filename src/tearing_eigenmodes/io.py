@@ -69,7 +69,10 @@ from .analysis import MODE_SCALE_SCHEMA_VERSION
 
 def save_eigenmode(file_path: str, **kwargs: Any) -> None:
     """
-    Save eigenmode data to a .npz file atomically without pickle or object arrays.
+    Save eigenmode data to a .npz file atomically.
+    Non-None values use typed NumPy scalars/arrays (no pickled object arrays);
+    None-valued optional metadata is stored as pickled object arrays, so loaders
+    keep allow_pickle=True for legacy states and None-valued current metadata.
     """
     import tempfile
     dir_name = os.path.dirname(file_path)
@@ -163,6 +166,7 @@ def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
     """
     Read and decode all state variables and reconstructed scale metadata from a .npz file.
     Does not evaluate convergence or reuse policy.
+    Uses allow_pickle=True intentionally to support legacy object-array states.
     """
     if not os.path.exists(file_path):
         return None
