@@ -39,3 +39,23 @@ def test_gyrotropic_periodic_matches_classical():
                                w=0, ζ=0, Bguide=0, periodic=True)
     np.testing.assert_allclose(gyro.Bx, clas.Bx, rtol=1e-12, atol=1e-14)
     np.testing.assert_allclose(gyro.By, clas.By, rtol=1e-12, atol=1e-14)
+
+def test_gyrotropic_beta_mutation_refreshes_cgl_decay():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    kwargs = dict(kx=0.3, S=1e4, a=0.5, periodic=False, β=0.5, Δβ=0.2,
+                  ɣpar=3.0, ɣper=2.0, σ=0.1)
+    system = TearingGyrotropicMHD(grid, **kwargs)
+    system.β = 1.5
+    system.Δβ = 0.7
+    grid_ref = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    ref = TearingGyrotropicMHD(grid_ref, **{**kwargs, "β": 1.5, "Δβ": 0.7})
+    np.testing.assert_allclose(system.A, ref.A, rtol=1e-14, atol=1e-15)
+    np.testing.assert_allclose(system.R0, ref.R0, rtol=1e-14, atol=1e-15)
+    np.testing.assert_allclose(system.λ, ref.λ, rtol=1e-14, atol=1e-15)
+    # Rejected β update must leave everything unchanged
+    before = (system.A, system.R0, system.λ, system.β0, system.Γβ)
+    system.β = -1.0
+    after = (system.A, system.R0, system.λ, system.β0, system.Γβ)
+    assert system.β == 1.5
+    for b, a in zip(before, after):
+        np.testing.assert_allclose(a, b, rtol=0, atol=0)

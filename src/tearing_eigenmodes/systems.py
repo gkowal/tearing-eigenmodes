@@ -618,6 +618,7 @@ class TearingGyrotropicMHD:
 			self.__β = β
 			self.β0  = β
 			self.Γβ  = self.Γ1 * self.β0 / 2 + self.Γ2 * self.Δβ0 / 2
+			self._refresh_cgl_decay()
 		else:
 			print(f"β must be >= 0! Current value β = {self.__β} is unchanged.")
 
@@ -631,6 +632,14 @@ class TearingGyrotropicMHD:
 		self.Δβ0  = Δβ
 		self.Δβh  = Δβ / 2
 		self.Γβ  = self.Γ1 * self.β0 / 2 + self.Γ2 * self.Δβ0 / 2
+		self._refresh_cgl_decay()
+
+	def _refresh_cgl_decay(self):
+		import numpy as np
+		# Same formulas as __init__; ɣpar is recovered as Γ2 + 1.
+		self.A  = 1.0 - 0.5 * self.Δβ0
+		self.R0 = 1.0 + 0.5 * (self.Γ1 * self.β0 + (self.Γ2 + 1.0) * self.Δβ0)
+		self.λ  = self.kx * self.a * np.sqrt((self.χ + self.A) / (self.χ + self.R0))
 
 	def make_background(self):
 		import sympy as sp; symbols: Any = sp.symbols; lambdify: Any = sp.lambdify; diff: Any = sp.diff; tanh: Any = sp.tanh; sech: Any = sp.sech
