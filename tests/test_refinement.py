@@ -9,11 +9,10 @@ from tearing_eigenmodes import (
     refine_eigenvalues,
     refine_wavenumber_bracket,
     refine_inner_scale,
-    refine_resistive_scale,
-    estimate_inner_scale,
     SimulationParams,
-    MODE_SCALE_SCHEMA_VERSION,
 )
+from tearing_eigenmodes.physics import estimate_inner_scale
+from tearing_eigenmodes.analysis import MODE_SCALE_SCHEMA_VERSION
 from tearing_eigenmodes.refinement import (
     _cached_load_eigenmodes,
     _load_eigenmodes_cache,
@@ -161,11 +160,6 @@ def test_refine_inner_scale_cached_and_fallback(temp_npz_dir: str) -> None:
     expected_estimator = estimate_inner_scale(params, alpha=5.0)
     assert deltas_outside[0] is not None
     assert np.isclose(deltas_outside[0], expected_estimator)
-
-    # 3. Compatibility alias
-    deltas_alias = refine_resistive_scale(vs, params)
-    assert deltas_alias[0] is not None
-    assert np.isclose(deltas[0], deltas_alias[0])
 
 
 def test_refine_inner_scale_explicit_override(temp_npz_dir: str) -> None:

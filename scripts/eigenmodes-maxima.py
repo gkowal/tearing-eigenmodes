@@ -9,7 +9,7 @@ from collections import deque
 from functools import lru_cache
 from tearing_eigenmodes import build_params, build_dpath, \
                              print_info, refine_wavenumber_bracket, \
-                             refine_eigenvalues, refine_inner_scale, refine_resistive_scale, \
+                             refine_eigenvalues, refine_inner_scale, \
                              eigenmodes, write_results, DeltaError, \
                              estimate_max, save_eigenmode, setup_logging, \
                              check_state, compile_metadata, SimulationParams
@@ -49,9 +49,6 @@ class Extrapolator:
         if self.ymin is not None:
             y_pred = max(y_pred, self.ymin)
         return y_pred
-
-    def __len__(self) -> int:
-        return len(self.xs)
 
 def init_worker(shared_counter: Any) -> None:
     """Assign the shared object to the global variable in this worker."""
@@ -355,7 +352,6 @@ def main() -> None:
             extrap_guard = params.extrap_guard if params.extrap_guard is not None else 0.01
 
             k_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-6)
-            g_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-10)
 
             global counter
             counter = shared_counter
@@ -402,8 +398,6 @@ def main() -> None:
 
                 # ── record for next extrapolation ─────────────────────────────────
                 k_extrap.add(v, km)
-                if gm is not None:
-                    g_extrap.add(v, gm)
         else:
             with mp.Pool(
                 processes=nprocs,

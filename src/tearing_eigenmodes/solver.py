@@ -2,7 +2,6 @@ from .params import SimulationParams
 from .exceptions import DeltaError, ConvergenceError
 from .grid import select_NC, select_C_for_N
 from .analysis import (
-    inner_layer_thickness,
     measure_eigenmode_scales,
     minimum_eigenmode_scale,
     CLASSICAL_GRID_SCALE_KEYS,

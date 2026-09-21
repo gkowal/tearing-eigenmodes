@@ -1,7 +1,8 @@
 import pytest
 import numpy as np
-from tearing_eigenmodes import select_NC, SimulationParams, estimate_inner_scale
-from tearing_eigenmodes.grid import select_C_for_N
+from tearing_eigenmodes import SimulationParams
+from tearing_eigenmodes.grid import select_NC, select_C_for_N
+from tearing_eigenmodes.physics import estimate_inner_scale
 from tearing_eigenmodes.exceptions import DeltaError, ConvergenceError
 
 def test_select_nc_default():
@@ -212,7 +213,8 @@ def test_select_nc_resistive_scale():
 
 
 def test_select_nc_anisotropy_scale():
-    from tearing_eigenmodes.grid import calculate_anisotropy_scale, select_C_for_N
+    from tearing_eigenmodes.physics import calculate_anisotropy_scale
+    from tearing_eigenmodes.grid import select_C_for_N
     
     # 1. verify calculate_anisotropy_scale handles non-CGL or zero sigma
     params_no_cgl = SimulationParams(CGL=False, alpha=0.1, a=1.0, sigma=0.05)

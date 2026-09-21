@@ -3,8 +3,8 @@ import tempfile
 import numpy as np
 import pytest
 
-from tearing_eigenmodes import save_eigenmode
-from tearing_eigenmodes import eos_indices
+from tearing_eigenmodes.io import save_eigenmode
+from tearing_eigenmodes.physics import eos_indices
 from tearing_eigenmodes.validation import validate_and_fix_file
 
 

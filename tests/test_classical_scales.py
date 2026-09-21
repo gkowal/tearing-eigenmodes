@@ -8,7 +8,6 @@ from tearing_eigenmodes.analysis import (
     measure_classical_scales,
     measure_eigenmode_scales,
     minimum_eigenmode_scale,
-    inner_layer_thickness,
     CLASSICAL_GRID_SCALE_KEYS,
     CLASSICAL_DIAGNOSTIC_SCALE_KEYS,
     CLASSICAL_PHYSICAL_SCALE_KEYS,
@@ -310,29 +309,6 @@ def test_classical_normal_field_complex_phase_in_net_sum():
     assert np.isfinite(s_ideal)
     assert np.isfinite(s_env)
     assert s_ideal != s_env
-
-
-def test_inner_layer_thickness_returns_net_ideal_scale():
-    """inner_layer_thickness() compatibility wrapper must return classical.bz_induction.eta_vs_ideal."""
-    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=4)
-    system = MockClassicalSystem(grid, kx=0.5, a=1.0, w=0.2, S=100.0, Pr=0.0, xi=0.1, shear=True)
-    system.result["sigma"] = 0.05 + 0.0j
-    system.result["duz"] = np.exp(-(grid.zg / 0.25)**2)
-    system.result["dbz"] = -np.exp(-(grid.zg / 0.35)**2)
-
-    scales = measure_classical_scales(system)
-    s_net = scales["classical.bz_induction.eta_vs_ideal"]
-    s_env = scales["classical.bz_induction.eta_vs_ideal_envelope"]
-    s_f = scales["classical.bz_induction.eta_vs_f"]
-
-    # Values must differ in this setup
-    assert s_net != s_env
-    assert s_net != s_f
-
-    δ, nin, nwa = inner_layer_thickness(system)
-    assert np.isclose(δ, s_net, rtol=1e-12)
-    assert not np.isclose(δ, s_env, rtol=1e-3)
-    assert not np.isclose(δ, s_f, rtol=1e-3)
 
 
 def test_classical_vorticity_net_vs_envelope():

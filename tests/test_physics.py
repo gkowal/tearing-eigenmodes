@@ -56,7 +56,7 @@ def test_estimate_max_anisotropy_guards():
 
 
 def test_calculate_inner_factors_classical():
-    from tearing_eigenmodes import calculate_inner_factors
+    from tearing_eigenmodes.physics import calculate_inner_factors
     A, R0, q = calculate_inner_factors(beta=1.0, delta_beta=0.5, CGL=False)
     assert A == 1.0
     assert R0 == 1.0
@@ -65,7 +65,7 @@ def test_calculate_inner_factors_classical():
 
 def test_calculate_inner_factors_gyrotropic():
     import numpy as np
-    from tearing_eigenmodes import calculate_inner_factors
+    from tearing_eigenmodes.physics import calculate_inner_factors
 
     # Classical limit under CGL (zero beta and delta_beta)
     A, R0, q = calculate_inner_factors(beta=0.0, delta_beta=0.0, CGL=True)
@@ -100,7 +100,7 @@ def test_calculate_inner_factors_gyrotropic():
 
 def test_model_delta_prime():
     import numpy as np
-    from tearing_eigenmodes import model_delta_prime
+    from tearing_eigenmodes.physics import model_delta_prime
 
     # Classical limit (q = 1)
     # Delta' = 2 * (1 / 0.2 - 0.2) = 2 * (5.0 - 0.2) = 9.6
@@ -123,7 +123,7 @@ def test_model_delta_prime():
 
 def test_estimate_inner_scale_classical_and_gyrotropic():
     import numpy as np
-    from tearing_eigenmodes import estimate_inner_scale
+    from tearing_eigenmodes.physics import estimate_inner_scale
 
     params_classical = SimulationParams(
         alpha=0.1,
@@ -175,7 +175,8 @@ def test_estimate_inner_scale_classical_and_gyrotropic():
 
 def test_estimate_inner_scale_small_S_positive():
     import numpy as np
-    from tearing_eigenmodes import estimate_inner_scale, SimulationParams
+    from tearing_eigenmodes import SimulationParams
+    from tearing_eigenmodes.physics import estimate_inner_scale
 
     for S in (1.0, 2.0, 10.0):
         params = SimulationParams(
@@ -190,7 +191,8 @@ def test_estimate_inner_scale_small_S_positive():
 def test_estimate_inner_scale_small_S_coppi_fallback(caplog):
     import logging
     import numpy as np
-    from tearing_eigenmodes import estimate_inner_scale, SimulationParams
+    from tearing_eigenmodes import SimulationParams
+    from tearing_eigenmodes.physics import estimate_inner_scale
     from tearing_eigenmodes.physics import legacy_fPr, legacy_fS
 
     for S in (1.0, 2.0):
@@ -212,7 +214,8 @@ def test_estimate_inner_scale_small_S_coppi_fallback(caplog):
 
 def test_estimate_inner_scale_normal_path_pinned():
     import numpy as np
-    from tearing_eigenmodes import estimate_inner_scale, SimulationParams
+    from tearing_eigenmodes import SimulationParams
+    from tearing_eigenmodes.physics import estimate_inner_scale
 
     params = SimulationParams(
         alpha=0.1, a=1.0, S=1e4, Pr=0.0,
@@ -225,7 +228,8 @@ def test_estimate_inner_scale_normal_path_pinned():
 
 def test_calculate_anisotropy_scale_growth_estimate():
     import numpy as np
-    from tearing_eigenmodes import calculate_anisotropy_scale, SimulationParams
+    from tearing_eigenmodes import SimulationParams
+    from tearing_eigenmodes.physics import calculate_anisotropy_scale
     from tearing_eigenmodes.physics import estimate_growth_rate
 
     # Positive beta_bar with NO initial sigma supplied -> uses estimate_growth_rate
@@ -251,7 +255,8 @@ def test_calculate_anisotropy_scale_growth_estimate():
 
 def test_calculate_anisotropy_scale_negative_beta_bar(caplog):
     import logging
-    from tearing_eigenmodes import calculate_anisotropy_scale, SimulationParams
+    from tearing_eigenmodes import SimulationParams
+    from tearing_eigenmodes.physics import calculate_anisotropy_scale
 
     # Negative beta_bar branch: beta = 0.1, delta_beta = -0.5
     # beta_bar = 0.5 * (3 * 0.1 + 2 * (-0.5)) = 0.5 * (0.3 - 1.0) = -0.35 < 0
@@ -270,39 +275,4 @@ def test_calculate_anisotropy_scale_negative_beta_bar(caplog):
 
     assert scale == 0.0
     assert "central delta_q estimate does not cover off-center pressure structures" in caplog.text
-
-
-def test_modified_case_scale_broadening():
-    import numpy as np
-    from tearing_eigenmodes import (
-        modified_case_scale_broadening,
-        estimate_modified_inner_scale,
-        SimulationParams,
-    )
-
-    base = 0.05
-    # w=0, xi=0 returns exact base theoretical scale
-    assert np.isclose(modified_case_scale_broadening(base, w=0.0, xi=0.0, a=1.0), base)
-
-    # Monotone non-decreasing in w
-    scale_w1 = modified_case_scale_broadening(base, w=0.5, xi=0.0, a=1.0)
-    scale_w2 = modified_case_scale_broadening(base, w=1.0, xi=0.0, a=1.0)
-    assert scale_w1 > base
-    assert scale_w2 > scale_w1
-
-    # Monotone non-decreasing in xi
-    scale_xi1 = modified_case_scale_broadening(base, w=0.0, xi=0.5, a=1.0)
-    scale_xi2 = modified_case_scale_broadening(base, w=0.0, xi=1.0, a=1.0)
-    assert scale_xi1 > base
-    assert scale_xi2 > scale_xi1
-
-    # Combined parameters
-    scale_comb = modified_case_scale_broadening(base, w=0.5, xi=0.5, a=1.0)
-    assert scale_comb > scale_w1
-    assert scale_comb > scale_xi1
-
-    # Integrated modified inner scale helper
-    params = SimulationParams(alpha=0.1, a=1.0, S=1e4, Pr=0.0, CGL=False, w=0.5, xi=0.2)
-    mod_scale = estimate_modified_inner_scale(params)
-    assert mod_scale > base
 

@@ -2,8 +2,6 @@ import pytest
 import numpy as np
 from psecas import ChebyshevRationalGrid
 from tearing_eigenmodes.analysis import (
-    inner_layer_thickness,
-    find_peak_location,
     extract_central_dominance_scale,
     minimum_eigenmode_scale,
     measure_eigenmode_scales,
@@ -15,106 +13,6 @@ from tearing_eigenmodes.analysis import (
     CLASSICAL_PHYSICAL_SCALE_KEYS,
     CGL_PHYSICAL_SCALE_KEYS,
 )
-
-class MockSystem:
-    def __init__(self, grid, a=1.0, w=0.0, S=1.0, kx=1.0, Bx=None, Ux=None, shear=False, xi=0.0, Pr=0.0):
-        self.model = "classical"
-        self.grid = grid
-        self.a = a
-        self.w = w
-        self.S = S
-        self.kx = kx
-        self.Bx = Bx if Bx is not None else np.tanh(grid.zg / a)
-        self.Ux = Ux if Ux is not None else np.zeros_like(grid.zg)
-        self.shear = shear
-        self.ξ = xi
-        self.Pr = Pr
-        self.η = 1.0 / S if S > 0 else 0.0
-        self.ν = Pr / S if S > 0 else 0.0
-        self.result = {}
-
-def test_inner_layer_thickness_sign_change():
-    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=4)
-    system = MockSystem(grid, a=1.0, w=0.0, S=1.0, kx=1.0)
-    system.result['sigma'] = 0.05 + 0.0j
-    system.result['dbz'] = np.ones_like(grid.zg)
-    system.result['duz'] = 2.0 * np.tanh(grid.zg)
-
-    delta, nin, nwa = inner_layer_thickness(system, δtol=1e-5)
-
-    assert delta > 0.0
-    assert isinstance(nin, int)
-    assert isinstance(nwa, int)
-    assert nin > 0
-    assert nwa > 0
-
-def test_inner_layer_thickness_no_sign_change():
-    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=4)
-    system = MockSystem(grid, a=1.0, w=0.0, S=1e6, kx=1.0)
-    system.result['sigma'] = 0.05 + 0.0j
-    system.result['dbz'] = np.zeros_like(grid.zg)
-    system.result['duz'] = 10.0 * np.ones_like(grid.zg)
-
-    delta, nin, nwa = inner_layer_thickness(system)
-
-    assert delta == 0.0
-    assert nin == 1
-
-
-def test_inner_layer_thickness_compatibility_wrapper_vs_minimum():
-    # Construct a system where viscous scale is smaller than resistive scale
-    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=4)
-    system = MockSystem(grid, a=1.0, w=0.0, S=1e4, Pr=10.0, kx=0.5)
-    system.result['sigma'] = 0.03 + 0.0j
-    system.result['duz'] = np.exp(-(grid.zg / 0.1)**2)
-    system.result['dbz'] = np.exp(-(grid.zg / 0.4)**2)
-
-    scales = measure_eigenmode_scales(system)
-    min_scale, min_key = minimum_eigenmode_scale(scales, model="classical")
-    delta_res, nin_res, nwa_res = inner_layer_thickness(system)
-
-    # Prove wrapper returns specifically the resistive scale, not the global minimum
-    res_scale = scales["classical.bz_induction.eta_vs_ideal"]
-    assert np.isclose(delta_res, res_scale, rtol=1e-6)
-    if min_key != "classical.bz_induction.eta_vs_ideal" and min_scale is not None:
-        assert delta_res != min_scale
-
-def test_find_peak_location():
-    grid = ChebyshevRationalGrid(N=64, C=1.0, max_derivative_order=2)
-
-    # Create a clean Gaussian peak at z = 0.5 for u0
-    # u0 = exp(-((z - 0.5) / 0.1)^2)
-    u0 = np.exp(-((grid.zg - 0.5) / 0.1)**2)
-    b0 = np.zeros_like(grid.zg)
-
-    z_peak, n = find_peak_location(u0, b0, grid, a=1.0, w=0.0, ztol=1e-4)
-
-    # The peak should be extremely close to 0.5
-    assert np.isclose(z_peak, 0.5, atol=1e-3)
-    assert isinstance(n, int)
-    assert n > 0
-
-
-def test_find_peak_location_beyond_a_with_w():
-    # Regression test: with w > 0 the refinement bracket must span
-    # the [0, w + 2a] coarse-search window instead of capping at a.
-    # A Gaussian centred at a + w/2 peaks beyond a; capping zh at a
-    # skips refinement and returns the coarse grid node.
-    grid = ChebyshevRationalGrid(N=128, C=1.0, max_derivative_order=2)
-    a = 1.0
-    w = 1.0
-    z_true = a + w / 2.0
-
-    u0 = np.exp(-((grid.zg - z_true) / 0.3)**2)
-    b0 = np.zeros_like(grid.zg)
-
-    z_peak, n = find_peak_location(u0, b0, grid, a=a, w=w, ztol=1e-4)
-
-    assert z_peak > a
-    assert np.isclose(z_peak, z_true, atol=1e-3)
-    assert isinstance(n, int)
-    assert n > 0
-
 
 def test_schema_constants():
     assert MODE_SCALE_SCHEMA_VERSION == 2

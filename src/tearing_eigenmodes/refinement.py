@@ -507,6 +507,3 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
             inner_scales[i] = val_x_sc / safety
 
     return inner_scales
-
-
-refine_resistive_scale = refine_inner_scale
