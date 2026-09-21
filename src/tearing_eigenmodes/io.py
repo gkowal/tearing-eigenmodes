@@ -24,7 +24,7 @@ def build_dpath(params: SimulationParams) -> str:
     dpath += '' if Pr is None else f'Pr{Pr:.3e}'
     if params.CGL:
         dpath += '' if β  is None else f'β{β:.3e}'
-        dpath += '' if Δβ is None else f'Δβ{Δβ:+.2f}'
+        dpath += '' if Δβ is None else f'Δβ{Δβ:+.3e}'
         dpath += '' if params.eos is None else params.eos
         parallel, perpendicular = params.parallel_index, params.perpendicular_index
         dpath += '' if parallel is None else f'ɣpar{parallel:.3e}'

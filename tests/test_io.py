@@ -86,6 +86,24 @@ def test_suffix_preserved():
     assert build_dpath(cgl).endswith("_test123")
 
 
+def test_delta_beta_distinguishes_dirs_scientific_notation():
+    low = SimulationParams(CGL=True, plasma_beta_difference=0.001)
+    high = SimulationParams(CGL=True, plasma_beta_difference=0.004)
+    low_dpath = build_dpath(low)
+    high_dpath = build_dpath(high)
+    assert low_dpath != high_dpath
+    assert f"Δβ{0.001:+.3e}" in low_dpath
+    assert f"Δβ{0.004:+.3e}" in high_dpath
+
+    lower = SimulationParams(CGL=True, plasma_beta_difference=0.005)
+    upper = SimulationParams(CGL=True, plasma_beta_difference=0.014)
+    lower_dpath = build_dpath(lower)
+    upper_dpath = build_dpath(upper)
+    assert lower_dpath != upper_dpath
+    assert f"Δβ{0.005:+.3e}" in lower_dpath
+    assert f"Δβ{0.014:+.3e}" in upper_dpath
+
+
 def test_default_classical_dir_contains_core_segments():
     dpath = build_dpath(SimulationParams())
     assert f"S{1e4:.3e}" in dpath
