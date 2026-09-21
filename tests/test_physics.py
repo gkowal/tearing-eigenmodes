@@ -173,6 +173,56 @@ def test_estimate_inner_scale_classical_and_gyrotropic():
     assert scale_cutoff > 0.0
 
 
+def test_estimate_inner_scale_small_S_positive():
+    import numpy as np
+    from tearing_eigenmodes import estimate_inner_scale, SimulationParams
+
+    for S in (1.0, 2.0, 10.0):
+        params = SimulationParams(
+            alpha=0.1, a=1.0, S=S, Pr=0.0,
+            CGL=False, inner_resolution_safety=1.0,
+        )
+        scale = estimate_inner_scale(params)
+        assert np.isfinite(scale)
+        assert scale > 0.0
+
+
+def test_estimate_inner_scale_small_S_coppi_fallback(caplog):
+    import logging
+    import numpy as np
+    from tearing_eigenmodes import estimate_inner_scale, SimulationParams
+    from tearing_eigenmodes.physics import legacy_fPr, legacy_fS
+
+    for S in (1.0, 2.0):
+        params = SimulationParams(
+            alpha=0.1, a=1.0, S=S, Pr=0.0,
+            CGL=False, inner_resolution_safety=1.0,
+        )
+        with caplog.at_level(logging.DEBUG):
+            scale = estimate_inner_scale(params)
+        expected_coppi = (
+            legacy_fS(S)
+            * legacy_fPr(0.0)
+            * ((0.1 * S) ** (-1.0 / 3.0))
+        )
+        assert np.isclose(scale, expected_coppi)
+        assert "Coppi branch fallback" in caplog.text
+        caplog.clear()
+
+
+def test_estimate_inner_scale_normal_path_pinned():
+    import numpy as np
+    from tearing_eigenmodes import estimate_inner_scale, SimulationParams
+
+    params = SimulationParams(
+        alpha=0.1, a=1.0, S=1e4, Pr=0.0,
+        CGL=False, inner_resolution_safety=1.0,
+    )
+    assert np.isclose(
+        estimate_inner_scale(params), 0.07015872133070601, rtol=1e-12,
+    )
+
+
 def test_calculate_anisotropy_scale_growth_estimate():
     import numpy as np
     from tearing_eigenmodes import calculate_anisotropy_scale, SimulationParams

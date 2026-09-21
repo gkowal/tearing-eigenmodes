@@ -246,8 +246,21 @@ def estimate_inner_scale(params: SimulationParams, alpha: Optional[float] = None
         delta_hat_model = delta_hat_Coppi
     else:
         delta_hat_FKR = gS * gPr * (A**(-1.0 / 5.0)) * (((alpha_val * S)**(-2.0) * Delta_prime_model)**(1.0 / 5.0))
-        p = 8
-        delta_hat_model = (delta_hat_Coppi * delta_hat_FKR) / ((delta_hat_Coppi**p + delta_hat_FKR**p)**(1.0 / p))
+        if not np.isfinite(delta_hat_FKR) or delta_hat_FKR <= 0.0:
+            logger.debug(
+                f"delta_hat_FKR = {delta_hat_FKR:.3e} not finite-positive for S = {S:.3e} "
+                f"(outside positive-FKR range); using Coppi branch fallback."
+            )
+            delta_hat_model = delta_hat_Coppi
+        else:
+            p = 8
+            delta_hat_model = (delta_hat_Coppi * delta_hat_FKR) / ((delta_hat_Coppi**p + delta_hat_FKR**p)**(1.0 / p))
+            if not np.isfinite(delta_hat_model) or delta_hat_model <= 0.0:
+                logger.debug(
+                    f"delta_hat_model = {delta_hat_model:.3e} not finite-positive for S = {S:.3e} "
+                    f"(outside positive-blend range); using Coppi branch fallback."
+                )
+                delta_hat_model = delta_hat_Coppi
 
     safety = getattr(params, 'inner_resolution_safety', 1.0)
     if safety is None or safety < 1.0:
