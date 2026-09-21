@@ -59,3 +59,25 @@ def test_gyrotropic_beta_mutation_refreshes_cgl_decay():
     assert system.β == 1.5
     for b, a in zip(before, after):
         np.testing.assert_allclose(a, b, rtol=0, atol=0)
+
+def test_classical_hall_kx_zero_ky_zero_raises():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    with pytest.raises(ValueError, match="> 0"):
+        TearingClassicalMHD(grid, kx=0.0, ky=0.0, S=1e4, ϵ=0.1)
+
+def test_classical_nonhall_kx_zero_constructs():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    system = TearingClassicalMHD(grid, kx=0.0, ky=0.0, S=1e4)
+    assert system.kx == 0.0
+    assert system.dim == 2
+
+def test_classical_hall_kx_positive_constructs():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    system = TearingClassicalMHD(grid, kx=0.1, ky=0.0, S=1e4, ϵ=0.1)
+    assert system.kx == 0.1
+    assert system.dim == 4
+
+def test_gyrotropic_kx_zero_raises():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    with pytest.raises(ValueError, match="kx must be > 0"):
+        TearingGyrotropicMHD(grid, kx=0.0, S=1e4)

@@ -59,6 +59,9 @@ class TearingClassicalMHD:
 		if kh is not None and kh <= 0:
 			raise ValueError("kh must be > 0")
 
+		if ϵ > 0 and np.isclose(kx, 0.0) and np.isclose(ky, 0.0):
+			raise ValueError("kx must be > 0 when Hall (ϵ > 0) is enabled with ky = 0 (Hall terms divide by kx)")
+
 		self.periodic = periodic
 		self.shear    = shear
 
@@ -347,7 +350,7 @@ class TearingGyrotropicMHD:
 
 		# Validation checks
 		if kx <= 0:
-			raise ValueError("kx must be >= 0")
+			raise ValueError("kx must be > 0")
 		if a  <= 0:
 			raise ValueError("a must be > 0")
 		if S  <= 0:
