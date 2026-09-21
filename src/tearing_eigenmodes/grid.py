@@ -225,11 +225,9 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
     )
 
     # Iterate N upward until C_out(N) <= C_in(N); then set C = C_out(N).
-    Ntop = Nmax - 3 * Ninc
-
     N = Nmin
     while True:
-        if N > Ntop:
+        if N > Nmax:
             raise ConvergenceError(
                 f"Insufficient N up to Nmax={Nmax}: cannot satisfy C_out(N) <= C_in(N). "
                 f"Try increasing Nmax or relaxing n_equilibrium/n_inner_scale/decay_efolds."
@@ -238,7 +236,12 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
         if Cout <= Cinn:
             break
 
-        N += Ninc
+        if N >= Nmax:
+            raise ConvergenceError(
+                f"Insufficient N up to Nmax={Nmax}: cannot satisfy C_out(N) <= C_in(N). "
+                f"Try increasing Nmax or relaxing n_equilibrium/n_inner_scale/decay_efolds."
+            )
+        N = min(N + Ninc, Nmax)
 
     logger.debug(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e} => C = {C:.6e}")
 

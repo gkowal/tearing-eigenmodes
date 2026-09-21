@@ -91,7 +91,7 @@ def test_select_nc_cgl_imaginary_decay():
         select_NC(params)
 
 def test_select_nc_convergence_error():
-    # Trigger ConvergenceError by forcing N > Ntop immediately
+    # Genuinely unsatisfiable: no N <= Nmax satisfies Cout <= Cinn.
     params = SimulationParams(
         alpha=0.1,
         a=1.0,
@@ -100,8 +100,26 @@ def test_select_nc_convergence_error():
         Nmax=64,
         Ninc=1,
     )
+    Cinn, Cout, _ = select_C_for_N(64, params)
+    assert Cout > Cinn
     with pytest.raises(ConvergenceError, match="Insufficient N up to Nmax"):
         select_NC(params)
+
+
+def test_select_nc_narrow_range_success():
+    # Narrow Nmin == Nmax range that is satisfiable must succeed.
+    params = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        w=0.0,
+        Nmin=2048,
+        Nmax=2048,
+    )
+    Cinn, Cout, _ = select_C_for_N(2048, params)
+    assert Cout <= Cinn
+    N, C = select_NC(params)
+    assert N == 2048
+    assert C > 0.0
 
 def test_select_nc_invalid_inputs():
     # alpha <= 0
