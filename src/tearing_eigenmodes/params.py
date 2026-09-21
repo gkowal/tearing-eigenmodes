@@ -33,7 +33,6 @@ class SimulationParams:
     f_outer: float = 0.01
     decay_efolds: float = 4.60517
     C: Optional[float] = None
-    Cmean: str = 'geometric'
     dynamic_C: bool = False
 
     _initialized: bool = field(default=False, init=False, repr=False)

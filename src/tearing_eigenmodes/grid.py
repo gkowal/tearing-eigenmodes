@@ -48,7 +48,6 @@ def select_C_for_N(
     α             = params.alpha
     σ             = current_sigma if current_sigma is not None else params.sigma
     ξ             = params.xi
-    Cmean         = params.Cmean
 
     if α is None or a is None or w is None:
         raise ValueError("alpha, a, and w must be specified and not None.")
@@ -159,8 +158,7 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
     w            = params.w
     α            = params.alpha
     σ            = params.sigma
-    ξ            = params.xi
-    Cmean        = params.Cmean
+    ξ             = params.xi
 
     # Input validation checks
     if α is None or α <= 0:
@@ -242,6 +240,6 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
 
         N += Ninc
 
-    logger.debug(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e} => C = {C:.6e} using {Cmean} mean")
+    logger.debug(f"[grid scale constrains for α={α:.4e}] Nmin = {N:4d}  C_inner={Cinn:.4e}  C_outer={Cout:.4e} => C = {C:.6e}")
 
     return N, C

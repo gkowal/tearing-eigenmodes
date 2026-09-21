@@ -18,24 +18,19 @@ def test_select_nc_default():
     assert N >= 64
     assert C > 0.0
 
-def test_select_nc_cmean_strategies():
-    means = ['geometric', 'harmonic', 'average', 'lower', 'outer', 'upper', 'inner', 'unknown_mean']
-    results = {}
-    for m in means:
-        params = SimulationParams(
-            alpha=0.1,
-            a=1.0,
-            w=0.0,
-            CGL=False,
-            Cmean=m,
-        )
-        N, C = select_NC(params)
-        results[m] = (N, C)
-
-    # Check that all scaling strategies return float scaling factors and int resolutions
-    for m in means:
-        assert isinstance(results[m][0], int)
-        assert isinstance(results[m][1], float)
+def test_select_nc_cmean_option_removed():
+    # The dead --scaling-mean/Cmean option was removed: it never affected grids.
+    params = SimulationParams(
+        alpha=0.1,
+        a=1.0,
+        w=0.0,
+        CGL=False,
+    )
+    assert not hasattr(params, 'Cmean')
+    assert 'Cmean' not in params.keys()
+    N, C = select_NC(params)
+    assert isinstance(N, int)
+    assert isinstance(C, float)
 
 def test_select_nc_cgl_success():
     params = SimulationParams(
