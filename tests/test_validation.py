@@ -4,7 +4,27 @@ import numpy as np
 import pytest
 
 from tearing_eigenmodes import save_eigenmode
+from tearing_eigenmodes import eos_indices
 from tearing_eigenmodes.validation import validate_and_fix_file
+
+
+def _dispersion_base(n=128):
+    """Return a minimal valid dispersion-run payload (modern key names)."""
+    grid = np.linspace(-10, 10, n)
+    return {
+        "wavenumber": np.array(0.1),
+        "eigenvalue": np.array(0.05 + 0.0j),
+        "tolerance": np.array(1e-6),
+        "resistive_layer_thickness": np.array(0.15),
+        "grid_scaling_factor": np.array(2.5),
+        "resolution": np.array(n),
+        "grid": grid,
+        "a": np.array(1.0),
+        "w": np.array(0.0),
+        "CGL": np.array(False),
+        "duz": np.sin(np.linspace(0, np.pi, n)),
+        "dbz": np.cos(np.linspace(0, np.pi, n)),
+    }
 
 
 def test_validate_dispersion_file():
@@ -233,4 +253,75 @@ def test_validate_isothermal_cgl_file():
             assert "ddp" not in state
             assert "duy" in state
             assert "dby" in state
+
+
+def test_both_old_growth_keys_migrated():
+    """Both legacy growth_rate keys migrate; re-validation is clean."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "state_a0.1.npz")
+
+        mock_data = _dispersion_base()
+        mock_data["growth_rate"] = mock_data.pop("eigenvalue")
+        mock_data["growth_rate_error"] = np.array(1e-7)
+
+        np.savez(filepath, **mock_data)
+
+        success, modified = validate_and_fix_file(filepath, dry_run=False)
+        assert success is True
+        assert modified is True
+
+        with np.load(filepath, allow_pickle=True) as state:
+            assert "growth_rate" not in state
+            assert "growth_rate_error" not in state
+            assert state["eigenvalue"] == 0.05 + 0.0j
+            assert state["eigenvalue_error"] == 1e-7
+
+        # A second pass must find nothing left to fix.
+        success, modified = validate_and_fix_file(filepath, dry_run=False)
+        assert success is True
+        assert modified is False
+
+
+def test_only_growth_rate_error_migrated():
+    """A lone growth_rate_error migrates with pop and marks modified."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "state_a0.1.npz")
+
+        mock_data = _dispersion_base()
+        mock_data["growth_rate_error"] = np.array(2e-7)
+
+        np.savez(filepath, **mock_data)
+
+        success, modified = validate_and_fix_file(filepath, dry_run=False)
+        assert success is True
+        assert modified is True
+
+        with np.load(filepath, allow_pickle=True) as state:
+            assert "growth_rate_error" not in state
+            assert "eigenvalue_error" in state
+            assert state["eigenvalue_error"] == 2e-7
+
+
+def test_missing_eos_backfilled_adiabatic():
+    """Missing eos backfills to 'adiabatic' and stays usable by eos_indices."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "state_a0.1.npz")
+
+        mock_data = _dispersion_base()
+        assert "eos" not in mock_data
+
+        np.savez(filepath, **mock_data)
+
+        success, modified = validate_and_fix_file(filepath, dry_run=False)
+        assert success is True
+        assert modified is True
+
+        with np.load(filepath, allow_pickle=True) as state:
+            assert "eos" in state
+            assert state["eos"] == "adiabatic"
+
+        from tearing_eigenmodes.io import load_state_data
+
+        assert load_state_data(filepath)["eos"] == "adiabatic"
+        assert eos_indices(load_state_data(filepath)["eos"]) == (3.0, 2.0)
 

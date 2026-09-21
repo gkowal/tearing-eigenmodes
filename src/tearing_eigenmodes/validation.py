@@ -49,13 +49,13 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
     # 2. Key Mapping & Renaming
 
     # 2a. Growth rate / eigenvalue rename
-    if 'growth_rate' in data:
+    if 'growth_rate' in data and 'eigenvalue' not in data:
         data['eigenvalue'] = data.pop('growth_rate')
         modified = True
-    elif 'growth_rate_error' in data and 'eigenvalue_error' not in data:
+    if 'growth_rate_error' in data and 'eigenvalue_error' not in data:
         # Standardize error naming first if growth_rate_error exists
-        data['eigenvalue_error'] = data['growth_rate_error']
-        # Do not delete growth_rate_error yet, we can keep it as an alias or standardise
+        data['eigenvalue_error'] = data.pop('growth_rate_error')
+        modified = True
 
     if 'eigenvalues' in data and 'eigenvalue' not in data:
         # Handle old array-based format
@@ -127,7 +127,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
     metadata_defaults = {
         'S': 1e4, 'Pr': 0.0, 'plasma_beta': 0.0, 'plasma_beta_difference': 0.0,
         'xi': 0.0, 'Hall': 0.0, 'a': 1.0, 'w': 0.0, 'parallel_index': 3.0,
-        'perpendicular_index': 2.0, 'eos': 0.0, 'CGL': False, 'noshear': False,
+        'perpendicular_index': 2.0, 'eos': 'adiabatic', 'CGL': False, 'noshear': False,
         'Nmin': 64, 'Nmax': 2048, 'Ninc': 32, 'atol': 1e-10, 'rtol': 1e-5,
         'gtol': 1e-2, 'dtol': 1e-3, 'n_inner_req': 0, 'f_outer': 1e-4, 'mode': 0
     }
