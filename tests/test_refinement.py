@@ -1671,3 +1671,99 @@ def test_scalar_fallback_cgl_legacy_and_keyed_behavior(temp_npz_dir: str) -> Non
     assert deltas[0] is not None and deltas[1] is not None
     assert np.isclose(deltas[0], 0.025, rtol=1e-5)
     assert np.isclose(deltas[1], 0.035, rtol=1e-5)
+
+
+def _fake_cached_eigenmodes(v_hist, sigma_hist):
+    """Build a fake module-level _cached_load_eigenmodes returning fixed history."""
+    v_arr = np.asarray(v_hist, dtype=float)
+    s_arr = np.asarray(sigma_hist)
+    zeros = np.zeros_like(v_arr)
+
+    def _fake(path, pattern="*.npz"):
+        return (v_arr, zeros, s_arr, zeros, zeros, zeros, zeros, zeros, zeros)
+
+    return _fake
+
+
+def test_refine_eigenvalues_log_mode_power_law(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Log mode must beat linear interpolation on real power-law sigma history."""
+    import tearing_eigenmodes.refinement as ref_mod
+
+    v_hist = np.array([1.0, 2.0, 4.0])
+    s_hist = v_hist ** -0.5
+    monkeypatch.setattr(ref_mod, "_cached_load_eigenmodes", _fake_cached_eigenmodes(v_hist, s_hist))
+
+    vs = np.array([1.5, 3.0])
+    truth = vs ** -0.5
+    params_log = SimulationParams(data_path="dummy", sigma=0.1, log_extrapolation=True)
+    params_lin = SimulationParams(data_path="dummy", sigma=0.1)
+
+    got_log = np.asarray(refine_eigenvalues(vs, params_log), dtype=complex)
+    got_lin = np.asarray(refine_eigenvalues(vs, params_lin), dtype=complex)
+
+    assert np.all(np.real(got_log) > 0.0)
+    assert np.all(np.abs(got_log - truth) < np.abs(got_lin - truth))
+
+
+def test_refine_eigenvalues_log_mode_complex_split(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Log mode must log-interpolate Re(sigma) and linearly interpolate Im(sigma)."""
+    import tearing_eigenmodes.refinement as ref_mod
+    from scipy.interpolate import make_interp_spline
+
+    v_hist = np.array([1.0, 2.0, 4.0])
+    # Signed imaginary part crossing zero, where log is invalid.
+    s_hist = v_hist ** -0.5 + 1j * (0.2 * v_hist - 0.5)
+    monkeypatch.setattr(ref_mod, "_cached_load_eigenmodes", _fake_cached_eigenmodes(v_hist, s_hist))
+
+    vs = np.array([1.5, 3.0])
+    params_log = SimulationParams(data_path="dummy", sigma=0.1, log_extrapolation=True)
+    got = np.asarray(refine_eigenvalues(vs, params_log), dtype=complex)
+
+    degree = min(3, v_hist.size - 1)
+    expected_re = np.exp(make_interp_spline(v_hist, np.log(np.real(s_hist)), k=degree)(vs))
+    expected_im = make_interp_spline(v_hist, np.imag(s_hist), k=degree)(vs)
+    np.testing.assert_allclose(got, expected_re + 1j * expected_im, rtol=1e-12)
+
+
+def test_refine_eigenvalues_log_mode_nonpositive_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """History with Re(sigma) <= 0 must take the exact legacy path, without crash or NaN."""
+    import tearing_eigenmodes.refinement as ref_mod
+
+    v_hist = np.array([1.0, 2.0, 4.0])
+    s_hist = np.array([0.5, -0.1, 0.6])
+    monkeypatch.setattr(ref_mod, "_cached_load_eigenmodes", _fake_cached_eigenmodes(v_hist, s_hist))
+
+    # v=2.0 hits the negative cached value (exercising the Re<=0 safety net);
+    # v=10.0 is outside the cached range (exercising the params.sigma fallback).
+    vs = np.array([2.0, 1.5, 10.0])
+    params_log = SimulationParams(data_path="dummy", sigma=0.1, log_extrapolation=True)
+    params_off = SimulationParams(data_path="dummy", sigma=0.1)
+
+    got_on = np.asarray(refine_eigenvalues(vs, params_log), dtype=complex)
+    got_off = np.asarray(refine_eigenvalues(vs, params_off), dtype=complex)
+
+    np.testing.assert_allclose(got_on, got_off, rtol=0, atol=0)
+    assert np.all(np.isfinite(got_on))
+    assert got_on[2] == 0.1
+
+
+def test_refine_eigenvalues_flag_off_legacy_exact(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Flag-off path must match the direct legacy formula, including outside-range fallback."""
+    import tearing_eigenmodes.refinement as ref_mod
+    from scipy.interpolate import make_interp_spline
+
+    v_hist = np.array([1.0, 2.0, 4.0])
+    s_hist = v_hist ** -0.5 + 1j * (0.1 * v_hist)
+    monkeypatch.setattr(ref_mod, "_cached_load_eigenmodes", _fake_cached_eigenmodes(v_hist, s_hist))
+
+    vs = np.array([1.5, 10.0])
+    params_off = SimulationParams(data_path="dummy", sigma=0.1, log_extrapolation=False)
+    got = refine_eigenvalues(vs, params_off)
+
+    degree = min(3, v_hist.size - 1)
+    raw = make_interp_spline(v_hist, s_hist, k=degree)(vs)
+    if np.real(raw).min() <= 0.0:
+        raw = make_interp_spline(v_hist, s_hist, k=0)(vs)
+    expected = list(raw)
+    expected[1] = 0.1
+    np.testing.assert_allclose(np.asarray(got), np.asarray(expected), rtol=1e-12)

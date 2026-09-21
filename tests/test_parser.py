@@ -285,6 +285,27 @@ def test_validate_parameters_plot_2d():
         validate_parameters(args)
 
 
+def test_build_params_log_extrapolation(monkeypatch):
+    """--log-extrapolation defaults to False and maps to params when set."""
+    # Default: flag absent -> False
+    monkeypatch.setattr("sys.argv", [
+        "eigenmodes-maxima.py",
+        "-d", "S",
+        "-R", "1e3", "1e5", "1e4",
+    ])
+    params = build_params(parser_type="maximum")
+    assert params["log_extrapolation"] is False
+
+    # Explicit flag -> True
+    monkeypatch.setattr("sys.argv", [
+        "eigenmodes-maxima.py",
+        "-d", "S",
+        "-R", "1e3", "1e5", "1e4",
+        "--log-extrapolation",
+    ])
+    params_log = build_params(parser_type="maximum")
+    assert params_log["log_extrapolation"] is True
+
 def test_inner_resolution_safety_default_and_parsing():
     """Inner resolution safety factor must default to 1.01 and parse explicit values correctly."""
     from tearing_eigenmodes import SimulationParams

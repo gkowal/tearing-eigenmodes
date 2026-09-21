@@ -385,6 +385,15 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
             help="maximum fractional deviation allowed for extrapolated bracket"
         )
         parser.add_argument(
+            "--log-extrapolation",
+            action='store_true',
+            default=False,
+            help="log-space treatment of positive power-law quantities: "
+                 "max-wavenumber-vs-sweep extrapolation and sigma-guess "
+                 "interpolation (growth-rate real part in log space, "
+                 "imaginary part linear)"
+        )
+        parser.add_argument(
             "--step-lower-factor",
             type=float,
             default=None,
@@ -623,6 +632,7 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         params['step']         = args.step
         params['extrap_deg']   = args.extrap_deg
         params['extrap_guard'] = args.extrap_guard
+        params['log_extrapolation'] = getattr(args, 'log_extrapolation', False)
         params['step_lower_factor'] = args.step_lower_factor
         params['step_upper_factor'] = args.step_upper_factor
 

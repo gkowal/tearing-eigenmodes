@@ -23,10 +23,11 @@ class Extrapolator:
     Falls back gracefully when insufficient history is available.
     Direction-agnostic: works for both increasing and decreasing x sweeps.
     """
-    def __init__(self, maxdeg: int = 2, minpoints: int = 2, maxhistory: int = 6, ymin: Optional[float] = None) -> None:
+    def __init__(self, maxdeg: int = 2, minpoints: int = 2, maxhistory: int = 6, ymin: Optional[float] = None, log_y: bool = False) -> None:
         self.maxdeg: int = maxdeg
         self.minpoints: int = minpoints
         self.ymin: Optional[float] = ymin        # optional lower clamp on predicted value
+        self.log_y: bool = log_y                # fit polynomial to log(y) and exponentiate
         self.xs: Deque[float] = deque(maxlen=maxhistory)
         self.ys: Deque[Any] = deque(maxlen=maxhistory)
 
@@ -38,6 +39,29 @@ class Extrapolator:
         n = len(self.xs)
         if n < self.minpoints:
             return None                          # not enough history yet
+        if self.log_y:
+            # Log-space mode for positive power-law-like quantities: fit the
+            # polynomial to log(y) over positive-history entries only, then
+            # exponentiate. Falls back to None when too few positives remain
+            # so the caller reuses the cached bracket (existing safe path).
+            try:
+                pairs = [(float(x), float(y)) for x, y in zip(self.xs, self.ys)]
+            except (TypeError, ValueError):
+                return None                      # non-numeric history entry
+            pos = [(x, y) for x, y in pairs if y > 0.0 and np.isfinite(y)]
+            if len(pos) < self.minpoints:
+                return None                      # not enough positive history
+            deg = min(self.maxdeg, len(pos) - 1)  # can't exceed n-1
+            xs = np.array([p[0] for p in pos])
+            log_ys = np.log(np.array([p[1] for p in pos]))
+            # centre & scale for numerical stability; ptp() is direction-agnostic
+            x0     = xs.mean()
+            xscale = (xs.max() - xs.min()) or 1.0
+            coeffs = np.polyfit((xs - x0) / xscale, log_ys, deg)
+            y_pred = float(np.exp(np.polyval(coeffs, (x_new - x0) / xscale)))
+            if self.ymin is not None:
+                y_pred = max(y_pred, self.ymin)
+            return y_pred
         deg = min(self.maxdeg, n - 1)           # can't exceed n-1
         xs  = np.array(self.xs)
         ys  = np.array(self.ys)
@@ -351,7 +375,7 @@ def main() -> None:
             extrap_deg   = params.extrap_deg if params.extrap_deg is not None else 2
             extrap_guard = params.extrap_guard if params.extrap_guard is not None else 0.01
 
-            k_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-6)
+            k_extrap = Extrapolator(maxdeg=extrap_deg, ymin=1e-6, log_y=params.log_extrapolation)
 
             global counter
             counter = shared_counter

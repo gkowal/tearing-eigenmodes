@@ -85,8 +85,22 @@ def refine_eigenvalues(vs: np.ndarray, params: SimulationParams) -> List[Any]:
         return sigma
 
     degree = min(3, v.size - 1)
-    spline = make_interp_spline(v, σ, k=degree)
-    sigma = spline(vs)
+    if (
+        bool(getattr(params, "log_extrapolation", False))
+        and np.all(np.isfinite(σ))
+        and np.all(np.real(σ) > 0.0)
+    ):
+        # Log-space sweep refinement: Re(σ) is the positive-definite
+        # power-law quantity, so it is interpolated in log space, while
+        # the signed Im(σ) (which may cross zero, where log is invalid)
+        # is interpolated in linear space. A full complex log is avoided
+        # because phase wrapping would corrupt Im(σ) interpolation.
+        spline_re = make_interp_spline(v, np.log(np.real(σ)), k=degree)
+        spline_im = make_interp_spline(v, np.imag(σ), k=degree)
+        sigma = np.exp(spline_re(vs)) + 1j * spline_im(vs)
+    else:
+        spline = make_interp_spline(v, σ, k=degree)
+        sigma = spline(vs)
     if np.real(sigma).min() <= 0.0:
         spline = make_interp_spline(v, σ, k=0)
         sigma = spline(vs)
