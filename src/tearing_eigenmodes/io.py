@@ -97,10 +97,11 @@ def save_eigenmode(file_path: str, **kwargs: Any) -> None:
     if "resistive_layer_nodes" in kwargs and kwargs["resistive_layer_nodes"] is not None:
         kwargs["resistive_layer_nodes"] = np.int32(kwargs["resistive_layer_nodes"])
 
-    fd, tmp_path = tempfile.mkstemp(dir=dir_name if dir_name else ".", suffix=".npz")
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name if dir_name else ".", suffix=".npz.tmp")
     os.close(fd)
     try:
-        np.savez_compressed(tmp_path, **kwargs)
+        with open(tmp_path, "wb") as tmp_file:
+            np.savez_compressed(tmp_file, **kwargs)
         os.replace(tmp_path, file_path)
     except Exception as e:
         if os.path.exists(tmp_path):

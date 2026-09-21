@@ -168,3 +168,36 @@ def test_check_state_params_none_preserves_tolerance_only_behavior(tmp_path):
     status, data = check_state(fp, params=None)
     assert status is True
     assert data is not None
+
+
+def test_save_eigenmode_temp_hidden_from_npz_glob(tmp_path, monkeypatch):
+    """Mid-save temp file must not match the *.npz globs used by readers."""
+    import fnmatch
+    import glob
+
+    import tearing_eigenmodes.io as io_module
+
+    real_savez = io_module.np.savez_compressed
+    target = os.path.join(str(tmp_path), "state.npz")
+    seen = {}
+
+    def recorder(file, *args, **kwargs):
+        tmp_name = getattr(file, "name", file)
+        seen["tmp"] = tmp_name
+        base = os.path.basename(tmp_name)
+        assert not fnmatch.fnmatch(base, "*.npz"), (
+            f"atomic-write temp {base!r} matches *.npz glob"
+        )
+        assert os.path.dirname(os.path.abspath(tmp_name)) == os.path.dirname(
+            os.path.abspath(target)
+        )
+        return real_savez(file, *args, **kwargs)
+
+    monkeypatch.setattr(io_module.np, "savez_compressed", recorder)
+    save_eigenmode(target, wavenumber=0.42, tolerance=1e-5, resolution=128)
+
+    assert seen["tmp"] is not None
+    assert os.path.exists(target)
+    assert glob.glob(os.path.join(str(tmp_path), "*.npz.tmp")) == []
+    with np.load(target) as loaded:
+        assert float(loaded["wavenumber"]) == 0.42
