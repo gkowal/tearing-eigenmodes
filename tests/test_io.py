@@ -1,5 +1,7 @@
-from tearing_eigenmodes.io import build_dpath
+from tearing_eigenmodes.io import build_dpath, check_state, compile_metadata, save_eigenmode
 from tearing_eigenmodes.params import SimulationParams
+import numpy as np
+import os
 
 
 def test_model_tag_distinguishes_classical_and_cgl():
@@ -110,3 +112,59 @@ def test_default_classical_dir_contains_core_segments():
     assert f"Pr{0.0:.3e}" in dpath
     assert f"a{1.0:.3e}" in dpath
     assert f"w{0.0:.3e}" in dpath
+
+
+def _write_config_state(file_path: str, params: SimulationParams) -> None:
+    """Save a converged state carrying the run-config metadata of params."""
+    save_eigenmode(
+        file_path,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-5,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-5.0, 5.0, 8),
+        **compile_metadata(params),
+    )
+
+
+def test_check_state_matching_metadata_reuses(tmp_path):
+    params = SimulationParams()
+    fp = os.path.join(str(tmp_path), "state_match.npz")
+    _write_config_state(fp, params)
+    status, data = check_state(fp, params=SimulationParams())
+    assert status is True
+    assert data is not None
+
+
+def test_check_state_changed_lundquist_forces_recompute(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_S.npz")
+    _write_config_state(fp, SimulationParams(S=1e4))
+    status, data = check_state(fp, params=SimulationParams(S=1e5))
+    assert status is False
+    assert data is None
+
+
+def test_check_state_changed_model_flag_forces_recompute(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_cgl.npz")
+    _write_config_state(fp, SimulationParams(CGL=False))
+    status, data = check_state(fp, params=SimulationParams(CGL=True))
+    assert status is False
+    assert data is None
+
+
+def test_check_state_legacy_file_missing_metadata_forces_recompute(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_legacy.npz")
+    np.savez_compressed(fp, wavenumber=0.1, tolerance=1e-5, resolution=128)
+    status, data = check_state(fp, params=SimulationParams())
+    assert status is False
+    assert data is None
+
+
+def test_check_state_params_none_preserves_tolerance_only_behavior(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_none.npz")
+    np.savez_compressed(fp, wavenumber=0.1, tolerance=1e-5, resolution=128)
+    status, data = check_state(fp, params=None)
+    assert status is True
+    assert data is not None

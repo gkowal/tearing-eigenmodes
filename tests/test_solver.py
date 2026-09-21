@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from tearing_eigenmodes import eigenmodes, SimulationParams
+from tearing_eigenmodes.io import compile_metadata
 
 def test_eigenmodes_static_vs_dynamic_C():
     # 1. Run standard (static C) convergence
@@ -315,6 +316,7 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     spec_c.loader.exec_module(compute_mod)
 
     # 1a. Non-mapping scales in compute script
+    params_c1 = SimulationParams(alpha=0.1, verbose=True, data_path=str(tmp_path))
     fp_c1 = os.path.join(str(tmp_path), f"state_α{0.1:.6e}.npz")
     np.savez_compressed(
         fp_c1,
@@ -325,8 +327,8 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
         grid_scaling_factor=1.0,
         current_sheet_nodes=20,
         mode_scales="not-a-mapping",
+        **compile_metadata(params_c1),
     )
-    params_c1 = SimulationParams(alpha=0.1, verbose=True, data_path=str(tmp_path))
     capsys.readouterr()
     compute_mod.task(0.1, None, None, params_c1)
     out_c1 = capsys.readouterr().out
@@ -334,6 +336,7 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     assert len(scale_lines_c1) == 0
 
     # 1b. Raw mixed int/str keys in compute script
+    params_c2 = SimulationParams(alpha=0.2, verbose=True, data_path=str(tmp_path))
     fp_c2 = os.path.join(str(tmp_path), f"state_α{0.2:.6e}.npz")
     np.savez_compressed(
         fp_c2,
@@ -344,8 +347,8 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
         grid_scaling_factor=1.0,
         current_sheet_nodes=20,
         mode_scales=np.array({1: 0.01, "b": 0.02, "bad": "1.25"}, dtype=object),
+        **compile_metadata(params_c2),
     )
-    params_c2 = SimulationParams(alpha=0.2, verbose=True, data_path=str(tmp_path))
     compute_mod.task(0.2, None, None, params_c2)
     out_c2 = capsys.readouterr().out
     scale_lines_c2 = [line for line in out_c2.splitlines() if "mode scales:" in line]
@@ -364,10 +367,10 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     monkeypatch.setattr(maxima_mod, "make_objective", guard_fresh_optimization)
 
     # 2a. Non-mapping scales with correct signed filename
+    params_m1 = SimulationParams(dependence="S", S=1e4, verbose=True, data_path=str(tmp_path))
     fp_m1 = os.path.join(str(tmp_path), f"state_S{1e4:+.6e}.npz")
     np.savez_compressed(
         fp_m1,
-        scan_parameter="S",
         scan_parameter_value=1e4,
         wavenumber=0.1,
         eigenvalue=0.05 + 0.0j,
@@ -384,8 +387,8 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
         minimum_physical_scale=0.02,
         minimum_scale_nodes=5,
         mode_scales="not-a-mapping",
+        **compile_metadata(params_m1),
     )
-    params_m1 = SimulationParams(dependence="S", S=1e4, verbose=True, data_path=str(tmp_path))
     res_m1 = maxima_mod.task(1e4, None, None, None, params_m1)
     assert res_m1[0] is not None
     out_m1 = capsys.readouterr().out
@@ -393,10 +396,10 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     assert len(scale_lines_m1) == 0
 
     # 2b. Raw mixed int/str keys with correct signed filename
+    params_m2 = SimulationParams(dependence="S", S=2e4, verbose=True, data_path=str(tmp_path))
     fp_m2 = os.path.join(str(tmp_path), f"state_S{2e4:+.6e}.npz")
     np.savez_compressed(
         fp_m2,
-        scan_parameter="S",
         scan_parameter_value=2e4,
         wavenumber=0.1,
         eigenvalue=0.05 + 0.0j,
@@ -413,8 +416,8 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
         minimum_physical_scale=0.02,
         minimum_scale_nodes=5,
         mode_scales=np.array({1: 0.01, "b": 0.02, "bad": "1.25"}, dtype=object),
+        **compile_metadata(params_m2),
     )
-    params_m2 = SimulationParams(dependence="S", S=2e4, verbose=True, data_path=str(tmp_path))
     res_m2 = maxima_mod.task(2e4, None, None, None, params_m2)
     assert res_m2[0] is not None
     out_m2 = capsys.readouterr().out

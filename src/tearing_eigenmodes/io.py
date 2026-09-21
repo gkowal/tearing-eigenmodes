@@ -332,7 +332,66 @@ def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
     return data
 
 
-def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[bool, Optional[Dict[str, Any]]]:
+_METADATA_MISSING: Any = object()
+
+
+def _unwrap_metadata_scalar(value: Any) -> Any:
+    """Unwrap 0-d ndarrays to plain Python scalars for metadata comparison."""
+    if isinstance(value, np.ndarray) and value.ndim == 0:
+        try:
+            return value.item()
+        except Exception:
+            return value
+    return value
+
+
+def _metadata_values_equal(first: Any, second: Any) -> bool:
+    """
+    Conservative equality check for run-config metadata values.
+
+    Numbers compare numerically (NaN never equals, forcing a recompute);
+    None equals only None; strings and bools compare with ==; anything
+    else compares with == and any failure (including exceptions) counts
+    as a mismatch.
+    """
+    first = _unwrap_metadata_scalar(first)
+    second = _unwrap_metadata_scalar(second)
+    if first is None and second is None:
+        return True
+    if first is None or second is None:
+        return False
+    if isinstance(first, str) or isinstance(second, str):
+        try:
+            return bool(first == second)
+        except Exception:
+            return False
+    if isinstance(first, (bool, np.bool_)) or isinstance(second, (bool, np.bool_)):
+        try:
+            return bool(first == second)
+        except Exception:
+            return False
+    if isinstance(first, (int, float, np.integer, np.floating)) and isinstance(
+        second, (int, float, np.integer, np.floating)
+    ):
+        try:
+            first_float = float(first)
+            second_float = float(second)
+        except Exception:
+            return False
+        if np.isnan(first_float) or np.isnan(second_float):
+            return False
+        return first_float == second_float
+    try:
+        result = first == second
+        if isinstance(result, np.ndarray):
+            return bool(np.all(result))
+        return bool(result)
+    except Exception:
+        return False
+
+
+def check_state(file_path: str, force: bool = False, Nmax: int = 2048,
+                params: Optional[SimulationParams] = None) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """
     Check if a state file exists and contains a completed/converged calculation.
 
@@ -344,6 +403,12 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
         If True, force recalculation regardless of state file.
     Nmax : int
         Maximum resolution limit.
+    params : SimulationParams, optional
+        Current run configuration. When given, the stored run-config
+        metadata is compared against ``compile_metadata(params)`` and any
+        mismatch (or any missing key, e.g. in legacy files) forces a
+        recalculation returning (False, None). When None (default), only
+        the historical tolerance/resolution policy applies.
 
     Returns
     -------
@@ -388,6 +453,26 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048) -> Tuple[
             return False, None
 
         status = not (e_val > 1.0 and N_val < Nmax)
+        if status and params is not None:
+            fresh = compile_metadata(params)
+            for key, fresh_val in fresh.items():
+                stored_val = data.get(key, _METADATA_MISSING)
+                if stored_val is _METADATA_MISSING:
+                    if fresh_val is None:
+                        # Absent on both sides (e.g. conditional
+                        # scan_parameter or an unset optional).
+                        continue
+                    logger.warning(
+                        f"State file {file_path} missing run-config key "
+                        f"'{key}': forcing recalculation."
+                    )
+                    return False, None
+                if not _metadata_values_equal(fresh_val, stored_val):
+                    logger.warning(
+                        f"State file {file_path} run-config mismatch for "
+                        f"'{key}': forcing recalculation."
+                    )
+                    return False, None
         return status, data
     except Exception as ex:
         logger.warning(f"Malformed reuse metadata in state file {file_path}: {ex}")

@@ -51,7 +51,15 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
     s: Optional[Dict[str, np.ndarray]] = None
     sname = os.path.join(params_base.data_path if params_base.data_path is not None else './', f'state_α{α:.6e}.npz')
 
-    status, state_data = check_state(sname, force=force, Nmax=Nmax)
+    # Set the per-task computation parameters before the reuse check so the
+    # compared run-config metadata matches what a recomputation would save
+    # (in particular the per-wavenumber inner-scale guess).
+    params_base.sigma       = sigma
+    params_base.inner_scale = delta
+    params_base.delta       = delta
+    params_base.alpha       = α
+
+    status, state_data = check_state(sname, force=force, Nmax=Nmax, params=params_base)
     if status:
         assert state_data is not None
         α   = float(state_data['wavenumber'])
@@ -77,11 +85,6 @@ def task(k: float, sigma: Any, delta: Optional[float], params: SimulationParams)
 
     if not status:
         try:
-            params_base.sigma       = sigma
-            params_base.inner_scale = delta
-            params_base.delta       = delta
-            params_base.alpha       = α
-
             σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params_base)
 
             if status:

@@ -141,9 +141,15 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
     }
     setattr(params_base, dep_map[dependence], value)
 
+    # Set the per-task computation parameters before the reuse check so the
+    # compared run-config metadata matches what a recomputation would save
+    # (in particular the per-value inner-scale guess synced via delta).
+    params_base.sigma = sigma
+    params_base.delta = delta
+
     sname = os.path.join(params_base.data_path if params_base.data_path is not None else './', f'state_{dependence}{value:+.6e}.npz')
 
-    status, state_data = check_state(sname, force=force, Nmax=Nmax)
+    status, state_data = check_state(sname, force=force, Nmax=Nmax, params=params_base)
     if status:
         assert state_data is not None
         αm  = float(state_data['wavenumber'])
@@ -189,9 +195,6 @@ def task(value: float, αbracket: Optional[List[float]], sigma: Any, delta: Opti
             αu = (αup + 1.618 * αlo) / 2.618
 
             try:
-                params_base.sigma   = sigma
-                params_base.delta   = delta
-
                 f = make_objective(params_base)
 
                 αa, αb, αc, σa, σb, σc, fn = bracket(f, xa=αlo, xb=αu)
