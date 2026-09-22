@@ -337,6 +337,21 @@ def load_state_data(file_path: str) -> Optional[Dict[str, Any]]:
 _METADATA_MISSING: Any = object()
 
 
+# Physics/problem/mode identity keys used when deciding state reuse in
+# ``check_state``. Discretization, search, and acceptance knobs (Nmin/Nmax/
+# Ninc, atol/rtol/gtol/dtol, dynamic_C, n_anisotropy, inner_scale,
+# inner_resolution_safety, n_equilibrium, n_inner_scale, n_inner_req,
+# n_resistivity_req) never enter the equations, so a converged (e<=1)
+# stored result stays valid when only those knobs change. ``compile_metadata``
+# itself stays complete (files remain self-describing); only the comparison
+# loop in ``check_state`` is narrowed to this allowlist.
+_REUSE_COMPARE_KEYS = (
+    'S', 'Pr', 'plasma_beta', 'plasma_beta_difference', 'xi', 'Hall',
+    'zeta', 'a', 'w', 'parallel_index', 'perpendicular_index', 'eos',
+    'CGL', 'noshear', 'f_outer', 'mode', 'scan_parameter',
+)
+
+
 def _unwrap_metadata_scalar(value: Any) -> Any:
     """Unwrap 0-d ndarrays to plain Python scalars for metadata comparison."""
     if isinstance(value, np.ndarray) and value.ndim == 0:
@@ -407,10 +422,14 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048,
         Maximum resolution limit.
     params : SimulationParams, optional
         Current run configuration. When given, the stored run-config
-        metadata is compared against ``compile_metadata(params)`` and any
-        mismatch (or any missing key, e.g. in legacy files) forces a
-        recalculation returning (False, None). When None (default), only
-        the historical tolerance/resolution policy applies.
+        metadata is compared against ``compile_metadata(params)`` over the
+        physics/problem/mode identity keys in ``_REUSE_COMPARE_KEYS`` only
+        (discretization/search/acceptance knobs never enter the equations,
+        so changes to them alone reuse a converged result); any mismatch
+        (or any missing key, e.g. in legacy files) forces a
+        recalculation returning (False, None). A stored resolution below
+        ``params.Nmin`` also forces recalculation. When None (default),
+        only the historical tolerance/resolution policy applies.
 
     Returns
     -------
@@ -456,8 +475,16 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048,
 
         status = not (e_val > 1.0 and N_val < Nmax)
         if status and params is not None:
+            nmin_val = params.Nmin
+            if nmin_val is not None and N_val < nmin_val:
+                logger.warning(
+                    f"State file {file_path} resolution N={N_val} below "
+                    f"requested Nmin={nmin_val}: forcing recalculation."
+                )
+                return False, None
             fresh = compile_metadata(params)
-            for key, fresh_val in fresh.items():
+            for key in _REUSE_COMPARE_KEYS:
+                fresh_val = fresh.get(key)
                 stored_val = data.get(key, _METADATA_MISSING)
                 if stored_val is _METADATA_MISSING:
                     if fresh_val is None:

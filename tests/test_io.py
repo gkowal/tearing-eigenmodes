@@ -192,6 +192,78 @@ def test_check_state_params_none_preserves_tolerance_only_behavior(tmp_path):
     assert data is not None
 
 
+def _write_config_state_at_resolution(
+    file_path: str, params: SimulationParams, resolution: int
+) -> None:
+    """Save a converged state like _write_config_state at a given N."""
+    save_eigenmode(
+        file_path,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-5,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=resolution,
+        grid=np.linspace(-5.0, 5.0, 8),
+        **compile_metadata(params),
+    )
+
+
+def test_check_state_numerics_only_changes_reuse(tmp_path):
+    base = SimulationParams()
+    fp = os.path.join(str(tmp_path), "state_numerics.npz")
+    _write_config_state(fp, base)
+    variants = [
+        SimulationParams(Nmin=128),
+        SimulationParams(Nmax=4096),
+        SimulationParams(rtol=1e-8),
+        SimulationParams(n_inner_scale=8),
+        SimulationParams(inner_scale=1e-3),
+    ]
+    for variant in variants:
+        status, data = check_state(fp, params=variant)
+        assert status is True
+        assert data is not None
+
+
+def test_check_state_nmin_floor_forces_recompute(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_floor.npz")
+    _write_config_state_at_resolution(fp, SimulationParams(), 64)
+    status, data = check_state(fp, params=SimulationParams(Nmin=128))
+    assert status is False
+    assert data is None
+
+
+def test_check_state_nmin_floor_boundary_reuses(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_floor_ok.npz")
+    _write_config_state_at_resolution(fp, SimulationParams(), 128)
+    for nmin in (128, 64):
+        status, data = check_state(fp, params=SimulationParams(Nmin=nmin))
+        assert status is True
+        assert data is not None
+
+
+def test_check_state_physics_and_mode_changes_force_recompute(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_phys.npz")
+    _write_config_state(fp, SimulationParams())
+    for variant in (
+        SimulationParams(a=2.0),
+        SimulationParams(f_outer=0.05),
+        SimulationParams(mode="tearing"),
+    ):
+        status, data = check_state(fp, params=variant)
+        assert status is False
+        assert data is None
+
+
+def test_check_state_nmin_floor_skipped_when_params_none(tmp_path):
+    fp = os.path.join(str(tmp_path), "state_noparam.npz")
+    np.savez_compressed(fp, wavenumber=0.1, tolerance=1e-5, resolution=8)
+    status, data = check_state(fp, params=None)
+    assert status is True
+    assert data is not None
+
+
 def test_save_eigenmode_temp_hidden_from_npz_glob(tmp_path, monkeypatch):
     """Mid-save temp file must not match the *.npz globs used by readers."""
     import fnmatch
