@@ -1,7 +1,7 @@
 from .exceptions import DeltaError
 from .physics import estimate_max
 from .refinement import refine_eigenvalues, refine_wavenumber_bracket, refine_inner_scale
-from .io import build_dpath, write_results, save_eigenmode, check_state, compile_metadata
+from .io import build_dpath, write_results, save_eigenmode, check_state, compile_metadata, load_eigenmodes
 from .parser import build_params
 from .params import SimulationParams
 from .printing import print_info
@@ -17,6 +17,7 @@ __all__ = [
     "compile_metadata",
     "eigenmodes",
     "estimate_max",
+    "load_eigenmodes",
     "print_info",
     "refine_eigenvalues",
     "refine_inner_scale",

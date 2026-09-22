@@ -8,6 +8,7 @@ EXPECTED_ROOT_API = frozenset({
     "compile_metadata",
     "eigenmodes",
     "estimate_max",
+    "load_eigenmodes",
     "print_info",
     "refine_eigenvalues",
     "refine_inner_scale",
