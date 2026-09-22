@@ -477,7 +477,7 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048,
         if status and params is not None:
             nmin_val = params.Nmin
             if nmin_val is not None and N_val < nmin_val:
-                logger.warning(
+                logger.debug(
                     f"State file {file_path} resolution N={N_val} below "
                     f"requested Nmin={nmin_val}: forcing recalculation."
                 )
@@ -491,13 +491,13 @@ def check_state(file_path: str, force: bool = False, Nmax: int = 2048,
                         # Absent on both sides (e.g. conditional
                         # scan_parameter or an unset optional).
                         continue
-                    logger.warning(
+                    logger.debug(
                         f"State file {file_path} missing run-config key "
                         f"'{key}': forcing recalculation."
                     )
                     return False, None
                 if not _metadata_values_equal(fresh_val, stored_val):
-                    logger.warning(
+                    logger.debug(
                         f"State file {file_path} run-config mismatch for "
                         f"'{key}': forcing recalculation."
                     )

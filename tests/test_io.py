@@ -1,5 +1,6 @@
 from tearing_eigenmodes.io import build_dpath, check_state, compile_metadata, load_state_data, save_eigenmode
 from tearing_eigenmodes.params import SimulationParams
+import logging
 import numpy as np
 import os
 import pytest
@@ -262,6 +263,61 @@ def test_check_state_nmin_floor_skipped_when_params_none(tmp_path):
     status, data = check_state(fp, params=None)
     assert status is True
     assert data is not None
+
+
+def test_check_state_nmin_floor_logs_debug_not_warning(tmp_path, caplog):
+    fp = os.path.join(str(tmp_path), "state_floor_log.npz")
+    _write_config_state_at_resolution(fp, SimulationParams(), 64)
+    with caplog.at_level(logging.DEBUG, logger="tearing_eigenmodes.io"):
+        status, data = check_state(fp, params=SimulationParams(Nmin=128))
+    assert status is False
+    assert data is None
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(
+        r.levelno == logging.DEBUG and "below" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_check_state_missing_key_logs_debug_not_warning(tmp_path, caplog):
+    params = SimulationParams()
+    meta = compile_metadata(params)
+    meta.pop("S")
+    fp = os.path.join(str(tmp_path), "state_missing_key.npz")
+    save_eigenmode(
+        fp,
+        wavenumber=0.1,
+        eigenvalue=0.05 + 0.0j,
+        tolerance=1e-5,
+        grid_scaling_factor=1.0,
+        current_sheet_nodes=20,
+        resolution=128,
+        grid=np.linspace(-5.0, 5.0, 8),
+        **meta,
+    )
+    with caplog.at_level(logging.DEBUG, logger="tearing_eigenmodes.io"):
+        status, data = check_state(fp, params=SimulationParams())
+    assert status is False
+    assert data is None
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(
+        r.levelno == logging.DEBUG and "missing run-config key" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_check_state_mismatch_logs_debug_not_warning(tmp_path, caplog):
+    fp = os.path.join(str(tmp_path), "state_mismatch_log.npz")
+    _write_config_state(fp, SimulationParams(S=1e4))
+    with caplog.at_level(logging.DEBUG, logger="tearing_eigenmodes.io"):
+        status, data = check_state(fp, params=SimulationParams(S=1e5))
+    assert status is False
+    assert data is None
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(
+        r.levelno == logging.DEBUG and "run-config mismatch" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 def test_save_eigenmode_temp_hidden_from_npz_glob(tmp_path, monkeypatch):
