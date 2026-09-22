@@ -5,12 +5,13 @@ import os
 import pytest
 
 
-def test_model_tag_distinguishes_classical_and_cgl():
+def test_no_model_tag_or_noshear_marker_in_dpath():
     classical = SimulationParams(
         CGL=False,
         plasma_beta=None,
         plasma_beta_difference=None,
         zeta=None,
+        noshear=True,
     )
     cgl = SimulationParams(
         CGL=True,
@@ -20,11 +21,10 @@ def test_model_tag_distinguishes_classical_and_cgl():
         parallel_index=None,
         perpendicular_index=None,
     )
-    classical_dpath = build_dpath(classical)
-    cgl_dpath = build_dpath(cgl)
-    assert classical_dpath != cgl_dpath
-    assert "MHD" in classical_dpath
-    assert "CGL" in cgl_dpath
+    for dpath in (build_dpath(classical), build_dpath(cgl)):
+        assert "MHD" not in dpath
+        assert "CGL" not in dpath
+        assert "noshear" not in dpath
 
 
 def test_cgl_eos_distinguishes_dirs():
@@ -49,14 +49,11 @@ def test_cgl_gamma_indices_distinguish_dirs():
     assert build_dpath(default) != build_dpath(parallel_only)
 
 
-def test_noshear_distinguishes_dirs():
+def test_noshear_flag_leaves_dpath_unchanged():
     shear = SimulationParams(CGL=False, noshear=False)
     noshear = SimulationParams(CGL=False, noshear=True)
-    shear_dpath = build_dpath(shear)
-    noshear_dpath = build_dpath(noshear)
-    assert shear_dpath != noshear_dpath
-    assert "noshear" not in shear_dpath
-    assert "noshear" in noshear_dpath
+    assert build_dpath(shear) == build_dpath(noshear)
+    assert "noshear" not in build_dpath(noshear)
 
 
 def test_zeta_distinguishes_dirs():
