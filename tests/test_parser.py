@@ -380,3 +380,22 @@ def test_build_params_plot_with_dependence(monkeypatch):
     assert params["dependence"] == "S"
     assert params["value_plot"] == 1e4
     assert params["S"] is None
+
+
+@pytest.mark.parametrize("argv", [
+    ["--CGL", "-ξ", "0.1"],
+    ["--CGL", "-w", "0.5"],
+])
+def test_validate_parameters_cgl_rejects_transverse_field_and_width(argv):
+    args = parser_setup().parse_args(argv)
+    with pytest.raises(ParameterError, match="not supported with --CGL"):
+        validate_parameters(args)
+
+
+def test_validate_parameters_cgl_rejects_width_sweep():
+    parser = parser_setup()
+    parser.add_argument("--dependence", default=None)
+    parser.add_argument("--range", type=float, nargs=3, default=[0, 1, 0.1])
+    args = parser.parse_args(["--CGL", "--dependence", "w", "--range", "0", "1", "0.5"])
+    with pytest.raises(ParameterError, match="half‑width"):
+        validate_parameters(args)

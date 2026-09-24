@@ -5,8 +5,10 @@ Utilities for analyzing tearing instability eigenmodes using the `psecas` pseudo
 ## Overview
 
 This package implements a linear stability analysis of the tearing instability within the framework of linearized incompressible magnetohydrodynamics (MHD). It supports two physical models:
-1. **Classical MHD** (`TearingClassicalMHD`): Incorporates resistive and viscous effects.
-2. **Gyrotropic MHD** (`TearingGyrotropicMHD`): Incorporates gyrotropic pressuring effects (CGL double-adiabatic equations), including parallel/perpendicular plasma-β anisotropy, transverse magnetic guide fields, and Hall effects.
+1. **Classical MHD** (`TearingClassicalMHD`): Incorporates resistive and viscous effects, a transverse magnetic field (ξ), velocity shear over a sheet half-width (w), and Hall effects.
+2. **Gyrotropic MHD** (`TearingGyrotropicMHD`): Incorporates gyrotropic pressuring effects (CGL double-adiabatic equations), including parallel/perpendicular plasma-β anisotropy and Hall effects. The transverse field ξ and half-width w are not part of this model; `--CGL` rejects nonzero values.
+
+For Hall runs (ϵ > 0) the multi-scale dominance diagnostics are not available: eigenmodes are computed and saved with NaN scale metadata.
 
 The linearized equations are solved using the Chebyshev rational pseudospectral solver provided by the `psecas` library.
 

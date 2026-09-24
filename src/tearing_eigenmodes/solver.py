@@ -333,6 +333,8 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
             raise ValueError("ɣper must be positive.")
         if ϵ < 0:
             raise ValueError("ϵ cannot be negative.")
+        if CGL and (ξ != 0 or w != 0):
+            raise ValueError("ξ and w are not supported by the Gyrotropic model; they must be 0.")
 
         if C is None:
             Nlow, C = select_NC(params)

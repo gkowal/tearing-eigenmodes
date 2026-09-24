@@ -769,6 +769,13 @@ def validate_parameters(args: argparse.Namespace) -> None:
     if min(w_min, w_max) < 0:
         raise ParameterError("Current sheet half‑width (w) must be ≥ 0")
 
+    if args.CGL:
+        # The Gyrotropic system has no transverse-field or sheet-width terms
+        if max(abs(xi_min), abs(xi_max)) > 0:
+            raise ParameterError("Magnetic transverse field (ξ) is not supported with --CGL; it must be 0")
+        if max(abs(w_min), abs(w_max)) > 0:
+            raise ParameterError("Current sheet half‑width (w) is not supported with --CGL; it must be 0")
+
     # ------------------------------------------------------------------
     # 2) Equation‑of‑state consistency
     # ------------------------------------------------------------------

@@ -557,3 +557,10 @@ def test_iterate_rejects_missing_mode_instead_of_clamping():
 def test_iterate_allmodes_clamps_to_available_modes():
     _, (Σ, V, errors) = _stub_iterate(maxmode=5, allmodes=True)
     assert Σ.size == 3
+
+
+@pytest.mark.parametrize("field", ["xi", "w"])
+def test_eigenmodes_cgl_rejects_classical_only_parameters(field):
+    params = SimulationParams(CGL=True, alpha=0.5, S=1e3, **{field: 0.1})
+    *_, status = eigenmodes(params)
+    assert status is False
