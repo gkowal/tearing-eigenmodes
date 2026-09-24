@@ -399,3 +399,17 @@ def test_validate_parameters_cgl_rejects_width_sweep():
     args = parser.parse_args(["--CGL", "--dependence", "w", "--range", "0", "1", "0.5"])
     with pytest.raises(ParameterError, match="half‑width"):
         validate_parameters(args)
+
+
+def test_build_params_zeta(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["eigenmodes-compute.py"])
+    assert build_params(parser_type="dispersion")["zeta"] == 1.0
+    monkeypatch.setattr("sys.argv", ["eigenmodes-compute.py", "--zeta", "0.25"])
+    assert build_params(parser_type="dispersion")["zeta"] == 0.25
+
+
+@pytest.mark.parametrize("zeta", ["-0.1", "1.5"])
+def test_validate_parameters_zeta_range(zeta):
+    args = parser_setup().parse_args(["--zeta", zeta])
+    with pytest.raises(ParameterError, match="ζ"):
+        validate_parameters(args)

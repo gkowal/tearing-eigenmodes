@@ -52,8 +52,8 @@ class TearingClassicalMHD:
 			raise ValueError("S must be > 0")
 		if Pr < 0:
 			raise ValueError("Pr must be >= 0")
-		if ζ < 0:
-			raise ValueError("ζ must be >= 0")
+		if not 0 <= ζ <= 1:
+			raise ValueError("ζ must be between 0 and 1")
 		if ϵ < 0:
 			raise ValueError("ϵ must be >= 0")
 		if kh is not None and kh <= 0:

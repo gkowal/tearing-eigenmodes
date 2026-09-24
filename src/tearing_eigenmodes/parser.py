@@ -110,6 +110,13 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     )
 
     parser.add_argument(
+        "--zeta", "-ζ",
+        type=float,
+        default=1.0,
+        help="the magnetic shear parameter ζ in [0, 1] scaling the equilibrium By (Classical MHD)"
+    )
+
+    parser.add_argument(
         "--resolution-range", "-N",
         type=int, nargs=3,
         default=[64, 2048, 32],
@@ -611,6 +618,7 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         'eos'                   : args.eos,
         'logarithmic'           : args.logarithmic,
         'noshear'               : args.no_shear,
+        'zeta'                  : args.zeta,
         'force'                 : args.force,
         'verbose'               : args.verbose,
         'log_file'              : args.log_file,
@@ -775,6 +783,10 @@ def validate_parameters(args: argparse.Namespace) -> None:
             raise ParameterError("Magnetic transverse field (ξ) is not supported with --CGL; it must be 0")
         if max(abs(w_min), abs(w_max)) > 0:
             raise ParameterError("Current sheet half‑width (w) is not supported with --CGL; it must be 0")
+
+    zeta = getattr(args, 'zeta', 1.0)
+    if not 0.0 <= zeta <= 1.0:
+        raise ParameterError("Shear parameter (ζ) must be between 0 and 1")
 
     # ------------------------------------------------------------------
     # 2) Equation‑of‑state consistency

@@ -97,3 +97,9 @@ def test_classical_hall_no_shear_drops_advection():
     eq = _hall_bz_equation(w=0.5, ξ=0.0, shear=False)
     assert "Ux" not in eq
     assert "ξ" not in eq
+
+@pytest.mark.parametrize("zeta", [-0.1, 1.5])
+def test_classical_zeta_out_of_range_raises(zeta):
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        TearingClassicalMHD(grid, kx=0.1, S=1e4, ζ=zeta)
