@@ -5,7 +5,7 @@ Utilities for analyzing tearing instability eigenmodes using the `psecas` pseudo
 ## Overview
 
 This package implements a linear stability analysis of the tearing instability within the framework of linearized incompressible magnetohydrodynamics (MHD). It supports two physical models:
-1. **Classical MHD** (`TearingClassicalMHD`): Incorporates resistive and viscous effects, a transverse magnetic field (ξ), velocity shear over a sheet half-width (w), and Hall effects.
+1. **Classical MHD** (`TearingClassicalMHD`): Incorporates resistive and viscous effects, a transverse magnetic field (ξ), velocity shear over a sheet half-width (w), the magnetic shear parameter ζ ∈ [0, 1] scaling the equilibrium $B_y$ (`--zeta`, default 1), and Hall effects.
 2. **Gyrotropic MHD** (`TearingGyrotropicMHD`): Incorporates gyrotropic pressuring effects (CGL double-adiabatic equations), including parallel/perpendicular plasma-β anisotropy and Hall effects. The transverse field ξ and half-width w are not part of this model; `--CGL` rejects nonzero values.
 
 For Hall runs (ϵ > 0) the multi-scale dominance diagnostics are not available: eigenmodes are computed and saved with NaN scale metadata.
@@ -41,12 +41,12 @@ Grid resolution ($N$) and rational Chebyshev scaling factor ($C$) are automatica
 * **`--resistive-scale`** (`-δres`): *(Deprecated)* Legacy alias for `--inner-scale`.
 * **`--thickness-tolerance`** (`-δtol`): *(Deprecated)* Legacy tolerance parameter; local-bracket interpolation on the Chebyshev grid is directly grid-resolved.
 * **`--inner-resolution-safety`**: Numerical safety factor ($\ge 1.0$, default: 1.01) scaling the target grid inner scale finer than the physical prediction ($L_{\mathrm{inner}} = \ell_{\min} / s$). Safety 1.0 is valid but provides no margin against solve-to-solve physical-scale drift.
-* **`--n-inner-scale`** (`-nin`): Number of collocation points allocated to resolve the inner scale (default: 5).
-* **`--n-equilibrium`** (`-neq`): Number of collocation points allocated to resolve the equilibrium current sheet $a + w$ (default: 5).
+* **`--n-inner-scale`** (`-nscale`; legacy `--n-resistivity`, `-nres`): Number of collocation points allocated to resolve the inner scale (default: 5).
+* **`--n-equilibrium`** (`-neq`; legacy `--n-inner`, `-nin`): Number of collocation points allocated to resolve the equilibrium current sheet $a + w$ (default: 5).
 * **`--n-anisotropy`** (`-naniso`): Number of collocation points allocated to resolve the Gyrotropic pressure-anisotropy scale $\delta_q$ (default: 5).
 
 ### Multi-Scale Diagnostics and Grid Selection Policy
-The solver evaluates equation-level balance diagnostics across resistive, viscous, shear, and guide-field terms post-convergence:
+The solver evaluates equation-level balance diagnostics across resistive, viscous, shear, and transverse-field terms post-convergence:
 * **Key Taxonomy**:
   * **Stored Diagnostics** (`CLASSICAL_DIAGNOSTIC_SCALE_KEYS`): 10 standardized scales across induction and vorticity equations in Classical MHD, including net-ideal sums and maximum-term envelopes. All 10 are stored in `.npz` state files and displayed with `--verbose`.
   * **Physical Crossings** (`CLASSICAL_PHYSICAL_SCALE_KEYS`): 8 non-envelope physical scales representing pairwise and net term balances across induction and vorticity equations.
@@ -54,6 +54,14 @@ The solver evaluates equation-level balance diagnostics across resistive, viscou
 * **CGL Gyrotropic MHD**: Computes 4 standardized induction dominance scales (`CGL_GRID_SCALE_KEYS`, $\epsilon = 0$), all of which are induction-based and grid-eligible.
 * **Persistence**: Stores complete versioned physical-scale dictionaries in `.npz` files (`mode_scale_schema_version = 2`) alongside the induction-selected minimum grid scale ($\delta_{\mathrm{in}}$). Schema 1 records remap stored ideal comparisons to envelope diagnostics and treat net-ideal values as unavailable (`NaN`).
 * **Refinement & Provenance**: Interpolates active candidate induction scales independently within contiguous valid segments. For scalar reuse, validates provenance using `minimum_physical_scale_key`; a vorticity-limited or unqualified legacy scalar is rejected in favor of a valid induction fallback (`resistive_layer_thickness`) or the analytic estimator. Unconverged or invalid records act as barriers and split interpolation segments without silent bridging. Fallback precedence (`explicit --inner-scale -> per-term induction minimum / safety -> scalar induction minimum / safety -> legacy resistive / safety -> analytic estimator`) is evaluated independently at every requested coordinate. The safety factor is applied exactly once to measured or interpolated physical scales.
+
+### Results and Reuse
+
+* **Location**: `eigenmodes-compute.py` and `eigenmodes-maxima.py` write one `.npz` state per wavenumber (`state_α<value>.npz`) or per swept value (`state_<parameter><value>.npz`) into `./RESULTS/<directory>`, where the directory name encodes the physical parameters. A summary table `<directory>.dat` is written next to it.
+* **Reuse**: an existing state is reused instead of recomputed when its stored physics and mode settings match the current run and it is converged (or exhausted `Nmax`); numerical knobs such as tolerances or grid point counts do not force recomputation. Use `--force` (`-f`) to recompute.
+* **Shared directories**: `--no-shear` and `--mode` are not encoded in the directory name. Runs differing only in these settings may share a directory; the `.dat` table and the refinement of initial guesses use only the states whose stored metadata matches the current run.
+* **Convergence**: a state is converged when its tolerance is ≤ 1. States and `.dat` rows with tolerance > 1 did not converge within the resolution range `-N Nmin Nmax Ninc` and are kept as unconverged results.
+* **Mode selection**: `--mode m` converges the m-th mode in `--orderby` order. If fewer than m + 1 modes lie in the search range (`-E`, `-I`), no eigenmode is reported for that point; with `--allmodes`, all available modes up to m are returned.
 
 ## License
 
