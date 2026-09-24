@@ -721,7 +721,9 @@ def validate_parameters(args: argparse.Namespace) -> None:
 
     def get_range(attr: str, symbol: str) -> Tuple[Any, Any]:
         val = getattr(args, attr)
-        if hasattr(args, 'dependence') and args.dependence == symbol:
+        # Only sweep scripts define --range; plot scripts take --dependence
+        # just to locate a state file.
+        if getattr(args, 'dependence', None) == symbol and hasattr(args, 'range'):
             v1, v2, _ = args.range
             if args.logarithmic:
                 return 10**v1, 10**v2

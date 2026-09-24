@@ -369,3 +369,14 @@ def test_inner_resolution_safety_default_and_parsing():
         validate_parameters(args_invalid)
 
 
+
+
+def test_build_params_plot_with_dependence(monkeypatch):
+    """Plot scripts accept --dependence/--value without a sweep --range."""
+    monkeypatch.setattr("sys.argv", [
+        "eigenmodes-profiles.py", "-d", "S", "--value", "1e4",
+    ])
+    params = build_params(parser_type="plot")
+    assert params["dependence"] == "S"
+    assert params["value_plot"] == 1e4
+    assert params["S"] is None
