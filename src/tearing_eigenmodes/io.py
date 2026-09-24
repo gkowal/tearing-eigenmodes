@@ -531,10 +531,46 @@ def compile_metadata(params: SimulationParams) -> Dict[str, Any]:
     return metadata
 
 
+def reuse_identity(params: SimulationParams) -> Dict[str, Any]:
+    """
+    The set physics/problem/mode identity values of a run configuration
+    (``_REUSE_COMPARE_KEYS`` restricted to values that are not None; a
+    swept parameter is None in the sweep-level configuration).
+    """
+    fresh = compile_metadata(params)
+    return {k: fresh[k] for k in _REUSE_COMPARE_KEYS if fresh.get(k) is not None}
+
+
+def state_matches_identity(data: Dict[str, Any], identity: Dict[str, Any]) -> bool:
+    """
+    Whether a loaded state belongs to the run with the given reuse identity.
+    Keys absent from the state (legacy files), and numeric keys whose stored
+    value is malformed (not a finite number, or not positive for S and a),
+    do not exclude it.
+    """
+    for key, fresh_val in identity.items():
+        stored_val = data.get(key, _METADATA_MISSING)
+        if stored_val is _METADATA_MISSING:
+            continue
+        numeric = isinstance(fresh_val, (int, float, np.integer, np.floating)) and \
+            not isinstance(fresh_val, (bool, np.bool_))
+        if numeric:
+            stored_scalar = _unwrap_metadata_scalar(stored_val)
+            if isinstance(stored_scalar, (bool, np.bool_)) or \
+                    not isinstance(stored_scalar, (int, float, np.integer, np.floating)) or \
+                    not np.isfinite(float(stored_scalar)) or \
+                    (key in ('S', 'a') and float(stored_scalar) <= 0.0):
+                continue
+        if not _metadata_values_equal(fresh_val, stored_val):
+            return False
+    return True
+
+
 def load_eigenmodes(
     path: str,
     pattern: str = "*.npz",
     scale_key: Optional[str] = None,
+    params: Optional[SimulationParams] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Load eigenmode data from .npz files using glob and os.
@@ -549,6 +585,10 @@ def load_eigenmodes(
     scale_key : str, optional
         Specific physical scale key to extract as delta (e.g. 'classical.bz_induction.eta_vs_ideal').
         If None (default), returns the envelope minimum_physical_scale.
+    params : SimulationParams, optional
+        Run configuration. When given, states whose stored reuse identity
+        (e.g. noshear or mode, which result paths do not encode) differs
+        from it are skipped, so one directory can hold several variants.
     """
     search_path = os.path.join(path, pattern)
     files = sorted(glob.glob(search_path))
@@ -556,10 +596,15 @@ def load_eigenmodes(
     if not files:
         raise FileNotFoundError(f"No files matching {pattern} found in {path}")
 
+    identity = reuse_identity(params) if params is not None else None
+
     rows = []
     for f in files:
         data = load_state_data(f)
         if data is None:
+            continue
+        if identity is not None and not state_matches_identity(data, identity):
+            logger.debug(f"Skipping {f}: run-config identity differs from the current run.")
             continue
 
         if 'scan_parameter' in data:
@@ -666,7 +711,7 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
         raise FileNotFoundError(f"Data path {dpath!r} does not exist")
 
     try:
-        v, α, σ, e, δ, c, nin, nwa, N = load_eigenmodes(dpath)
+        v, α, σ, e, δ, c, nin, nwa, N = load_eigenmodes(dpath, params=params)
     except FileNotFoundError:
         logger.warning(f"No results found in {dpath}. Skipping .dat file creation.")
         return

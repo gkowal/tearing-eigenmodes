@@ -410,3 +410,41 @@ def test_save_eigenmode_new_files_load_without_pickle(tmp_path):
         with pytest.raises(ValueError):
             for key in npz.files:
                 npz[key]
+
+
+def test_load_eigenmodes_filters_by_run_identity(tmp_path):
+    """Directories do not encode noshear/mode; with params, rows from other
+    variants are skipped while legacy files without the keys are kept."""
+    import numpy as np
+    from tearing_eigenmodes import SimulationParams, save_eigenmode, compile_metadata, load_eigenmodes
+
+    def save(name, alpha, **overrides):
+        meta = compile_metadata(SimulationParams(**overrides))
+        save_eigenmode(str(tmp_path / name), wavenumber=alpha, eigenvalue=0.1 + 0j,
+                       tolerance=0.5, resolution=64, grid=np.zeros(3), **meta)
+
+    save("state_α1.000000e-01.npz", 0.1, noshear=False, mode=0)
+    save("state_α2.000000e-01.npz", 0.2, noshear=True, mode=0)
+    save("state_α3.000000e-01.npz", 0.3, noshear=False, mode=1)
+    save_eigenmode(str(tmp_path / "state_α4.000000e-01.npz"), wavenumber=0.4,
+                   eigenvalue=0.1 + 0j, tolerance=0.5, resolution=64, grid=np.zeros(3))
+
+    assert load_eigenmodes(str(tmp_path))[1].tolist() == [0.1, 0.2, 0.3, 0.4]
+    params = SimulationParams(noshear=False, mode=0)
+    assert load_eigenmodes(str(tmp_path), params=params)[1].tolist() == [0.1, 0.4]
+    params = SimulationParams(noshear=True, mode=0)
+    assert load_eigenmodes(str(tmp_path), params=params)[1].tolist() == [0.2, 0.4]
+
+
+def test_load_eigenmodes_identity_ignores_swept_parameter(tmp_path):
+    """Sweep-level params leave the swept field None; per-file values of it
+    must not exclude states."""
+    import numpy as np
+    from tearing_eigenmodes import SimulationParams, save_eigenmode, compile_metadata, load_eigenmodes
+    for S in (1e3, 1e4):
+        p = SimulationParams(S=S, dependence='S')
+        save_eigenmode(str(tmp_path / f"state_S{S:+.6e}.npz"), scan_parameter_value=S,
+                       wavenumber=0.1, eigenvalue=0.1 + 0j, tolerance=0.5, resolution=64,
+                       grid=np.zeros(3), **compile_metadata(p))
+    sweep = SimulationParams(S=None, dependence='S')
+    assert load_eigenmodes(str(tmp_path), params=sweep)[0].tolist() == [1e3, 1e4]

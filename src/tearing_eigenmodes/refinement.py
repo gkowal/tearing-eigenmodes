@@ -5,15 +5,15 @@ import glob
 import numpy as np
 import logging
 from scipy.interpolate import make_interp_spline
-from .io import load_eigenmodes, load_state_data
+from .io import load_eigenmodes, load_state_data, reuse_identity, state_matches_identity
 
 logger = logging.getLogger(__name__)
 
-# Cache dictionary to map directory path & pattern to last seen directory state and loaded data.
-# The cache key is (path, pattern).
+# Cache dictionary to map directory path, pattern & run identity to last seen directory state and loaded data.
+# The cache key is (path, pattern, identity) with identity a sorted tuple of (key, repr(value)).
 # The cache value is (directory_state, data).
 # directory_state is a tuple of (filename, mtime, size) tuples.
-_load_eigenmodes_cache: Dict[Tuple[str, str], Tuple[Tuple[Tuple[str, float, int], ...], Tuple]] = {}
+_load_eigenmodes_cache: Dict[Tuple[str, str, Tuple], Tuple[Tuple[Tuple[str, float, int], ...], Tuple]] = {}
 
 
 def _get_directory_state(path: str, pattern: str) -> Tuple[Tuple[str, float, int], ...]:
@@ -34,7 +34,7 @@ def _get_directory_state(path: str, pattern: str) -> Tuple[Tuple[str, float, int
 
 
 def _cached_load_eigenmodes(
-    path: str, pattern: str = "*.npz"
+    path: str, pattern: str = "*.npz", params: Optional["SimulationParams"] = None
 ) -> Tuple[
     np.ndarray,
     np.ndarray,
@@ -49,12 +49,15 @@ def _cached_load_eigenmodes(
     """
     Wrapper around load_eigenmodes that caches results based on the files' sizes and modification times.
     """
-    key = (path, pattern)
+    identity: Tuple = ()
+    if params is not None:
+        identity = tuple(sorted((k, repr(v)) for k, v in reuse_identity(params).items()))
+    key = (path, pattern, identity)
     try:
         current_state = _get_directory_state(path, pattern)
     except Exception:
         # If directory/files access fails, bypass cache
-        return load_eigenmodes(path, pattern)
+        return load_eigenmodes(path, pattern, params=params)
 
     if key in _load_eigenmodes_cache:
         cached_state, data = _load_eigenmodes_cache[key]
@@ -63,7 +66,7 @@ def _cached_load_eigenmodes(
             return data
 
     logger.debug(f"Refinement I/O Cache MISS for {path}")
-    data = load_eigenmodes(path, pattern)
+    data = load_eigenmodes(path, pattern, params=params)
     _load_eigenmodes_cache[key] = (current_state, data)
     return data
 
@@ -77,7 +80,7 @@ def refine_eigenvalues(vs: np.ndarray, params: SimulationParams) -> List[Any]:
     try:
         if params.data_path is None:
             return sigma
-        v, _, σ, _, _, _, _, _, _ = _cached_load_eigenmodes(params.data_path)
+        v, _, σ, _, _, _, _, _, _ = _cached_load_eigenmodes(params.data_path, params=params)
     except FileNotFoundError:
         return sigma
 
@@ -130,7 +133,7 @@ def refine_wavenumber_bracket(vs: np.ndarray, params: SimulationParams) -> List[
         if params.data_path is None:
             return kbracket
         # Assuming load_eigenmodes returns arrays
-        v, α, *_ = _cached_load_eigenmodes(params.data_path)
+        v, α, *_ = _cached_load_eigenmodes(params.data_path, params=params)
     except (FileNotFoundError, KeyError, TypeError):
         return kbracket
 
@@ -240,11 +243,15 @@ def _load_cached_state_records(path: str, params: SimulationParams, pattern: str
     files = sorted(glob.glob(search_path))
     records: List[Dict[str, Any]] = []
     is_dependence = params.dependence is not None
+    identity = reuse_identity(params)
 
     for f in files:
         try:
             data = load_state_data(f)
             if data is None:
+                continue
+            if not state_matches_identity(data, identity):
+                logger.debug(f"Skipping record {f}: run-config identity differs from the current run.")
                 continue
 
             if is_dependence:

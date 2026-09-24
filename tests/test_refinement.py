@@ -62,10 +62,10 @@ def test_caching_behavior(temp_npz_dir: str, monkeypatch: pytest.MonkeyPatch) ->
     # Count calls to load_eigenmodes
     call_count = 0
     from tearing_eigenmodes.refinement import load_eigenmodes as original_load
-    def mock_load(path: str, pattern: str = "*.npz") -> tuple:
+    def mock_load(path: str, pattern: str = "*.npz", params=None) -> tuple:
         nonlocal call_count
         call_count += 1
-        return original_load(path, pattern)
+        return original_load(path, pattern, params=params)
 
     monkeypatch.setattr("tearing_eigenmodes.refinement.load_eigenmodes", mock_load)
 
@@ -1679,7 +1679,7 @@ def _fake_cached_eigenmodes(v_hist, sigma_hist):
     s_arr = np.asarray(sigma_hist)
     zeros = np.zeros_like(v_arr)
 
-    def _fake(path, pattern="*.npz"):
+    def _fake(path, pattern="*.npz", params=None):
         return (v_arr, zeros, s_arr, zeros, zeros, zeros, zeros, zeros, zeros)
 
     return _fake
