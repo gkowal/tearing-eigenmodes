@@ -344,9 +344,18 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         I_wa = np.where(np.abs(system.grid.zg) <= (w + a))
         nwa = I_wa[0].size
 
+        scales_supported = True
         if is_converged:
             # Multi-scale eigenmode analysis for converged mode
-            scales = measure_eigenmode_scales(system)
+            try:
+                scales = measure_eigenmode_scales(system)
+            except NotImplementedError as ex:
+                # The eigenmode itself is valid (e.g. Hall branches);
+                # only the dominance-scale diagnostics are unavailable.
+                logger.debug(f"Scale diagnostics unavailable: {ex}")
+                scales_supported = False
+
+        if is_converged and scales_supported:
             model_name = "cgl" if CGL else "classical"
             min_scale, min_key = minimum_eigenmode_scale(scales, model=model_name)
 
@@ -371,7 +380,8 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
                 res_scale = float("nan")
                 res_nodes = 0
         else:
-            # Solve did not converge: populate all-nan/zero invalid dictionaries
+            # Solve did not converge or diagnostics are unsupported:
+            # populate all-nan/zero invalid dictionaries
             candidate_keys = CGL_DIAGNOSTIC_SCALE_KEYS if CGL else CLASSICAL_DIAGNOSTIC_SCALE_KEYS
             scales = {k: float("nan") for k in candidate_keys}
             δin = float("nan")

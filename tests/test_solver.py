@@ -456,3 +456,18 @@ def test_eigenmodes_shift_invert_matches_qz(monkeypatch: pytest.MonkeyPatch):
     assert N_si == N_qz
     assert abs(np.atleast_1d(σ_si)[0] - np.atleast_1d(σ_qz)[0]) \
         <= 1e-8 * abs(np.atleast_1d(σ_qz)[0])
+
+
+def test_eigenmodes_hall_converges_without_scale_diagnostics():
+    """Hall branches have no dominance-scale diagnostics; a converged Hall
+    eigenmode must still be returned, with NaN scale metadata."""
+    params = SimulationParams(S=1e3, Hall=0.1, alpha=0.5, Nmin=64, Nmax=192, Ninc=32)
+    σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params)
+    assert status is True
+    assert e <= 1.0
+    assert σ.real > 0.0
+    assert np.isnan(δin) and nin == 0
+    assert np.isnan(s["minimum_physical_scale"])
+    assert s["minimum_physical_scale_key"] == ""
+    assert np.isnan(s["resistive_layer_thickness"])
+    assert all(np.isnan(v) for v in s["mode_scales"].values())
