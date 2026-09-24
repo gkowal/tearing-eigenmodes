@@ -81,3 +81,19 @@ def test_gyrotropic_kx_zero_raises():
     grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
     with pytest.raises(ValueError, match="kx must be > 0"):
         TearingGyrotropicMHD(grid, kx=0.0, S=1e4)
+
+def _hall_bz_equation(**kwargs):
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    system = TearingClassicalMHD(grid, kx=0.5, S=1e4, ϵ=0.1, periodic=False, **kwargs)
+    return system.equations[system.variables.index("dbz")]
+
+def test_classical_hall_bz_terms_appear_once():
+    eq = _hall_bz_equation(w=0.5, ξ=0.1, shear=True)
+    assert eq.count("-1j*kx*Ux*dbz") == 1
+    assert eq.count("+ξ*dz(duz)") == 1
+    assert eq.count("ξ*kx*dz(dby)") + eq.count("ξ*kx*ϵ*dz(dby)") == 1
+
+def test_classical_hall_no_shear_drops_advection():
+    eq = _hall_bz_equation(w=0.5, ξ=0.0, shear=False)
+    assert "Ux" not in eq
+    assert "ξ" not in eq

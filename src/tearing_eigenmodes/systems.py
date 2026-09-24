@@ -115,9 +115,9 @@ class TearingClassicalMHD:
 				by_rhs_ind = " +1j*kx*Bx*duy -dBydz*duz"
 				by_rhs_res = " +η*(dz(dby,2) -kx**2*dby)"
 				by_rhs_hal = " -ϵ*(1j*ξ*dz(dbz,3) -kx*(1j*ξ*kx*dz(dbz) -kx**2*Bx*dbz +Bx*dz(dbz,2) -dbz*d2Bxdz))/kx"
-				bz_rhs_ind = " +1j*kx*Bx*duz -1j*kx*Ux*dbz +ξ*dz(duz)"
+				bz_rhs_ind = " +1j*kx*Bx*duz"
 				bz_rhs_res = " +η*(dz(dbz,2) -kx**2*dbz)"
-				bz_rhs_hal = " +ϵ*kx*(kx*Bx*dby -1j*dBydz*dbz) -1j*ξ*kx*ϵ*dz(dby)"
+				bz_rhs_hal = " +ϵ*kx*(kx*Bx*dby -1j*dBydz*dbz)"
 
 				if w > 0 and shear:
 					wy_rhs_adv += " -1j*kx*(Ux*(dz(duz,2) -kx**2*duz) -duz*d2Uxdz)"
