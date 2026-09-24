@@ -214,7 +214,11 @@ class TearingClassicalMHD:
 
 	@a.setter
 	def a(self, a):
+		if a <= 0:
+			raise ValueError("a must be > 0")
 		self.__a = a
+		self.δ   = a
+		self.λ   = self.kx * a
 		self.make_background()
 
 	@property
@@ -223,6 +227,11 @@ class TearingClassicalMHD:
 
 	@w.setter
 	def w(self, w):
+		if w < 0:
+			raise ValueError("w must be >= 0")
+		if self.shear and (w > 0) != (self.__w > 0):
+			# The velocity-shear terms are chosen at construction
+			raise ValueError("Changing w across 0 changes the equations; construct a new system instead")
 		self.__w = w
 		self.make_background()
 
@@ -394,6 +403,7 @@ class TearingGyrotropicMHD:
 		self.ϵ    = ϵ
 		self.A    = 1.0 - 0.5 * Δβ
 		self.R0   = 1.0 + 0.5 * ((ɣpar + ɣper - 2) * β + ɣpar * Δβ)
+		self.σ    = σ
 		self.χ    = (σ / (kx * a))**2
 		self.λ    = kx * a * np.sqrt((self.χ + self.A) / (self.χ + self.R0))
 
@@ -582,8 +592,11 @@ class TearingGyrotropicMHD:
 
 	@a.setter
 	def a(self, a):
+		if a <= 0:
+			raise ValueError("a must be > 0")
 		self.__a = a
 		self.δ   = a
+		self._refresh_cgl_decay()
 		self.make_background()
 
 	@property
@@ -631,6 +644,10 @@ class TearingGyrotropicMHD:
 
 	@Δβ.setter
 	def Δβ(self, Δβ):
+		import numpy as np
+		if np.isclose(Δβ / 2, 0.0) != np.isclose(self.Δβh, 0.0):
+			# The anisotropy terms are chosen at construction
+			raise ValueError("Changing Δβ to or from 0 changes the equations; construct a new system instead")
 		self.__Δβ = Δβ
 		self.Δβ0  = Δβ
 		self.Δβh  = Δβ / 2
@@ -642,6 +659,7 @@ class TearingGyrotropicMHD:
 		# Same formulas as __init__; ɣpar is recovered as Γ2 + 1.
 		self.A  = 1.0 - 0.5 * self.Δβ0
 		self.R0 = 1.0 + 0.5 * (self.Γ1 * self.β0 + (self.Γ2 + 1.0) * self.Δβ0)
+		self.χ  = (self.σ / (self.kx * self.a))**2
 		self.λ  = self.kx * self.a * np.sqrt((self.χ + self.A) / (self.χ + self.R0))
 
 	def make_background(self):

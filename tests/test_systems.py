@@ -103,3 +103,36 @@ def test_classical_zeta_out_of_range_raises(zeta):
     grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
     with pytest.raises(ValueError, match="between 0 and 1"):
         TearingClassicalMHD(grid, kx=0.1, S=1e4, ζ=zeta)
+
+def test_classical_a_setter_refreshes_boundary_decay():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    system = TearingClassicalMHD(grid, kx=0.3, S=1e4, a=1.0, periodic=False)
+    system.a = 0.5
+    assert system.λ == pytest.approx(0.15)
+    assert system.δ == 0.5
+
+def test_classical_w_setter_rejects_equation_change():
+    grid = ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4)
+    system = TearingClassicalMHD(grid, kx=0.3, S=1e4, w=0.0, periodic=False)
+    with pytest.raises(ValueError, match="construct a new system"):
+        system.w = 0.5
+    assert system.w == 0.0
+    sheared = TearingClassicalMHD(ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4),
+                                  kx=0.3, S=1e4, w=0.5, periodic=False)
+    sheared.w = 0.7
+    assert sheared.w == 0.7
+
+def test_gyrotropic_a_setter_refreshes_cgl_decay():
+    kwargs = dict(kx=0.3, S=1e4, periodic=False, β=0.5, Δβ=0.2, σ=0.1)
+    system = TearingGyrotropicMHD(ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4), a=1.0, **kwargs)
+    system.a = 0.5
+    ref = TearingGyrotropicMHD(ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4), a=0.5, **kwargs)
+    np.testing.assert_allclose(system.χ, ref.χ, rtol=1e-14)
+    np.testing.assert_allclose(system.λ, ref.λ, rtol=1e-14)
+
+def test_gyrotropic_delta_beta_setter_rejects_equation_change():
+    system = TearingGyrotropicMHD(ChebyshevRationalGrid(N=32, C=1.0, max_derivative_order=4),
+                                  kx=0.3, S=1e4, periodic=False, Δβ=0.0)
+    with pytest.raises(ValueError, match="construct a new system"):
+        system.Δβ = 0.2
+    assert system.Δβ == 0.0
