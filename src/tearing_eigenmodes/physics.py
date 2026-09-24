@@ -43,7 +43,7 @@ def calculate_cgl_factors(
     R0 = 1.0 + chi + 0.5 * ((gamma_par + gamma_per - 2.0) * beta + gamma_par * delta_beta)
 
     if A <= 0:
-        raise DeltaError(f"Stable or unphysical regime: coefficient A = 1 - Δβ/2 = {A:+.3e} <= 0 (requires Δβ < 2).")
+        raise DeltaError(f"Stable or unphysical regime: coefficient A = 1 + χ - Δβ/2 = {A:+.3e} <= 0 (χ = {chi:.3e}).")
 
     if sigma is None:
         lambda_sq_ratio = A / R0
@@ -292,7 +292,7 @@ def estimate_max(params: SimulationParams) -> float:
         ɣpar         = params.parallel_index
         ɣper         = params.perpendicular_index
         if β < 0:
-            raise ValueError("Plasma beta must be positive.")
+            raise ValueError("Plasma beta cannot be negative.")
         if ɣpar <= 0:
             raise ValueError("Parallel adiabatic index ɣpar must be positive.")
         if ɣper <= 0:

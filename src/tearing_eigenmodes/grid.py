@@ -206,10 +206,8 @@ def select_NC(params: SimulationParams) -> Tuple[int, float]:
 
     zmin_eq = a + w
     zmax = decay_efolds / λ
-    lk = ξ / α
     if σ is not None and ξ > 0.0 and σ.real > 0.0:
         lσ = ξ / σ.real
-        lk = 2.0 * np.pi * ξ / np.abs(α + σ.imag)
         if lσ <= zmin_eq:
             zmin_eq = np.sqrt(zmin_eq * lσ)
         else:

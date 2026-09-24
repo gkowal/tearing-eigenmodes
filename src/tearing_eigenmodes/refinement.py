@@ -342,29 +342,17 @@ def refine_inner_scale(vs: np.ndarray, params: SimulationParams) -> List[Optiona
 
     # 1. Default baseline: physics-based estimator for all values (estimate_inner_scale already divides by safety)
     inner_scales: List[Optional[float]] = [None] * vs.size
-    for i, x in enumerate(vs):
-        try:
-            if params.dependence is None:
-                # Dispersion run: vs are k values, alpha = k * a
-                a = params.a if params.a is not None else 1.0
-                alpha_val = float(x * a)
-                inner_scales[i] = estimate_inner_scale(params, alpha=alpha_val)
-            else:
-                # Maxima sweep run
-                import copy
-                p_temp = copy.copy(params)
-                dep_map = {
-                    'a': 'a', 'w': 'w', 'S': 'S', 'Pr': 'Pr',
-                    'ξ': 'xi', 'ϵ': 'Hall', 'β': 'plasma_beta',
-                    'Δβ': 'plasma_beta_difference'
-                }
-                field = dep_map.get(params.dependence)
-                if field:
-                    setattr(p_temp, field, float(x))
-                inner_scales[i] = estimate_inner_scale(p_temp)
-        except Exception as ex:
-            logger.debug(f"Analytic inner scale fallback for v={x:+.3e}: {ex}")
-            inner_scales[i] = None
+    # Maxima sweeps have no baseline: the wavenumber is unknown until the
+    # search, so the grid estimates the inner scale at each trial α instead.
+    if params.dependence is None:
+        # Dispersion run: vs are k values, alpha = k * a
+        a = params.a if params.a is not None else 1.0
+        for i, x in enumerate(vs):
+            try:
+                inner_scales[i] = estimate_inner_scale(params, alpha=float(x * a))
+            except Exception as ex:
+                logger.debug(f"Analytic inner scale fallback for v={x:+.3e}: {ex}")
+                inner_scales[i] = None
 
     if params.data_path is None or not os.path.exists(params.data_path):
         return inner_scales
