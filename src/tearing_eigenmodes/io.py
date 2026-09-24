@@ -775,6 +775,7 @@ def write_results(params: SimulationParams, delta_time: float) -> None:
         io.write(f"#   {'Decay e-folds at zmax':<36} =  {params.decay_efolds:10.3e}\n")
 
         io.write(f"#\n# Calculation done in {delta_time:.2f} seconds.\n#\n")
+        io.write("# Rows with tolerance > 1 did not converge within the resolution range.\n#\n")
 
         if dep_key:
             io.write(f"#    {dep_key:<2s}               α_max            Re(σ_max)        Im(σ_max)        δ_in             tolerance        C              n_in    n_wa    N\n")

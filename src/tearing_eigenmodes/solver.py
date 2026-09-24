@@ -280,6 +280,11 @@ def resolution_sequence(Nlow: int, Nmax: int, Ninc: int) -> np.ndarray:
 def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
     """
     Calculates tearing instability eigenmodes for a given set of parameters.
+
+    The success flag reports that an eigenmode was obtained, not that it
+    converged: when the resolution sequence is exhausted the last mode is
+    returned with error e > 1 (infinite for a single resolution). Callers
+    and cached states distinguish converged modes by e <= 1.
     """
     α       = params.alpha if params.alpha is not None else 0.1
     σ       = params.sigma if params.sigma is not None else 0.0+0.0j

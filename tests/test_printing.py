@@ -86,3 +86,10 @@ def test_write_results_header_cgl(tmp_path, monkeypatch):
     assert "Magnetic transverse field" not in content
     assert "half-width" not in content
     assert "Shear parameter" not in content
+
+
+def test_write_results_header_explains_unconverged_rows(tmp_path, monkeypatch):
+    content = _read_dat_header(tmp_path, monkeypatch, cgl=False)
+    assert "tolerance > 1 did not converge" in content
+    rows = [l for l in content.splitlines() if l and not l.startswith("#")]
+    assert len(rows) == 1 and len(rows[0].split()) == 9
