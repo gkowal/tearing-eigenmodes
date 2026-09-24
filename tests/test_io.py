@@ -448,3 +448,16 @@ def test_load_eigenmodes_identity_ignores_swept_parameter(tmp_path):
                        grid=np.zeros(3), **compile_metadata(p))
     sweep = SimulationParams(S=None, dependence='S')
     assert load_eigenmodes(str(tmp_path), params=sweep)[0].tolist() == [1e3, 1e4]
+
+
+def test_load_eigenmodes_tolerates_coordinate_ties(tmp_path):
+    """Two states with the same (value, wavenumber) must not make the row
+    sort compare complex growth rates."""
+    import numpy as np
+    from tearing_eigenmodes import save_eigenmode, load_eigenmodes
+    for i, σ in enumerate((0.1 + 0.2j, 0.1 - 0.2j)):
+        save_eigenmode(str(tmp_path / f"state_{i}.npz"), wavenumber=0.1, eigenvalue=σ,
+                       tolerance=0.5, resolution=64, grid=np.zeros(3))
+    v, α, σ, *_ = load_eigenmodes(str(tmp_path))
+    assert α.tolist() == [0.1, 0.1]
+    assert sorted(σ.imag.tolist()) == [-0.2, 0.2]

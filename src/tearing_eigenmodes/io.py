@@ -687,7 +687,8 @@ def load_eigenmodes(
     if not rows:
         raise FileNotFoundError(f"No valid state data loaded matching {pattern} in {path}")
 
-    rows.sort()
+    # Sort by coordinates only: comparing complex growth rates on ties raises
+    rows.sort(key=lambda row: (row[0], row[1]))
 
     v = np.array([x[0] for x in rows])
     α = np.array([x[1] for x in rows])
