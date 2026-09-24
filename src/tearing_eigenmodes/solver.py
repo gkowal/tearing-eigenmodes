@@ -328,7 +328,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         else:
             system  = TearingClassicalMHD(grid, periodic=False, kx=kx, \
                                           a=a, w=w, ζ=ζ, S=S, Pr=Pr, ξ=ξ, ϵ=ϵ, shear=not noshear)
-        solver  = TearingSolver(grid, system)
+        solver  = TearingSolver(grid, system, gevp_method=params.gevp_method or 'qz')
 
         σ, v, e = solver.iterate_solve_multimode(Ns, maxmode=mode, allmodes=allmodes, \
                      atol=atol, rtol=rtol, gtol=gtol, \

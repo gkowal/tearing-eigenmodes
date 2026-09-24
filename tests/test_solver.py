@@ -424,3 +424,35 @@ def test_cached_task_verbose_with_non_mapping_and_mixed_scales(capsys: pytest.Ca
     scale_lines_m2 = [line for line in out_m2.splitlines() if "mode scales:" in line]
     assert len(scale_lines_m2) == 1
     assert scale_lines_m2[0] == "mode scales: 1=1.0000e-02, b=2.0000e-02"
+
+
+def test_eigenmodes_shift_invert_matches_qz(monkeypatch: pytest.MonkeyPatch):
+    """gevp_method='shift-invert' reaches psecas and reproduces QZ's growth rate."""
+    import warnings
+    import psecas.solver
+
+    calls = []
+    original = psecas.solver._eig_shift_invert
+
+    def spy(*args, **kwargs):
+        result = original(*args, **kwargs)
+        calls.append(result is not None)
+        return result
+
+    monkeypatch.setattr(psecas.solver, "_eig_shift_invert", spy)
+
+    def params(gevp_method: str) -> SimulationParams:
+        return SimulationParams(alpha=0.15, a=1.0, w=0.0, S=1e3, Nmin=64,
+                                Nmax=512, Ninc=32, gevp_method=gevp_method)
+
+    σ_qz, *_, N_qz, _, ok_qz = eigenmodes(params("qz"))
+    assert ok_qz and not calls
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        σ_si, *_, N_si, _, ok_si = eigenmodes(params("shift-invert"))
+    assert ok_si
+    assert calls and all(calls)
+    assert N_si == N_qz
+    assert abs(np.atleast_1d(σ_si)[0] - np.atleast_1d(σ_qz)[0]) \
+        <= 1e-8 * abs(np.atleast_1d(σ_qz)[0])

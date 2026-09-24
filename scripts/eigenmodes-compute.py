@@ -9,6 +9,7 @@ from tearing_eigenmodes import build_params, build_dpath, print_info, \
                              refine_eigenvalues, refine_inner_scale, \
                              eigenmodes, write_results, save_eigenmode, setup_logging, \
                              check_state, compile_metadata, SimulationParams
+from tearing_eigenmodes.parser import resolve_gevp_method
 
 counter: Any = None
 
@@ -183,6 +184,12 @@ def main() -> None:
     logging.info("Use option '-h' to show all possible arguments.\n")
 
     print_info(params)
+
+    # A single wavenumber has the machine to itself, so it can use the
+    # threaded shift-invert solver; several run in worker processes.
+    params.gevp_method = resolve_gevp_method(params.gevp_method, ntasks == 1)
+    if ntasks == 1 and params.gevp_method == 'shift-invert' and os.getenv("OMP_NUM_THREADS") == "1":
+        logging.warning("\n\033[1mOMP_NUM_THREADS=1 limits the threaded shift-invert solver used for a single wavenumber to one core; unset it to use them all.\033[0m")
 
     if ntasks > 1 and os.getenv("OMP_NUM_THREADS") != "1":
         logging.warning("\n\033[1mPlease set OMP_NUM_THREADS=1 to ensure optimal performance!\033[0m")

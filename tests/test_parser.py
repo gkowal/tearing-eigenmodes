@@ -306,6 +306,41 @@ def test_build_params_log_extrapolation(monkeypatch):
     params_log = build_params(parser_type="maximum")
     assert params_log["log_extrapolation"] is True
 
+def test_build_params_gevp_method(monkeypatch):
+    """--gevp-method follows --step unless given explicitly."""
+    base = ["eigenmodes-maxima.py", "-d", "S", "-R", "1e3", "1e5", "1e4"]
+
+    monkeypatch.setattr("sys.argv", base)
+    assert build_params(parser_type="maximum")["gevp_method"] == "qz"
+
+    monkeypatch.setattr("sys.argv", base + ["--step"])
+    assert build_params(parser_type="maximum")["gevp_method"] == "shift-invert"
+
+    monkeypatch.setattr("sys.argv", base + ["--step", "--gevp-method", "qz"])
+    assert build_params(parser_type="maximum")["gevp_method"] == "qz"
+
+    monkeypatch.setattr("sys.argv", base + ["--gevp-method", "shift-invert"])
+    assert build_params(parser_type="maximum")["gevp_method"] == "shift-invert"
+
+def test_build_params_dispersion_gevp_method(monkeypatch):
+    """The dispersion parser keeps --gevp-method as requested, None if absent."""
+    base = ["eigenmodes-compute.py", "-K", "0.1", "0.5", "0.1"]
+
+    monkeypatch.setattr("sys.argv", base)
+    assert build_params(parser_type="dispersion")["gevp_method"] is None
+
+    monkeypatch.setattr("sys.argv", base + ["--gevp-method", "shift-invert"])
+    assert build_params(parser_type="dispersion")["gevp_method"] == "shift-invert"
+
+
+def test_resolve_gevp_method():
+    from tearing_eigenmodes.parser import resolve_gevp_method
+
+    assert resolve_gevp_method(None, True) == "shift-invert"
+    assert resolve_gevp_method(None, False) == "qz"
+    assert resolve_gevp_method("qz", True) == "qz"
+    assert resolve_gevp_method("shift-invert", False) == "shift-invert"
+
 def test_inner_resolution_safety_default_and_parsing():
     """Inner resolution safety factor must default to 1.01 and parse explicit values correctly."""
     from tearing_eigenmodes import SimulationParams

@@ -84,6 +84,8 @@ class SimulationParams:
     atol: float = 1e-10
     rtol: float = 1e-5
     gtol: float = 1e-2
+    # None means 'not chosen'; eigenmodes() then uses 'qz'.
+    gevp_method: Optional[str] = 'qz'
     dtol: float = 1e-3
     ntasks: int = 1
     allmodes: bool = False

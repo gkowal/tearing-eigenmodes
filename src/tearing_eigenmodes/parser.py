@@ -292,6 +292,37 @@ def parser_setup(description: str = "Computes the tearing-instability growth rat
     return parser
 
 
+def add_gevp_method_argument(parser: argparse.ArgumentParser, single: str) -> None:
+    """
+    Add --gevp-method, whose default is resolved by resolve_gevp_method().
+
+    ``single`` names the case in which the script solves one problem at a
+    time, for the help text.
+    """
+    parser.add_argument(
+        "--gevp-method",
+        choices=['qz', 'shift-invert'],
+        default=None,
+        help="dense solver for the generalized eigenproblem: 'qz' "
+             "(serial) or 'shift-invert' (several times faster and "
+             "uses all BLAS threads); defaults to 'shift-invert' "
+             f"{single}, which solves one problem at a time, and 'qz' "
+             "otherwise"
+    )
+
+
+def resolve_gevp_method(requested: Optional[str], one_at_a_time: bool) -> str:
+    """
+    The dense generalized solver to use: ``requested`` if given, otherwise
+    'shift-invert' when problems are solved one at a time, so that its BLAS
+    threads have the machine to themselves, and 'qz' when they run in
+    parallel worker processes.
+    """
+    if requested is not None:
+        return requested
+    return 'shift-invert' if one_at_a_time else 'qz'
+
+
 def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
     """
     Construct and parse the command‑line interface for the tearing‑instability solver.
@@ -334,6 +365,7 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
             default=0,
             help="the eigenmode number"
         )
+        add_gevp_method_argument(parser, "for a single wavenumber")
     elif parser_type == 'maximum':
         parser.add_argument(
             "--dependence", "-d",
@@ -405,6 +437,7 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
             default=None,
             help="Limit the maximum search range for the eigenvalue's real part relative to the previous step (e.g. 1.5 for 1.5 * σ_prev)."
         )
+        add_gevp_method_argument(parser, "with --step")
     elif parser_type == 'plot':
         parser.add_argument(
             "--zmin",
@@ -615,6 +648,9 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         params['kmin'] = args.wavenumber_range[0] if args.logarithmic else max(args.wavenumber_range[0], args.wavenumber_range[2])
         params['kmax'] = args.wavenumber_range[1]
         params['kinc'] = args.wavenumber_range[2]
+        # Left as requested (possibly None): only the script knows how many
+        # wavenumbers it solves, and it resolves the default from that.
+        params['gevp_method'] = args.gevp_method
 
     if hasattr(args, 'range'):
         params['vmin'] = args.range[0]
@@ -635,6 +671,7 @@ def build_params(parser_type: str = 'dispersion') -> SimulationParams:
         params['log_extrapolation'] = getattr(args, 'log_extrapolation', False)
         params['step_lower_factor'] = args.step_lower_factor
         params['step_upper_factor'] = args.step_upper_factor
+        params['gevp_method'] = resolve_gevp_method(args.gevp_method, args.step)
 
     if hasattr(args, 'zmin'):
         params['zmin']        = args.zmin

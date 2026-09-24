@@ -354,7 +354,13 @@ def main() -> None:
 
     print_info(params)
 
-    if ntasks > 1 and os.getenv("OMP_NUM_THREADS") != "1":
+    if params.step:
+        # One value at a time, so the parallelism has to come from BLAS
+        # threads inside each solve rather than from worker processes.
+        nprocs = 1
+        if params.gevp_method == 'shift-invert' and os.getenv("OMP_NUM_THREADS") == "1":
+            logging.warning("\n\033[1mOMP_NUM_THREADS=1 limits the threaded shift-invert solver used with --step to one core; unset it to use them all.\033[0m")
+    elif ntasks > 1 and os.getenv("OMP_NUM_THREADS") != "1":
         logging.warning("\n\033[1mPlease set OMP_NUM_THREADS=1 to ensure optimal performance!\033[0m")
         nprocs = 1
 
