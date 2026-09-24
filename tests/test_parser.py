@@ -413,3 +413,47 @@ def test_validate_parameters_zeta_range(zeta):
     args = parser_setup().parse_args(["--zeta", zeta])
     with pytest.raises(ParameterError, match="ζ"):
         validate_parameters(args)
+
+
+def test_build_parser_maximum_has_description(monkeypatch):
+    from tearing_eigenmodes.parser import build_parser
+    captured = {}
+    import argparse as _argparse
+    original = _argparse.ArgumentParser.parse_args
+
+    def spy(self, *a, **k):
+        captured["description"] = self.description
+        return original(self, *a, **k)
+
+    monkeypatch.setattr(_argparse.ArgumentParser, "parse_args", spy)
+    monkeypatch.setattr("sys.argv", ["eigenmodes-maxima.py", "-R", "1e3", "1e5", "1e4"])
+    build_parser(parser_type="maximum")
+    assert "maximum growth rate" in captured["description"]
+
+
+def test_validate_parameters_imag_range_order():
+    args = parser_setup().parse_args(["-I", "1", "-1"])
+    with pytest.raises(ParameterError, match="Imaginary"):
+        validate_parameters(args)
+
+
+def test_validate_parameters_cgl_delta_beta_below_two():
+    args = parser_setup().parse_args(["--CGL", "-Δβ", "2.0"])
+    with pytest.raises(ParameterError, match="< 2"):
+        validate_parameters(args)
+    validate_parameters(parser_setup().parse_args(["-Δβ", "2.0"]))  # Classical ignores Δβ
+
+
+@pytest.mark.parametrize("argv, dest", [
+    (["-K", "0", "1", "0"], "wavenumber_range"),
+    (["-R", "0", "1", "-0.1"], "range"),
+])
+def test_validate_parameters_sweep_increment_positive(argv, dest):
+    parser = parser_setup()
+    if dest == "wavenumber_range":
+        parser.add_argument("--wavenumber-range", "-K", type=float, nargs=3, default=[0, 1, 0.01])
+    else:
+        parser.add_argument("--range", "-R", type=float, nargs=3, default=[0, 1, 0.1])
+    args = parser.parse_args(argv)
+    with pytest.raises(ParameterError, match="increment"):
+        validate_parameters(args)

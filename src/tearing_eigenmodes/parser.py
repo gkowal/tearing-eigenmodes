@@ -342,7 +342,7 @@ def build_parser(parser_type: str = 'dispersion') -> argparse.Namespace:
     description: str = ""
     if parser_type == 'dispersion':
         description = "Calculates the dispersion relation for tearing instability."
-    elif parser_type == 'maxima':
+    elif parser_type in ('maxima', 'maximum'):
         description = "Calculates the maximum growth rate for tearing instability."
     elif parser_type == 'profiles':
         description = "Plots eigenfunctions for tearing instability."
@@ -777,6 +777,12 @@ def validate_parameters(args: argparse.Namespace) -> None:
     if min(w_min, w_max) < 0:
         raise ParameterError("Current sheet half‑width (w) must be ≥ 0")
 
+    if args.CGL and max(dbeta_min, dbeta_max) >= 2:
+        raise ParameterError(
+            f"Plasma‑β difference (Δβ) must be < 2 with --CGL (A = 1 - Δβ/2 > 0; "
+            f"max Δβ = {max(dbeta_min, dbeta_max):.3g})"
+        )
+
     if args.CGL:
         # The Gyrotropic system has no transverse-field or sheet-width terms
         if max(abs(xi_min), abs(xi_max)) > 0:
@@ -837,6 +843,20 @@ def validate_parameters(args: argparse.Namespace) -> None:
         )
     if gmin < 0:
         raise ParameterError("Growth‑rate lower bound cannot be negative")
+
+    imin, imax = args.imag_part_range
+    if not (imin <= imax):
+        raise ParameterError(
+            f"Imaginary‑part lower bound ({imin}) must be ≤ upper bound ({imax})."
+        )
+
+    # ------------------------------------------------------------------
+    # 5b) Sweep increments
+    # ------------------------------------------------------------------
+    if hasattr(args, 'wavenumber_range') and not args.wavenumber_range[2] > 0:
+        raise ParameterError("Wavenumber increment (--wavenumber-range / -K) must be positive")
+    if hasattr(args, 'range') and not args.range[2] > 0:
+        raise ParameterError("Parameter increment (--range / -R) must be positive")
 
     # ------------------------------------------------------------------
     # 6) Inner collocation points with corresponding width
