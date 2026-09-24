@@ -245,6 +245,16 @@ EigenmodesReturn = Tuple[
 ]
 
 
+def resolution_sequence(Nlow: int, Nmax: int, Ninc: int) -> np.ndarray:
+    """
+    Resolutions Nlow, Nlow+Ninc, ... capped at Nmax, always ending at Nmax.
+    """
+    Ns = np.arange(Nlow, Nmax + 1, Ninc)
+    if Ns.size == 0 or Ns[-1] != Nmax:
+        Ns = np.append(Ns, Nmax)
+    return Ns
+
+
 def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
     """
     Calculates tearing instability eigenmodes for a given set of parameters.
@@ -313,7 +323,7 @@ def eigenmodes(params: SimulationParams) -> EigenmodesReturn:
         kx = α/a
 
         # order = max(4 if Pr > 0 else 2, 3 if abs(ξ) > 0 else 2)
-        Ns    = np.arange(Nlow, Nmax+Ninc, Ninc)
+        Ns    = resolution_sequence(Nlow, Nmax, Ninc)
 
         re_range=[reσlo, reσup]
         im_range=[imσlo, imσup]

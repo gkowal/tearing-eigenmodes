@@ -471,3 +471,22 @@ def test_eigenmodes_hall_converges_without_scale_diagnostics():
     assert s["minimum_physical_scale_key"] == ""
     assert np.isnan(s["resistive_layer_thickness"])
     assert all(np.isnan(v) for v in s["mode_scales"].values())
+
+
+@pytest.mark.parametrize("Nlow, Nmax, Ninc, expected", [
+    (64, 128, 32, [64, 96, 128]),
+    (100, 200, 32, [100, 132, 164, 196, 200]),
+    (64, 100, 32, [64, 96, 100]),
+    (64, 64, 32, [64]),
+])
+def test_resolution_sequence_never_exceeds_nmax(Nlow, Nmax, Ninc, expected):
+    from tearing_eigenmodes.solver import resolution_sequence
+    assert resolution_sequence(Nlow, Nmax, Ninc).tolist() == expected
+
+
+def test_eigenmodes_respects_nmax_with_misaligned_range():
+    params = SimulationParams(S=1e3, alpha=0.5, Nmin=64, Nmax=100, Ninc=32,
+                              rtol=1e-15, atol=1e-30)
+    *_, N, _, status = eigenmodes(params)
+    assert status is True
+    assert N == 100
