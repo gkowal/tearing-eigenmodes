@@ -343,3 +343,24 @@ def test_missing_eos_backfilled_adiabatic():
         assert load_state_data(filepath)["eos"] == "adiabatic"
         assert eos_indices(load_state_data(filepath)["eos"]) == (3.0, 2.0)
 
+
+
+def test_validate_keeps_measured_thickness_in_current_files(tmp_path):
+    """A current-format file stores run-config 'inner_scale' next to the
+    measured 'resistive_layer_thickness'; validation must not clobber it."""
+    filepath = str(tmp_path / "state_α1.000000e-01.npz")
+    payload = _dispersion_base()
+    payload["resistive_layer_thickness"] = np.array(0.0805)
+    payload["resistive_layer_nodes"] = np.array(7)
+    payload["inner_scale"] = np.array(0.123)
+    payload["n_inner"] = np.array(3)
+    save_eigenmode(filepath, **payload)
+
+    success, _ = validate_and_fix_file(filepath)
+    assert success is True
+
+    with np.load(filepath, allow_pickle=True) as state:
+        assert float(state["resistive_layer_thickness"]) == pytest.approx(0.0805)
+        assert int(state["resistive_layer_nodes"]) == 7
+        assert float(state["inner_scale"]) == pytest.approx(0.123)
+        assert int(state["n_inner"]) == 3

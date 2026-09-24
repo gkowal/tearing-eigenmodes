@@ -63,8 +63,10 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
         data['eigenvalue'] = np.array(eigenvalues[0]) if eigenvalues.size > 0 else np.array(0.0j)
         modified = True
 
-    # 2b. Inner scale rename
-    if 'inner_scale' in data:
+    # 2b. Inner scale rename (legacy files only: current files store
+    # 'inner_scale' as the run-config grid input next to the measured
+    # 'resistive_layer_thickness', which must not be overwritten)
+    if 'inner_scale' in data and 'resistive_layer_thickness' not in data:
         data['resistive_layer_thickness'] = data.pop('inner_scale')
         modified = True
 
@@ -74,7 +76,7 @@ def validate_and_fix_file(filepath: str, dry_run: bool = False, verbose: bool = 
         modified = True
 
     # 2d. Node counts rename
-    if 'n_inner' in data:
+    if 'n_inner' in data and 'resistive_layer_nodes' not in data:
         data['resistive_layer_nodes'] = data.pop('n_inner')
         modified = True
     if 'n_wa' in data:
