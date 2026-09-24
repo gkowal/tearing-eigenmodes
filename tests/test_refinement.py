@@ -1767,3 +1767,21 @@ def test_refine_eigenvalues_flag_off_legacy_exact(monkeypatch: pytest.MonkeyPatc
     expected = list(raw)
     expected[1] = 0.1
     np.testing.assert_allclose(np.asarray(got), np.asarray(expected), rtol=1e-12)
+
+
+def test_refine_eigenvalues_dispersion_uses_k_for_nonunit_thickness(tmp_path):
+    """Dispersion states store α = k·a, while callers pass k; with a ≠ 1 the
+    interpolation must be done in k."""
+    import numpy as np
+    from tearing_eigenmodes import SimulationParams, save_eigenmode, refine_eigenvalues
+    from tearing_eigenmodes import refinement
+    refinement._load_eigenmodes_cache.clear()
+    for al in (0.2, 0.3, 0.4, 0.5):
+        save_eigenmode(str(tmp_path / f"state_α{al:.6e}.npz"), wavenumber=al,
+                       eigenvalue=complex(al, 0.0), tolerance=0.5, resolution=64,
+                       grid=np.zeros(3), a=2.0)
+    params = SimulationParams(a=2.0, sigma=None)
+    params.data_path = str(tmp_path)
+    ks = np.array([0.1, 0.15, 0.2, 0.25])
+    sigma = refine_eigenvalues(ks, params)
+    np.testing.assert_allclose(np.real(sigma), 2.0 * ks, rtol=1e-10)

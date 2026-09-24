@@ -84,6 +84,12 @@ def refine_eigenvalues(vs: np.ndarray, params: SimulationParams) -> List[Any]:
     if v.size < 2:
         return sigma
 
+    if params.dependence is None:
+        # Dispersion runs: stored abscissae are α = k·a while vs holds k
+        # (the result directory encodes a, so params.a matches the states)
+        a = params.a if params.a is not None and params.a > 0.0 else 1.0
+        v = v / a
+
     degree = min(3, v.size - 1)
     if (
         bool(getattr(params, "log_extrapolation", False))
