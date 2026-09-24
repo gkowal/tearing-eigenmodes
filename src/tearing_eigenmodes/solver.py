@@ -130,6 +130,12 @@ class TearingSolver(Solver):
                 m = 0
                 k = Nmodes if allmodes else 1
                 return m, k
+            if not allmodes and int(maxmode) >= Nmodes:
+                # Clamping would silently converge (and label) another mode.
+                raise DeltaError(
+                    f"Requested mode {int(maxmode)} not found: only {Nmodes} "
+                    f"mode{'s' if Nmodes != 1 else ''} in the search range."
+                )
             m = max(0, min(int(maxmode), Nmodes - 1))
             k = (m + 1) if allmodes else 1
             return m, k
@@ -144,8 +150,12 @@ class TearingSolver(Solver):
             index = np.argsort(Σ_old.imag)[::-1]
         else:
             index = np.argsort(np.abs(Σ_old))[::-1]
+        # Keep the modes in selection order so that 'mode' indexes them
+        Σ_old = Σ_old[index]
+        if V_old is not None:
+            V_old = V_old[:,index]
         if verbose:
-            _print_modes(Σ_old[index], self.grid.N)
+            _print_modes(Σ_old, self.grid.N)
 
         mode, modes = _select(Σ_old.size, maxmode, allmodes)
 
@@ -157,14 +167,16 @@ class TearingSolver(Solver):
             if hasattr(self.grid, 'current_sigma') and Σ_old.size > 0:
                 self.grid.current_sigma = Σ_old[mode]
             self.grid.N = N
-            if delta > gtol:
+            guessed = delta <= gtol
+            if not guessed:
                 case = ''
                 Σ, V = self.solve_full()
             else:
                 case = ' [with guess]'
                 Σ = []
                 V = []
-                for i in range(modes):
+                # Refine the tracked mode (or modes 0..mode with allmodes)
+                for i in (range(modes) if allmodes else [mode]):
                     σ0 = Σ_old[i]
                     if useEVguess and V_old is not None:
                         v0 = self.prolongate_eigenvector(V_old[:,i], grid_old)
@@ -180,6 +192,7 @@ class TearingSolver(Solver):
                 Σ_new, V_new = self.filter_modes(Σ, V, re_range=re_range, im_range=im_range)
             except ValueError:
                 case = ' [guess failed → full]'
+                guessed = False
                 Σ, V = self.solve_full()
                 Σ_new, V_new = self.filter_modes(Σ, V, re_range=re_range, im_range=im_range)
 
@@ -189,7 +202,11 @@ class TearingSolver(Solver):
             if V_new is not None:
                 V_new = V_new[:,index]
 
-            mode, modes = _select(Σ_new.size, maxmode, allmodes)
+            if guessed and not allmodes:
+                # Only the tracked mode was refined
+                mode, modes = 0, 1
+            else:
+                mode, modes = _select(Σ_new.size, maxmode, allmodes)
 
             error = errors[mode]
             delta = deltas[mode]

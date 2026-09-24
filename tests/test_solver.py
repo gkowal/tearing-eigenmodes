@@ -501,3 +501,59 @@ def test_eigenmodes_single_resolution_reports_unconverged():
     assert N == 64
     assert np.isinf(e)
     assert σ.real > 0.0
+
+
+class _StubSolver:
+    """Deterministic stand-in for psecas: three real modes whose full solves
+    drift with N (so the first comparison does not converge) and whose
+    guided solves reproduce the guess."""
+
+    def __init__(self):
+        from types import SimpleNamespace
+        self.grid = SimpleNamespace(N=0, C=1.0, zg=np.zeros(3))
+        self.system = SimpleNamespace(result={})
+        self.guesses = []
+
+    def solve_full(self):
+        base = np.array([0.1, 0.3, 0.2], dtype=complex)  # unsorted on purpose
+        return base * (1.0 + 0.1 / self.grid.N), np.eye(3, dtype=complex)
+
+    def filter_modes(self, Σ, V, re_range=None, im_range=None):
+        return Σ, V
+
+    def solve_mode(self, σ0, v0=None, useOPinv=True, verbose=False):
+        self.guesses.append(σ0)
+        return σ0 * (1.0 + 1e-12), v0
+
+    def prolongate_eigenvector(self, v, grid_old):
+        return v
+
+    def keep_result(self, σ, v, mode):
+        self.system.result["sigma"] = σ
+
+
+def _stub_iterate(**kwargs):
+    from tearing_eigenmodes.solver import TearingSolver
+    stub = _StubSolver()
+    out = TearingSolver.iterate_solve_multimode(
+        stub, [64, 96, 128, 160], orderby="real", rtol=1e-5, atol=1e-10,
+        gtol=1e-2, **kwargs)
+    return stub, out
+
+
+def test_iterate_tracks_requested_mode_through_guess_path():
+    stub, (σ, v, e) = _stub_iterate(maxmode=1)
+    assert e <= 1.0
+    assert σ.real == pytest.approx(0.2, rel=1e-2)
+    assert stub.guesses and all(g.real == pytest.approx(0.2, rel=1e-2) for g in stub.guesses)
+
+
+def test_iterate_rejects_missing_mode_instead_of_clamping():
+    from tearing_eigenmodes.exceptions import DeltaError
+    with pytest.raises(DeltaError, match="Requested mode 5"):
+        _stub_iterate(maxmode=5)
+
+
+def test_iterate_allmodes_clamps_to_available_modes():
+    _, (Σ, V, errors) = _stub_iterate(maxmode=5, allmodes=True)
+    assert Σ.size == 3
