@@ -213,6 +213,11 @@ class TearingSolver(Solver):
             V_old = V_new.copy() if V_new is not None else None
             grid_old = copy.deepcopy(self.grid)
 
+        if errors.size == 0:
+            # A single resolution gives no convergence estimate: report the
+            # modes of the one full solve as unconverged instead of failing.
+            errors = np.full(Σ_old.size, np.inf)
+
         v_old_mode = V_old[:,mode] if V_old is not None else None
         self.keep_result(Σ_old[mode], v_old_mode, mode)
         self.system.result.update({"converged": False})

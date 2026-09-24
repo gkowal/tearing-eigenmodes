@@ -490,3 +490,14 @@ def test_eigenmodes_respects_nmax_with_misaligned_range():
     *_, N, _, status = eigenmodes(params)
     assert status is True
     assert N == 100
+
+
+def test_eigenmodes_single_resolution_reports_unconverged():
+    """Nmin == Nmax leaves one resolution: the solve must return the mode
+    as unconverged (infinite error) rather than fail."""
+    params = SimulationParams(S=1e3, alpha=0.5, Nmin=64, Nmax=64, Ninc=32)
+    σ, s, e, δin, nin, nwa, C, N, z, status = eigenmodes(params)
+    assert status is True
+    assert N == 64
+    assert np.isinf(e)
+    assert σ.real > 0.0
